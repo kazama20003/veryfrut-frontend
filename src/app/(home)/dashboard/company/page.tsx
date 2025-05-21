@@ -1,0 +1,763 @@
+"use client"
+
+import type React from "react"
+
+import { useState, useEffect } from "react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Label } from "@/components/ui/label"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Separator } from "@/components/ui/separator"
+import { toast } from "sonner"
+import { api } from "@/lib/axiosInstance"
+import { Building, Plus, Search, Edit, Trash2, MoreVertical, Layers, AlertCircle } from "lucide-react"
+
+// Interfaces para los modelos
+interface Area {
+  id: number
+  name: string
+  companyId: number
+}
+
+interface Company {
+  id: number
+  name: string
+  areas?: Area[]
+}
+
+// Componente para el formulario de empresa
+function CompanyForm({
+  company,
+  onSubmit,
+  isOpen,
+  onOpenChange,
+}: {
+  company: Company | null
+  onSubmit: (data: { name: string }) => void
+  isOpen: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const [name, setName] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (company) {
+      setName(company.name)
+    } else {
+      setName("")
+    }
+  }, [company, isOpen])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+
+    try {
+      await onSubmit({ name })
+      onOpenChange(false)
+    } catch (error) {
+      console.error("Error al guardar empresa:", error)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>{company ? "Editar empresa" : "Nueva empresa"}</DialogTitle>
+          <DialogDescription>
+            {company
+              ? "Actualiza los datos de la empresa existente."
+              : "Completa el formulario para crear una nueva empresa."}
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="name">Nombre de la empresa *</Label>
+            <Input
+              id="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Nombre de la empresa"
+              required
+            />
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={isSubmitting} className="bg-green-600 hover:bg-green-700">
+              {isSubmitting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                  {company ? "Actualizando..." : "Creando..."}
+                </>
+              ) : company ? (
+                "Actualizar empresa"
+              ) : (
+                "Crear empresa"
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// Componente para el formulario de área
+function AreaForm({
+  area,
+  companyId,
+  onSubmit,
+  isOpen,
+  onOpenChange,
+}: {
+  area: Area | null
+  companyId: number
+  onSubmit: (data: { name: string; companyId: number }) => void
+  isOpen: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const [name, setName] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (area) {
+      setName(area.name)
+    } else {
+      setName("")
+    }
+  }, [area, isOpen])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+
+    try {
+      await onSubmit({ name, companyId })
+      onOpenChange(false)
+    } catch (error) {
+      console.error("Error al guardar área:", error)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>{area ? "Editar área" : "Nueva área"}</DialogTitle>
+          <DialogDescription>
+            {area ? "Actualiza los datos del área existente." : "Completa el formulario para crear una nueva área."}
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="name">Nombre del área *</Label>
+            <Input
+              id="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Nombre del área"
+              required
+            />
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={isSubmitting} className="bg-green-600 hover:bg-green-700">
+              {isSubmitting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                  {area ? "Actualizando..." : "Creando..."}
+                </>
+              ) : area ? (
+                "Actualizar área"
+              ) : (
+                "Crear área"
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// Componente para la tarjeta de área
+function AreaCard({
+  area,
+  onEdit,
+  onDelete,
+}: {
+  area: Area
+  onEdit: (area: Area) => void
+  onDelete: (id: number) => void
+}) {
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+
+  const handleDelete = () => {
+    setIsDeleteDialogOpen(true)
+  }
+
+  const confirmDelete = () => {
+    onDelete(area.id)
+    setIsDeleteDialogOpen(false)
+  }
+
+  return (
+    <>
+      <div className="flex items-center justify-between p-3 border rounded-md bg-card">
+        <div className="flex items-center gap-2">
+          <Layers className="h-4 w-4 text-muted-foreground" />
+          <span className="font-medium text-sm">{area.name}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(area)}>
+            <Edit className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={handleDelete}>
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción eliminará permanentemente el área {area.name} y no se puede deshacer.
+              <br />
+              <br />
+              <span className="font-medium text-destructive">
+                Nota: Si hay usuarios asignados a esta área, no podrá ser eliminada.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  )
+}
+
+// Componente para la tarjeta de empresa (vista móvil)
+function CompanyCard({
+  company,
+  onEdit,
+  onDelete,
+  onAddArea,
+  onEditArea,
+  onDeleteArea,
+}: {
+  company: Company
+  onEdit: (company: Company) => void
+  onDelete: (id: number) => void
+  onAddArea: (companyId: number) => void
+  onEditArea: (area: Area) => void
+  onDeleteArea: (id: number) => void
+}) {
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const areas = company.areas || []
+
+  const handleDelete = () => {
+    setIsDeleteDialogOpen(true)
+  }
+
+  const confirmDelete = () => {
+    onDelete(company.id)
+    setIsDeleteDialogOpen(false)
+  }
+
+  return (
+    <>
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex justify-between items-start">
+            <div className="space-y-1">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Building className="h-5 w-5 text-muted-foreground" />
+                {company.name}
+              </CardTitle>
+              <CardDescription>
+                {areas.length} {areas.length === 1 ? "área" : "áreas"}
+              </CardDescription>
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => onEdit(company)}>
+                  <Edit className="mr-2 h-4 w-4" />
+                  Editar empresa
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onAddArea(company.id)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Añadir área
+                </DropdownMenuItem>
+                <DropdownMenuItem className="text-destructive" onClick={handleDelete}>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Eliminar empresa
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Accordion type="single" collapsible className="w-full">
+            <AccordionItem value="areas">
+              <AccordionTrigger className="py-2">
+                <span className="text-sm font-medium">Áreas</span>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="space-y-2 pt-1">
+                  {areas.length > 0 ? (
+                    areas.map((area) => (
+                      <AreaCard key={area.id} area={area} onEdit={onEditArea} onDelete={onDeleteArea} />
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground py-2">No hay áreas definidas</p>
+                  )}
+                  <Button variant="outline" size="sm" className="w-full mt-2" onClick={() => onAddArea(company.id)}>
+                    <Plus className="mr-2 h-3.5 w-3.5" />
+                    Añadir área
+                  </Button>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        </CardContent>
+      </Card>
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción eliminará permanentemente la empresa {company.name} y todas sus áreas. Esta acción no se
+              puede deshacer.
+              <br />
+              <br />
+              <span className="font-medium text-destructive">
+                Nota: Si hay usuarios asignados a alguna de las áreas de esta empresa, no podrá ser eliminada.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  )
+}
+
+// Componente principal de la página de empresas
+export default function CompaniesPage() {
+  const [companies, setCompanies] = useState<Company[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [activeTab, setActiveTab] = useState("companies")
+
+  // Estados para los formularios
+  const [isCompanyFormOpen, setIsCompanyFormOpen] = useState(false)
+  const [currentCompany, setCurrentCompany] = useState<Company | null>(null)
+  const [isAreaFormOpen, setIsAreaFormOpen] = useState(false)
+  const [currentArea, setCurrentArea] = useState<Area | null>(null)
+  const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null)
+
+  // Cargar empresas desde la API
+  useEffect(() => {
+    const fetchCompanies = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const response = await api.get("/company")
+        // Asegurarse de que siempre sea un array
+        const companiesData = Array.isArray(response.data) ? response.data : [response.data]
+        setCompanies(companiesData)
+      } catch (err) {
+        console.error("Error al cargar empresas:", err)
+        setError("No se pudieron cargar las empresas. Por favor, intenta de nuevo más tarde.")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchCompanies()
+  }, [])
+
+  // Crear nueva empresa
+  const handleCreateCompany = async (data: { name: string }) => {
+    try {
+      const response = await api.post("/company", data)
+      // Si la API devuelve la empresa con sus áreas
+      const newCompany = response.data
+      setCompanies([...companies, { ...newCompany, areas: newCompany.areas || [] }])
+      toast.success("Empresa creada correctamente")
+    } catch (err) {
+      console.error("Error al crear la empresa:", err)
+      toast.error("No se pudo crear la empresa. Por favor, intenta de nuevo.")
+      throw err
+    }
+  }
+
+  // Actualizar empresa existente
+  const handleUpdateCompany = async (data: { name: string }) => {
+    if (!currentCompany) return
+
+    try {
+      const response = await api.patch(`/company/${currentCompany.id}`, data)
+      setCompanies(
+        companies.map((company) =>
+          company.id === currentCompany.id
+            ? { ...company, ...response.data, areas: response.data.areas || company.areas }
+            : company,
+        ),
+      )
+      toast.success("Empresa actualizada correctamente")
+    } catch (err) {
+      console.error("Error al actualizar la empresa:", err)
+      toast.error("No se pudo actualizar la empresa. Por favor, intenta de nuevo.")
+      throw err
+    }
+  }
+
+  // Eliminar empresa
+  const handleDeleteCompany = async (id: number) => {
+    try {
+      await api.delete(`/company/${id}`)
+      setCompanies(companies.filter((company) => company.id !== id))
+      toast.success("Empresa eliminada correctamente")
+    } catch (err) {
+      console.error("Error al eliminar la empresa:", err)
+      toast.error("No se pudo eliminar la empresa. Por favor, intenta de nuevo.")
+    }
+  }
+
+  // Crear nueva área
+  const handleCreateArea = async (data: { name: string; companyId: number }) => {
+    try {
+      const response = await api.post("/areas", data)
+      const newArea = response.data
+
+      setCompanies(
+        companies.map((company) => {
+          if (company.id === data.companyId) {
+            return {
+              ...company,
+              areas: [...(company.areas || []), newArea],
+            }
+          }
+          return company
+        }),
+      )
+      toast.success("Área creada correctamente")
+    } catch (err) {
+      console.error("Error al crear el área:", err)
+      toast.error("No se pudo crear el área. Por favor, intenta de nuevo.")
+      throw err
+    }
+  }
+
+  // Actualizar área existente
+  const handleUpdateArea = async (data: { name: string; companyId: number }) => {
+    if (!currentArea) return
+
+    try {
+      const response = await api.patch(`/areas/${currentArea.id}`, data)
+      const updatedArea = response.data
+
+      setCompanies(
+        companies.map((company) => {
+          if (company.id === data.companyId) {
+            return {
+              ...company,
+              areas: (company.areas || []).map((area) =>
+                area.id === currentArea.id ? { ...area, ...updatedArea } : area,
+              ),
+            }
+          }
+          return company
+        }),
+      )
+      toast.success("Área actualizada correctamente")
+    } catch (err) {
+      console.error("Error al actualizar el área:", err)
+      toast.error("No se pudo actualizar el área. Por favor, intenta de nuevo.")
+      throw err
+    }
+  }
+
+  // Eliminar área
+  const handleDeleteArea = async (id: number) => {
+    try {
+      await api.delete(`/areas/${id}`)
+
+      setCompanies(
+        companies.map((company) => ({
+          ...company,
+          areas: (company.areas || []).filter((area) => area.id !== id),
+        })),
+      )
+      toast.success("Área eliminada correctamente")
+    } catch (err) {
+      console.error("Error al eliminar el área:", err)
+      toast.error("No se pudo eliminar el área. Por favor, intenta de nuevo.")
+    }
+  }
+
+  // Abrir formulario para editar empresa
+  const handleEditCompany = (company: Company) => {
+    setCurrentCompany(company)
+    setIsCompanyFormOpen(true)
+  }
+
+  // Abrir formulario para crear empresa
+  const handleCreateCompanyClick = () => {
+    setCurrentCompany(null)
+    setIsCompanyFormOpen(true)
+  }
+
+  // Abrir formulario para añadir área
+  const handleAddArea = (companyId: number) => {
+    setCurrentArea(null)
+    setSelectedCompanyId(companyId)
+    setIsAreaFormOpen(true)
+  }
+
+  // Abrir formulario para editar área
+  const handleEditArea = (area: Area) => {
+    setCurrentArea(area)
+    setSelectedCompanyId(area.companyId)
+    setIsAreaFormOpen(true)
+  }
+
+  // Manejar envío del formulario de empresa
+  const handleCompanyFormSubmit = async (data: { name: string }) => {
+    if (currentCompany) {
+      await handleUpdateCompany(data)
+    } else {
+      await handleCreateCompany(data)
+    }
+  }
+
+  // Manejar envío del formulario de área
+  const handleAreaFormSubmit = async (data: { name: string; companyId: number }) => {
+    if (currentArea) {
+      await handleUpdateArea(data)
+    } else {
+      await handleCreateArea(data)
+    }
+  }
+
+  // Filtrar empresas por búsqueda
+  const filteredCompanies = companies.filter((company) => company.name.toLowerCase().includes(searchTerm.toLowerCase()))
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-center">
+        <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
+        <h2 className="text-xl font-semibold mb-2">Error al cargar empresas</h2>
+        <p className="text-muted-foreground">{error}</p>
+        <Button className="mt-4" onClick={() => window.location.reload()}>
+          Intentar de nuevo
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Empresas y Áreas</h1>
+        <Button className="w-full sm:w-auto" onClick={handleCreateCompanyClick}>
+          <Plus className="mr-2 h-4 w-4" />
+          Nueva Empresa
+        </Button>
+      </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="companies">Empresas</TabsTrigger>
+          <TabsTrigger value="areas">Áreas</TabsTrigger>
+        </TabsList>
+        <TabsContent value="companies" className="space-y-4 mt-4">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-grow">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Buscar empresas..."
+                className="pl-8"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Vista móvil: Tarjetas */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredCompanies.length > 0 ? (
+              filteredCompanies.map((company) => (
+                <CompanyCard
+                  key={company.id}
+                  company={company}
+                  onEdit={handleEditCompany}
+                  onDelete={handleDeleteCompany}
+                  onAddArea={handleAddArea}
+                  onEditArea={handleEditArea}
+                  onDeleteArea={handleDeleteArea}
+                />
+              ))
+            ) : (
+              <div className="col-span-full py-8 text-center">
+                <p className="text-muted-foreground">
+                  {searchTerm
+                    ? "No se encontraron empresas que coincidan con la búsqueda"
+                    : "No hay empresas registradas"}
+                </p>
+                <Button className="mt-4" onClick={handleCreateCompanyClick}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Crear primera empresa
+                </Button>
+              </div>
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="areas" className="space-y-4 mt-4">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-grow">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Buscar áreas..."
+                className="pl-8"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            {filteredCompanies.length > 0 ? (
+              filteredCompanies.map((company) => {
+                const areas = company.areas || []
+                const filteredAreas = areas.filter((area) => area.name.toLowerCase().includes(searchTerm.toLowerCase()))
+
+                if (searchTerm && filteredAreas.length === 0) return null
+
+                return (
+                  <div key={company.id} className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold flex items-center gap-2">
+                        <Building className="h-5 w-5 text-muted-foreground" />
+                        {company.name}
+                      </h3>
+                      <Button size="sm" variant="outline" onClick={() => handleAddArea(company.id)}>
+                        <Plus className="mr-2 h-3.5 w-3.5" />
+                        Añadir área
+                      </Button>
+                    </div>
+                    <Separator />
+                    <div className="space-y-2">
+                      {filteredAreas.length > 0 ? (
+                        filteredAreas.map((area) => (
+                          <AreaCard key={area.id} area={area} onEdit={handleEditArea} onDelete={handleDeleteArea} />
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground py-2">
+                          {searchTerm
+                            ? "No se encontraron áreas que coincidan con la búsqueda"
+                            : "No hay áreas definidas"}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )
+              })
+            ) : (
+              <div className="py-8 text-center">
+                <p className="text-muted-foreground">No hay empresas registradas</p>
+                <Button className="mt-4" onClick={handleCreateCompanyClick}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Crear primera empresa
+                </Button>
+              </div>
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      {/* Formularios */}
+      <CompanyForm
+        company={currentCompany}
+        onSubmit={handleCompanyFormSubmit}
+        isOpen={isCompanyFormOpen}
+        onOpenChange={setIsCompanyFormOpen}
+      />
+
+      {selectedCompanyId && (
+        <AreaForm
+          area={currentArea}
+          companyId={selectedCompanyId}
+          onSubmit={handleAreaFormSubmit}
+          isOpen={isAreaFormOpen}
+          onOpenChange={setIsAreaFormOpen}
+        />
+      )}
+    </div>
+  )
+}
