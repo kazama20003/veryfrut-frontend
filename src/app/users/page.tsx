@@ -173,7 +173,14 @@ export default function ProductsPage() {
     (product: Product, selectedUnitId: number) => {
       if (isPageBlocked) return // Evitar acciones si la página está bloqueada
 
-      addToCart(product, selectedUnitId)
+      // Asegurarse de que el producto tenga las propiedades necesarias antes de pasarlo a addToCart
+      const productWithRequiredProps = {
+        ...product,
+        quantity: 0, // Este valor será sobrescrito por addToCart
+        selectedUnitId: selectedUnitId,
+      }
+
+      addToCart(productWithRequiredProps, selectedUnitId)
 
       // Obtener el nombre de la unidad seleccionada
       const selectedUnit = product.productUnits.find((pu) => pu.unitMeasurement.id === selectedUnitId)
