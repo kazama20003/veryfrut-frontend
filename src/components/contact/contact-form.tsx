@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Send } from "lucide-react"
+import type { ChangeEvent, FormEvent } from "react"
 
 export default function ContactForm() {
   const [formData, setFormData] = useState({
@@ -21,7 +22,7 @@ export default function ContactForm() {
     message: "",
   })
 
-  const handleChange = (e) => {
+  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setFormData((prev) => ({
       ...prev,
@@ -29,7 +30,7 @@ export default function ContactForm() {
     }))
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     // Simulación de envío de formulario
     setFormStatus({
