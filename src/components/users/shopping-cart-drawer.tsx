@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import Image from "next/image"
 import { useEffect, useState, useCallback } from "react"
 import { Building, InfoIcon, Loader2, Minus, Plus, ShoppingCart, Trash2, X } from "lucide-react"
@@ -13,11 +15,9 @@ import {
   DrawerClose,
   DrawerContent,
   DrawerDescription,
-  DrawerFooter,
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
@@ -28,6 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 // Añadir la importación del componente ProductSearchEdit
 import { ProductSearchEdit } from "./history/product-search-edit"
 
@@ -129,6 +130,12 @@ export function ShoppingCartDrawer({
   const [areaOrderStatus, setAreaOrderStatus] = useState<Record<string, boolean>>({})
   const [isCheckingAreaOrders, setIsCheckingAreaOrders] = useState(false)
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false)
+  // Estado para manejar la edición de cantidades
+  const [editingQuantity, setEditingQuantity] = useState<{
+    productId: number
+    selectedUnitId: number
+    value: string
+  } | null>(null)
 
   // Memoizar fetchUserData para evitar recreaciones
   const fetchUserData = useCallback(async () => {
@@ -271,6 +278,70 @@ export function ShoppingCartDrawer({
 
     const selectedUnit = product.productUnits.find((pu) => pu.unitMeasurement.id === product.selectedUnitId)
     return selectedUnit?.unitMeasurement.name || "Unidad"
+  }
+
+  // Función para formatear números con coma como separador decimal
+  const formatQuantity = (quantity: number): string => {
+    if (quantity % 1 === 0) {
+      return quantity.toFixed(0)
+    } else {
+      // Reemplazar punto por coma en el número con 2 decimales
+      return quantity.toFixed(2).replace(".", ",")
+    }
+  }
+
+  // Función para manejar el cambio de cantidad con decimales
+  const handleQuantityChange = (productId: number, selectedUnitId: number, value: string) => {
+    // Permitir números con coma como separador decimal
+    // Reemplazar comas por puntos para el procesamiento interno
+    const normalizedValue = value.replace(",", ".")
+    const regex = /^\d*\.?\d{0,2}$/
+
+    if (regex.test(normalizedValue) || value === "") {
+      // Guardar el valor con coma para la visualización
+      setEditingQuantity({
+        productId,
+        selectedUnitId,
+        value: value,
+      })
+    }
+  }
+
+  // Función para confirmar el cambio de cantidad
+  const handleQuantityBlur = (productId: number, selectedUnitId: number) => {
+    if (
+      editingQuantity &&
+      editingQuantity.productId === productId &&
+      editingQuantity.selectedUnitId === selectedUnitId
+    ) {
+      // Normalizar el valor reemplazando coma por punto para el cálculo
+      const normalizedValue = editingQuantity.value.replace(",", ".")
+      const numValue = Number.parseFloat(normalizedValue)
+
+      if (!isNaN(numValue) && numValue > 0) {
+        // Redondear a múltiplos de 0.25
+        const roundedValue = Math.round(numValue * 4) / 4
+        onUpdateQuantity(productId, selectedUnitId, roundedValue)
+      } else {
+        // Si el valor no es válido, mantener la cantidad actual
+        const currentItem = cart.find((item) => item.id === productId && item.selectedUnitId === selectedUnitId)
+        if (currentItem) {
+          setEditingQuantity({
+            productId,
+            selectedUnitId,
+            value: formatQuantity(currentItem.quantity),
+          })
+        }
+      }
+      setEditingQuantity(null)
+    }
+  }
+
+  // Función para manejar Enter en el input de cantidad
+  const handleQuantityKeyPress = (e: React.KeyboardEvent, productId: number, selectedUnitId: number) => {
+    if (e.key === "Enter") {
+      handleQuantityBlur(productId, selectedUnitId)
+    }
   }
 
   // Función para mostrar el diálogo de confirmación
@@ -483,10 +554,9 @@ export function ShoppingCartDrawer({
   return (
     <>
       <Drawer open={isOpen} onOpenChange={handleClose}>
-        <DrawerContent className="flex flex-col max-h-[90vh]">
-          <DrawerHeader className="flex items-center justify-between px-4 py-3 border-b">
+        <DrawerContent className="h-[85vh] flex flex-col">
+          <DrawerHeader className="flex items-center justify-between px-4 py-3 border-b shrink-0">
             <div>
-              {/* Modificar el título del drawer para mostrar el área en modo edición */}
               <DrawerTitle className="flex items-center text-lg">
                 <ShoppingCart className="mr-2 h-5 w-5" />
                 {isEditMode ? "Editar Pedido" : "Carrito de Compras"}
@@ -511,54 +581,38 @@ export function ShoppingCartDrawer({
             </DrawerClose>
           </DrawerHeader>
 
-          {isOrderComplete ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center flex-1">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
-                <ShoppingCart className="h-6 w-6 text-green-600" />
+          <div className="flex-1 overflow-hidden flex flex-col">
+            {isOrderComplete ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center flex-1">
+                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
+                  <ShoppingCart className="h-6 w-6 text-green-600" />
+                </div>
+                <h3 className="mb-2 text-lg font-medium">
+                  {isEditMode ? "¡Pedido actualizado con éxito!" : "¡Pedido realizado con éxito!"}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  {isEditMode
+                    ? "Tu pedido ha sido actualizado y será procesado pronto. La entrega será mañana."
+                    : "Tu pedido ha sido enviado y será procesado pronto. La entrega será mañana."}
+                </p>
+                <Button
+                  onClick={() => {
+                    setIsOrderComplete(false)
+                    if (onPageBlock) {
+                      onPageBlock(false)
+                    }
+                    onClose()
+                  }}
+                  className="mt-4"
+                >
+                  Continuar comprando
+                </Button>
               </div>
-              <h3 className="mb-2 text-lg font-medium">
-                {isEditMode ? "¡Pedido actualizado con éxito!" : "¡Pedido realizado con éxito!"}
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                {isEditMode
-                  ? "Tu pedido ha sido actualizado y será procesado pronto. La entrega será mañana."
-                  : "Tu pedido ha sido enviado y será procesado pronto. La entrega será mañana."}
-              </p>
-              <Button
-                onClick={() => {
-                  setIsOrderComplete(false)
-                  // Desbloquear la página antes de cerrar
-                  if (onPageBlock) {
-                    onPageBlock(false)
-                  }
-                  onClose()
-                }}
-                className="mt-4"
-              >
-                Continuar comprando
-              </Button>
-            </div>
-          ) : (
-            <>
-              {/* Contenido principal con scroll */}
-              <div className="flex-1 overflow-hidden">
-                <ScrollArea className="h-full px-4 py-2">
-                  {cart.length === 0 ? (
-                    <div className="flex h-40 flex-col items-center justify-center text-center text-muted-foreground">
-                      <ShoppingCart className="mb-2 h-10 w-10 opacity-20" />
-                      {isEditMode ? (
-                        <>
-                          <p>Este pedido está vacío</p>
-                          <p className="text-sm">Puedes añadir productos usando el buscador de arriba</p>
-                        </>
-                      ) : (
-                        <>
-                          <p>No hay productos en tu carrito</p>
-                          <p className="text-sm">Agrega algunos productos para continuar</p>
-                        </>
-                      )}
-                    </div>
-                  ) : (
+            ) : (
+              <>
+                {/* Contenido fijo (no scrolleable) */}
+                <div className="px-4 py-2 shrink-0">
+                  {cart.length > 0 && (
                     <>
                       {/* Información importante sobre pedidos */}
                       <Alert className="mb-4 bg-blue-50 border-blue-200">
@@ -650,127 +704,183 @@ export function ShoppingCartDrawer({
 
                       {/* Dentro del componente ShoppingCartDrawer, añadir la sección de búsqueda de productos en modo edición */}
                       {isEditMode && (
-                        <ProductSearchEdit
-                          onAddProduct={(product, selectedUnitId) => {
-                            // Añadir directamente al carrito con la unidad seleccionada
-                            onUpdateQuantity(product.id, selectedUnitId, 1)
-                          }}
-                          disabled={isSubmitting}
-                        />
+                        <div className="mb-4">
+                          <ProductSearchEdit
+                            onAddProduct={(product, selectedUnitId) => {
+                              // Añadir directamente al carrito con la unidad seleccionada
+                              onUpdateQuantity(product.id, selectedUnitId, 1)
+                            }}
+                            disabled={isSubmitting}
+                          />
+                        </div>
                       )}
-
-                      {/* Lista de productos en el carrito */}
-                      <ul className="space-y-3 mb-4">
-                        {cart.map((item) => (
-                          <li key={`${item.id}-${item.selectedUnitId}`} className="rounded-lg border p-3">
-                            <div className="flex items-start gap-3">
-                              <div className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-md">
-                                <Image
-                                  src={item.imageUrl || "/placeholder.svg"}
-                                  alt={item.name}
-                                  fill
-                                  className="object-cover"
-                                  sizes="56px"
-                                />
-                              </div>
-                              <div className="flex flex-1 flex-col">
-                                <h4 className="font-medium text-sm">{item.name}</h4>
-                                <p className="text-xs text-muted-foreground line-clamp-1">{item.description}</p>
-                                <div className="mt-1 flex items-center justify-between">
-                                  <span className="text-xs font-medium">{getUnitName(item)}</span>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-6 w-6 text-red-500 hover:bg-red-50 hover:text-red-600"
-                                    onClick={() => onRemoveItem(item.id, item.selectedUnitId)}
-                                    disabled={isSubmitting}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                    <span className="sr-only">Eliminar</span>
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="mt-2 flex items-center justify-between">
-                              <div className="flex items-center">
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-7 w-7 rounded-full"
-                                  onClick={() => onUpdateQuantity(item.id, item.selectedUnitId, item.quantity - 1)}
-                                  disabled={item.quantity <= 1 || isSubmitting}
-                                >
-                                  <Minus className="h-3 w-3" />
-                                  <span className="sr-only">Disminuir</span>
-                                </Button>
-                                <span className="mx-2 w-6 text-center text-sm">{item.quantity}</span>
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-7 w-7 rounded-full"
-                                  onClick={() => onUpdateQuantity(item.id, item.selectedUnitId, item.quantity + 1)}
-                                  disabled={isSubmitting}
-                                >
-                                  <Plus className="h-3 w-3" />
-                                  <span className="sr-only">Aumentar</span>
-                                </Button>
-                              </div>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
                     </>
                   )}
-                </ScrollArea>
-              </div>
+                </div>
 
-              {/* Footer siempre visible */}
-              <DrawerFooter className="border-t mt-auto p-4 pt-3 pb-4 bg-background">
-                {cart.length > 0 && (
-                  <>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button variant="outline" onClick={onClearCart} disabled={isSubmitting}>
-                        Vaciar Carrito
-                      </Button>
-                      <Button
-                        className="bg-green-600 hover:bg-green-700"
-                        onClick={handleShowConfirmation}
-                        disabled={
-                          isSubmitting ||
-                          (!isEditMode &&
-                            (!selectedAreaId ||
-                              cart.length === 0 ||
-                              areaOrderStatus[selectedAreaId] ||
-                              isCheckingAreaOrders))
-                        }
-                      >
-                        {isSubmitting ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Procesando...
-                          </>
-                        ) : isEditMode ? (
-                          cart.length === 0 ? (
-                            "Guardar pedido vacío"
-                          ) : (
-                            "Actualizar Pedido"
-                          )
-                        ) : (
-                          "Revisar Pedido"
-                        )}
-                      </Button>
+                {/* Área scrolleable para productos - CORREGIDA */}
+                <div className="flex-1 overflow-y-auto px-4 pb-4">
+                  {cart.length > 0 ? (
+                    <ul className="space-y-3">
+                      {cart.map((item) => (
+                        <li key={`${item.id}-${item.selectedUnitId}`} className="rounded-lg border p-3">
+                          <div className="flex items-start gap-3">
+                            <div className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-md">
+                              <Image
+                                src={item.imageUrl || "/placeholder.svg"}
+                                alt={item.name}
+                                fill
+                                className="object-cover"
+                                sizes="56px"
+                              />
+                            </div>
+                            <div className="flex flex-1 flex-col">
+                              <h4 className="font-medium text-sm">{item.name}</h4>
+                              <p className="text-xs text-muted-foreground line-clamp-1">{item.description}</p>
+                              <div className="mt-1 flex items-center justify-between">
+                                <span className="text-xs font-medium">{getUnitName(item)}</span>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 text-red-500 hover:bg-red-50 hover:text-red-600"
+                                  onClick={() => onRemoveItem(item.id, item.selectedUnitId)}
+                                  disabled={isSubmitting}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  <span className="sr-only">Eliminar</span>
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Controles de cantidad con mejor espaciado */}
+                          <div className="mt-3 flex items-center">
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-7 w-7 rounded-full"
+                                onClick={() =>
+                                  onUpdateQuantity(item.id, item.selectedUnitId, Math.max(0.25, item.quantity - 0.25))
+                                }
+                                disabled={item.quantity <= 0.25 || isSubmitting}
+                              >
+                                <Minus className="h-3 w-3" />
+                                <span className="sr-only">Disminuir</span>
+                              </Button>
+
+                              {/* Input editable para cantidad con decimales */}
+                              <div className="mx-1 w-16 text-center">
+                                {editingQuantity &&
+                                editingQuantity.productId === item.id &&
+                                editingQuantity.selectedUnitId === item.selectedUnitId ? (
+                                  <Input
+                                    type="text"
+                                    value={editingQuantity.value}
+                                    onChange={(e) => handleQuantityChange(item.id, item.selectedUnitId, e.target.value)}
+                                    onBlur={() => handleQuantityBlur(item.id, item.selectedUnitId)}
+                                    onKeyPress={(e) => handleQuantityKeyPress(e, item.id, item.selectedUnitId)}
+                                    className="h-7 text-center text-sm"
+                                    autoFocus
+                                    disabled={isSubmitting}
+                                  />
+                                ) : (
+                                  <button
+                                    onClick={() =>
+                                      setEditingQuantity({
+                                        productId: item.id,
+                                        selectedUnitId: item.selectedUnitId,
+                                        value: formatQuantity(item.quantity),
+                                      })
+                                    }
+                                    className="w-full h-7 text-center text-sm border rounded px-2 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    disabled={isSubmitting}
+                                  >
+                                    {formatQuantity(item.quantity)}
+                                  </button>
+                                )}
+                              </div>
+
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-7 w-7 rounded-full"
+                                onClick={() => onUpdateQuantity(item.id, item.selectedUnitId, item.quantity + 0.25)}
+                                disabled={isSubmitting}
+                              >
+                                <Plus className="h-3 w-3" />
+                                <span className="sr-only">Aumentar</span>
+                              </Button>
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="flex h-40 flex-col items-center justify-center text-center text-muted-foreground">
+                      <ShoppingCart className="mb-2 h-10 w-10 opacity-20" />
+                      {isEditMode ? (
+                        <>
+                          <p>Este pedido está vacío</p>
+                          <p className="text-sm">Puedes añadir productos usando el buscador de arriba</p>
+                        </>
+                      ) : (
+                        <>
+                          <p>No hay productos en tu carrito</p>
+                          <p className="text-sm">Agrega algunos productos para continuar</p>
+                        </>
+                      )}
                     </div>
-                  </>
-                )}
-                {cart.length === 0 && (
-                  <Button onClick={handleClose} disabled={isSubmitting}>
-                    Continuar Comprando
-                  </Button>
-                )}
-              </DrawerFooter>
-            </>
-          )}
+                  )}
+                </div>
+
+                {/* Footer siempre visible - Separado claramente del contenido scrolleable */}
+                <div className="border-t p-4 pt-3 pb-4 bg-background shrink-0 mt-auto">
+                  {cart.length > 0 && (
+                    <>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button variant="outline" onClick={onClearCart} disabled={isSubmitting}>
+                          Vaciar Carrito
+                        </Button>
+                        <Button
+                          className="bg-green-600 hover:bg-green-700"
+                          onClick={handleShowConfirmation}
+                          disabled={
+                            isSubmitting ||
+                            (!isEditMode &&
+                              (!selectedAreaId ||
+                                cart.length === 0 ||
+                                areaOrderStatus[selectedAreaId] ||
+                                isCheckingAreaOrders))
+                          }
+                        >
+                          {isSubmitting ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Procesando...
+                            </>
+                          ) : isEditMode ? (
+                            cart.length === 0 ? (
+                              "Guardar pedido vacío"
+                            ) : (
+                              "Actualizar Pedido"
+                            )
+                          ) : (
+                            "Revisar Pedido"
+                          )}
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                  {cart.length === 0 && (
+                    <Button onClick={handleClose} disabled={isSubmitting}>
+                      Continuar Comprando
+                    </Button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         </DrawerContent>
       </Drawer>
 
@@ -799,7 +909,7 @@ export function ShoppingCartDrawer({
                   <h4 className="text-sm font-medium">Resumen del pedido</h4>
                 </div>
 
-                <div className="p-4">
+                <div className="p-4 max-h-60 overflow-y-auto">
                   <ul className="space-y-3">
                     {cart.map((item) => (
                       <li
@@ -819,7 +929,7 @@ export function ShoppingCartDrawer({
                           <div>
                             <p className="text-sm font-medium">{item.name}</p>
                             <p className="text-xs text-muted-foreground">
-                              {item.quantity} {getUnitName(item)}
+                              {formatQuantity(item.quantity)} {getUnitName(item)}
                             </p>
                           </div>
                         </div>

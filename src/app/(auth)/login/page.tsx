@@ -304,12 +304,12 @@ export default function LoginPage() {
               <p className="font-medium mb-1">Acceso exclusivo para clientes registrados</p>
               <p>
                 Para solicitar acceso, contacte con nuestro equipo comercial al{" "}
-                <a href="tel:0123456789" className="font-medium underline">
-                  0123456789
+                <a href="tel:987801148" className="font-medium underline">
+                  987801148
                 </a>{" "}
                 o envíe un correo a{" "}
-                <a href="mailto:comercial@veryfrut.com" className="font-medium underline">
-                  comercial@veryfrut.com
+                <a href="mailto:veryfrut.fernanda@gmail.com" className="font-medium underline">
+                  veryfrut.fernanda@gmail.com
                 </a>
               </p>
             </div>
@@ -338,7 +338,7 @@ export default function LoginPage() {
                   autoComplete="email"
                   required
                   className={`pl-10 ${errors.email ? "border-red-500" : ""}`}
-                  placeholder="tu@empresa.com"
+                  placeholder="ejemplo@veryfrut.com"
                   value={formData.email}
                   onChange={handleChange}
                 />
@@ -351,7 +351,7 @@ export default function LoginPage() {
                 <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                   Contraseña
                 </label>
-                <Link href="/recuperar-password" className="text-sm text-green-600 hover:text-green-500">
+                <Link href="/contact" className="text-sm text-green-600 hover:text-green-500">
                   ¿Olvidaste tu contraseña?
                 </Link>
               </div>
@@ -419,7 +419,7 @@ export default function LoginPage() {
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
               ¿Necesitas ayuda?{" "}
-              <Link href="/contacto" className="font-medium text-green-600 hover:text-green-500">
+              <Link href="/contact" className="font-medium text-green-600 hover:text-green-500">
                 Contacta con soporte
               </Link>
             </p>

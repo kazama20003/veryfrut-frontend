@@ -8,29 +8,30 @@ export default function ProductsSection() {
   const productCategories = [
     {
       id: 1,
-      name: "Frutas Premium",
-      description: "Selección de frutas de primera calidad para hoteles y restaurantes de alta gama.",
-      image: "https://res.cloudinary.com/demzflxgq/image/upload/v1744910191/julia-zolotova-M_xIaxQE3Ms-unsplash_oarrco.jpg",
-      features: ["Calibre seleccionado", "Maduración controlada", "Disponible todo el año"],
+      name: "Verduras Premium",
+      description: "Selección de verduras frescas de primera calidad para hoteles y restaurantes de alta gama.",
+      image: "https://res.cloudinary.com/demzflxgq/image/upload/v1744909701/2_bhlooi.jpg",
+      features: ["Más de 80 variedades", "Cultivo controlado", "Disponible todo el año"],
       certification: "Global G.A.P.",
       minOrder: "Caja de 5kg",
     },
     {
       id: 2,
-      name: "Verduras Orgánicas",
+      name: "Frutas Selectas",
       description:
-        "Verduras cultivadas sin pesticidas ni químicos, ideales para cocinas comprometidas con la sostenibilidad.",
-      image: "https://res.cloudinary.com/demzflxgq/image/upload/v1744912451/produce-azerbaijan-stockers-scaled_rxodoe.jpg",
-      features: ["100% orgánicas", "Frescura garantizada", "Cultivo local"],
-      certification: "Certificación Ecológica EU",
+        "Frutas cultivadas con los más altos estándares de calidad, ideales para negocios que exigen lo mejor.",
+      image:
+        "https://res.cloudinary.com/demzflxgq/image/upload/v1744910191/julia-zolotova-M_xIaxQE3Ms-unsplash_oarrco.jpg",
+      features: ["Más de 40 variedades", "Maduración controlada", "Calibre seleccionado"],
+      certification: "Certificación Ecológica",
       minOrder: "Caja de 10kg",
     },
     {
       id: 3,
-      name: "Frutas Exóticas",
-      description: "Variedades exclusivas de frutas internacionales para menús innovadores y creativos.",
-      image: "https://res.cloudinary.com/demzflxgq/image/upload/v1746571507/1.-Frutas-tropicales-Caribe_nl4jqv.jpg",
-      features: ["Importación selectiva", "Disponibilidad limitada", "Sabores únicos"],
+      name: "Productos IGV",
+      description: "Complementos de alta calidad para completar tu oferta gastronómica con productos seleccionados.",
+      image: "https://res.cloudinary.com/demzflxgq/image/upload/v1744910081/flat-lay-raw-vegetables-mix_foc8d3.jpg",
+      features: ["Quesos artesanales", "Huevos de codorniz", "Productos asiáticos"],
       certification: "Control de Calidad Premium",
       minOrder: "Según disponibilidad",
     },
@@ -49,7 +50,7 @@ export default function ProductsSection() {
     <div className="bg-gray-50 py-16">
       <div className="container mx-auto px-4">
         <div className="flex flex-col items-center justify-center mb-12">
-          <h2 className="text-3xl font-bold text-center mb-3">Categorías de Productos</h2>
+          <h2 className="text-3xl font-bold text-center mb-3">Líneas de Productos</h2>
           <div className="w-24 h-1 bg-green-600 mb-6"></div>
           <p className="text-gray-600 max-w-3xl text-center">
             Ofrecemos una amplia gama de productos frescos de alta calidad para satisfacer las necesidades específicas
@@ -70,7 +71,7 @@ export default function ProductsSection() {
                   alt={category.name}
                   fill
                   sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, 25vw"
-                  className="object-contain p-4"
+                  className="object-cover"
                   loading="lazy"
                 />
                 <Badge className="absolute top-3 right-3 bg-green-600 hover:bg-green-700">Distribución Mayorista</Badge>
@@ -117,7 +118,7 @@ export default function ProductsSection() {
                     <FileText className="h-4 w-4 mr-1" />
                     Ficha técnica
                   </Button>
-                  <Link href="/contacto" className="flex-1">
+                  <Link href="/contact" className="flex-1">
                     <Button className="w-full bg-green-600 hover:bg-green-700" size="sm">
                       Solicitar información
                     </Button>
@@ -137,7 +138,7 @@ export default function ProductsSection() {
                 volúmenes, frecuencia de entrega y requisitos especiales.
               </p>
             </div>
-            <Link href="/contacto">
+            <Link href="/contact">
               <Button className="bg-green-600 hover:bg-green-700 px-8 py-6 text-lg whitespace-nowrap">
                 Contactar con ventas
               </Button>

@@ -4,7 +4,8 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Send } from "lucide-react"
+import { Send, Loader2 } from "lucide-react"
+import { toast } from "sonner"
 import type { ChangeEvent, FormEvent } from "react"
 
 export default function ContactForm() {
@@ -12,15 +13,12 @@ export default function ContactForm() {
     name: "",
     email: "",
     phone: "",
+    company: "",
     subject: "",
     message: "",
   })
 
-  const [formStatus, setFormStatus] = useState({
-    submitted: false,
-    success: false,
-    message: "",
-  })
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -30,47 +28,86 @@ export default function ContactForm() {
     }))
   }
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    // Simulación de envío de formulario
-    setFormStatus({
-      submitted: true,
-      success: true,
-      message: "¡Gracias por contactarnos! Te responderemos a la brevedad.",
-    })
+    setIsSubmitting(true)
 
-    // Reset form after successful submission
-    setFormData({
-      name: "",
-      email: "",
-      phone: "",
-      subject: "",
-      message: "",
-    })
+    try {
+      // Simular envío de email
+      // Estructura de datos que se enviaría a la API
+      // const emailData = {
+      //   to: "veryfrut.fernanda@gmail.com",
+      //   subject: `Nuevo mensaje de contacto: ${formData.subject}`,
+      //   html: `
+      //     <h2>Nuevo mensaje de contacto desde Veryfrut</h2>
+      //     <p><strong>Nombre:</strong> ${formData.name}</p>
+      //     <p><strong>Email:</strong> ${formData.email}</p>
+      //     <p><strong>Teléfono:</strong> ${formData.phone || "No proporcionado"}</p>
+      //     <p><strong>Empresa:</strong> ${formData.company || "No proporcionado"}</p>
+      //     <p><strong>Asunto:</strong> ${formData.subject}</p>
+      //     <p><strong>Mensaje:</strong></p>
+      //     <p>${formData.message}</p>
+      //   `,
+      // }
+
+      // Aquí iría la llamada real a tu API de envío de emails
+      // const response = await fetch('/api/send-email', {
+      //   method: 'POST',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify(emailData),
+      // })
+
+      // Simulación de éxito
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+
+      toast.success("¡Mensaje enviado correctamente!", {
+        description: "Te responderemos a la brevedad posible.",
+      })
+
+      // Reset form
+      setFormData({
+        name: "",
+        email: "",
+        phone: "",
+        company: "",
+        subject: "",
+        message: "",
+      })
+    } catch (error) {
+      console.error("Error al enviar el mensaje:", error)
+      toast.error("Error al enviar el mensaje", {
+        description: "Por favor, inténtalo de nuevo o contáctanos directamente.",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-8">
-      <h2 className="text-2xl font-bold text-gray-800 mb-6">Envíanos un mensaje</h2>
+    <div className="bg-white rounded-lg shadow-lg p-6 md:p-8">
+      <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6">Envíanos un mensaje</h2>
+      <p className="text-gray-600 mb-8">
+        Completa el formulario y nos pondremos en contacto contigo para discutir tus necesidades de productos orgánicos.
+      </p>
 
-      {formStatus.submitted && (
-        <div
-          className={`mb-6 p-4 rounded-md ${formStatus.success ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}
-        >
-          {formStatus.message}
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit}>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
               Nombre completo *
             </label>
-            <Input id="name" name="name" value={formData.name} onChange={handleChange} required className="w-full" />
+            <Input
+              id="name"
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+              required
+              className="w-full"
+              placeholder="Tu nombre completo"
+            />
           </div>
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
               Correo electrónico *
             </label>
             <Input
@@ -81,34 +118,57 @@ export default function ContactForm() {
               onChange={handleChange}
               required
               className="w-full"
+              placeholder="tu@email.com"
             />
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">
               Teléfono
             </label>
-            <Input id="phone" name="phone" value={formData.phone} onChange={handleChange} className="w-full" />
+            <Input
+              id="phone"
+              name="phone"
+              value={formData.phone}
+              onChange={handleChange}
+              className="w-full"
+              placeholder="987 801 148"
+            />
           </div>
           <div>
-            <label htmlFor="subject" className="block text-sm font-medium text-gray-700 mb-1">
-              Asunto *
+            <label htmlFor="company" className="block text-sm font-medium text-gray-700 mb-2">
+              Empresa
             </label>
             <Input
-              id="subject"
-              name="subject"
-              value={formData.subject}
+              id="company"
+              name="company"
+              value={formData.company}
               onChange={handleChange}
-              required
               className="w-full"
+              placeholder="Nombre de tu empresa"
             />
           </div>
         </div>
 
-        <div className="mb-4">
-          <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-1">
+        <div>
+          <label htmlFor="subject" className="block text-sm font-medium text-gray-700 mb-2">
+            Asunto *
+          </label>
+          <Input
+            id="subject"
+            name="subject"
+            value={formData.subject}
+            onChange={handleChange}
+            required
+            className="w-full"
+            placeholder="¿En qué podemos ayudarte?"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-2">
             Mensaje *
           </label>
           <Textarea
@@ -117,13 +177,27 @@ export default function ContactForm() {
             value={formData.message}
             onChange={handleChange}
             required
-            className="w-full min-h-[150px]"
+            className="w-full min-h-[150px] resize-none"
+            placeholder="Cuéntanos sobre tus necesidades de productos orgánicos..."
           />
         </div>
 
-        <Button type="submit" className="bg-green-600 hover:bg-green-700 w-full sm:w-auto">
-          <Send className="h-4 w-4 mr-2" />
-          Enviar mensaje
+        <Button
+          type="submit"
+          className="bg-green-600 hover:bg-green-700 w-full md:w-auto px-8 py-3"
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Enviando...
+            </>
+          ) : (
+            <>
+              <Send className="h-4 w-4 mr-2" />
+              Enviar mensaje
+            </>
+          )}
         </Button>
       </form>
     </div>

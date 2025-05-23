@@ -138,25 +138,43 @@ export default function Header() {
     setMobileMenuOpen(!mobileMenuOpen)
   }
 
-  const handleLogout = () => {
-    // Eliminar cookies de autenticación (asegurarse de usar el mismo path y dominio)
-    document.cookie = "auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
-    document.cookie = "user_info=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
+  const handleLogout = async () => {
+    // Función para eliminar todas las cookies
+    const deleteAllCookies = () => {
+      // Obtener todas las cookies
+      const cookies = document.cookie.split(";")
+
+      // Para cada cookie, establecer una fecha de expiración en el pasado
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i]
+        const eqPos = cookie.indexOf("=")
+        const name = eqPos > -1 ? cookie.substring(0, eqPos).trim() : cookie.trim()
+
+        // Eliminar con diferentes combinaciones de path y domain para asegurar que se eliminen todas
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC;`
+
+        // También intentar con subdominios
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=.${window.location.hostname};`
+      }
+    }
+
+    // Eliminar todas las cookies
+    deleteAllCookies()
+
+    // Actualizar estado inmediatamente para una experiencia más fluida
+    setIsAuthenticated(false)
+    setUserInfo(null)
 
     // Mostrar toast de confirmación
     toast.success("Sesión cerrada correctamente", {
       duration: 2000,
     })
 
-    // Actualizar estado
-    setIsAuthenticated(false)
-    setUserInfo(null)
-
     // Redireccionar a la página principal
-    setTimeout(() => {
-      router.push("/")
-      router.refresh() // Forzar recarga para actualizar el estado
-    }, 1000)
+    router.push("/")
+    router.refresh() // Forzar recarga para actualizar el estado
   }
 
   // Función para obtener el nombre de usuario para mostrar
@@ -186,14 +204,14 @@ export default function Header() {
               href="/"
               className="flex items-center absolute left-1/2 transform -translate-x-1/2 sm:static sm:left-auto sm:transform-none"
             >
-              <div className="relative h-11 w-36 sm:h-12 sm:w-40">
+              <div className="relative h-10 w-28 sm:h-12 sm:w-40">
                 <Image
                   src="https://res.cloudinary.com/demzflxgq/image/upload/v1746485219/Imagen_de_WhatsApp_2025-05-01_a_las_15.03.46_9cee1908_1_dgctjp.jpg"
                   alt="Veryfrut - Distribuidora de frutas y verduras"
                   fill
                   className="object-contain"
                   priority
-                  sizes="(max-width: 640px) 144px, 160px"
+                  sizes="(max-width: 640px) 112px, 160px"
                   style={{ objectFit: "contain", padding: "0" }}
                 />
               </div>
@@ -288,7 +306,7 @@ export default function Header() {
                 {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
               </button>
               <span className="text-white font-medium">Menú</span>
-              <Link href={isAuthenticated ? "/users/products" : "/login"}>
+              <Link href={isAuthenticated ? "/users" : "/login"}>
                 <Button
                   className="bg-white text-green-600 hover:bg-green-50 text-sm px-4 py-1 h-auto shadow-sm"
                   size="sm"
@@ -401,7 +419,7 @@ export default function Header() {
         </motion.nav>
       </header>
       {/* Espaciador ajustado para diferentes dispositivos */}
-      <div className="h-[90px] sm:h-[100px]"></div>
+      <div className="h-[80px] sm:h-[100px]"></div>
     </>
   )
 }

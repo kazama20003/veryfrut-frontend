@@ -7,6 +7,7 @@ import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { motion } from "framer-motion"
 import { ChevronLeft, ChevronRight, ChevronDown, Building2, Truck, Award, Clock } from "lucide-react"
+import Link from "next/link"
 
 interface SlideInfo {
   id: number
@@ -24,20 +25,21 @@ const slides: SlideInfo[] = [
   {
     id: 1,
     title: "DISTRIBUCIÓN MAYORISTA",
-    heading: "Calidad Premium",
+    heading: "Calidad Premium Orgánica",
     description:
-      "Somos especialistas en distribución de frutas y verduras orgánicas para empresas, restaurantes, hoteles y supermercados.",
+      "Somos especialistas en distribución de frutas y verduras 100% orgánicas para empresas, restaurantes, hoteles y supermercados. Productos cultivados sin pesticidas ni químicos.",
     feature: "Entregas programadas y puntuales para su negocio",
-    image: "https://res.cloudinary.com/demzflxgq/image/upload/v1744843955/portada_toy2aq.jpg",
-    bgImage: "https://res.cloudinary.com/demzflxgq/image/upload/v1744843955/portada_toy2aq.jpg",
+    image: "https://res.cloudinary.com/demzflxgq/image/upload/v1744911096/shutterstock_1756689209_xlpwey.jpg",
+    bgImage: "https://res.cloudinary.com/demzflxgq/image/upload/v1744911096/shutterstock_1756689209_xlpwey.jpg",
     color: "green",
     icon: <Building2 className="h-6 w-6" />,
   },
   {
     id: 2,
     title: "SERVICIO EMPRESARIAL",
-    heading: "Productos Frescos",
-    description: "Ofrecemos un servicio integral de abastecimiento para empresas del sector HORECA y retail.",
+    heading: "Productos Frescos Orgánicos",
+    description:
+      "Ofrecemos un servicio integral de abastecimiento de productos orgánicos para empresas del sector HORECA y retail. Garantizamos frescura y sostenibilidad en cada entrega.",
     feature: "Logística especializada y control de calidad garantizado",
     image: "https://res.cloudinary.com/demzflxgq/image/upload/v1744843955/portada_toy2aq.jpg",
     bgImage: "https://res.cloudinary.com/demzflxgq/image/upload/v1744843955/portada_toy2aq.jpg",
@@ -46,12 +48,13 @@ const slides: SlideInfo[] = [
   },
   {
     id: 3,
-    title: "COMPROMISO CORPORATIVO",
-    heading: "Soluciones a Medida",
-    description: "Adaptamos nuestros servicios a las necesidades específicas de cada cliente empresarial.",
+    title: "COMPROMISO ORGÁNICO",
+    heading: "Soluciones Sostenibles",
+    description:
+      "Adaptamos nuestros servicios de distribución de productos orgánicos a las necesidades específicas de cada cliente empresarial. Comprometidos con el medio ambiente y su salud.",
     feature: "Asesoramiento personalizado y atención exclusiva",
-    image: "https://res.cloudinary.com/demzflxgq/image/upload/v1744843955/portada_toy2aq.jpg",
-    bgImage: "https://res.cloudinary.com/demzflxgq/image/upload/v1744843955/portada_toy2aq.jpg",
+    image: "https://res.cloudinary.com/demzflxgq/image/upload/v1744911096/september-featurebananas-featured_zvqv3h.jpg",
+    bgImage: "https://res.cloudinary.com/demzflxgq/image/upload/v1744911096/september-featurebananas-featured_zvqv3h.jpg",
     color: "purple",
     icon: <Award className="h-6 w-6" />,
   },
@@ -114,16 +117,40 @@ export default function Hero() {
     }
   }, [])
 
-  const scrollToContent = () => {
-    window.scrollTo({
-      top: window.innerHeight,
-      behavior: "smooth",
-    })
+  const scrollToCategories = () => {
+    const categoriesSection = document.getElementById("categories-section")
+    if (categoriesSection) {
+      categoriesSection.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      })
+    } else {
+      // Fallback: scroll a una posición estimada si no encuentra el elemento
+      window.scrollTo({
+        top: window.innerHeight,
+        behavior: "smooth",
+      })
+    }
   }
+
+  useEffect(() => {
+    // Verificar que el elemento de categorías existe
+    const checkCategoriesSection = () => {
+      const categoriesSection = document.getElementById("categories-section")
+      if (!categoriesSection) {
+        console.warn("Elemento categories-section no encontrado")
+      }
+    }
+
+    // Verificar después de un pequeño delay para asegurar que todos los componentes estén montados
+    const timer = setTimeout(checkCategoriesSection, 1000)
+
+    return () => clearTimeout(timer)
+  }, [])
 
   return (
     <div
-      className="relative h-[calc(100vh-104px)] sm:h-[calc(100vh-120px)] min-h-[600px] overflow-hidden mt-0"
+      className="relative h-[calc(100vh-80px)] sm:h-[calc(100vh-100px)] min-h-[600px] overflow-hidden"
       ref={constraintsRef}
     >
       {/* Background Images con transición mejorada */}
@@ -153,17 +180,17 @@ export default function Hero() {
               loading={index === 0 ? "eager" : "lazy"}
             />
             {/* Overlay con gradiente más suave y consistente */}
-            <div className="absolute inset-0 bg-gradient-to-r from-black/50 to-black/40 backdrop-filter backdrop-brightness-75"></div>
+            <div className="absolute inset-0 bg-gradient-to-r from-black/70 to-black/60 backdrop-filter backdrop-brightness-75"></div>
           </motion.div>
         ))}
       </div>
 
       {/* Contenido principal */}
-      <div className="relative z-20 h-full flex items-center">
+      <div className="relative z-30 h-full flex items-center">
         <div className="container mx-auto px-4">
-          <div className="grid md:grid-cols-2 gap-8 items-center">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
             {/* Columna de texto con transición mejorada */}
-            <div className="relative overflow-hidden">
+            <div className="relative h-[400px] sm:h-[450px] md:h-[500px]">
               {slides.map((slide, index) => (
                 <motion.div
                   key={`content-${index}`}
@@ -171,52 +198,52 @@ export default function Hero() {
                   animate={{
                     opacity: currentSlide === index ? 1 : 0,
                     x: currentSlide === index ? 0 : slideDirection > 0 ? -20 : 20,
-                    display: currentSlide === index ? "block" : "none",
                   }}
                   transition={{
                     opacity: { duration: 0.5, ease: "easeInOut" },
                     x: { duration: 0.5, ease: "easeOut" },
-                    display: { delay: currentSlide === index ? 0 : 0.5 },
                   }}
-                  className="absolute inset-0"
-                  style={{ display: currentSlide === index ? "block" : "none" }}
+                  className={`absolute inset-0 ${currentSlide === index ? "block" : "hidden"}`}
                 >
                   <div className="mb-6">
                     <span
-                      className={`${getColorClass(slide.color)} text-xl font-bold inline-flex items-center gap-2 rounded-full px-6 py-2 bg-white/90 shadow-lg`}
+                      className={`${getColorClass(slide.color)} text-base sm:text-xl font-bold inline-flex items-center gap-2 rounded-full px-4 sm:px-6 py-2 bg-white/90 shadow-lg`}
                     >
                       {slide.icon}
                       {slide.title}
                     </span>
                   </div>
 
-                  <h1 className="text-5xl md:text-7xl font-bold text-white mb-8 drop-shadow-lg">{slide.heading}</h1>
+                  <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-6 sm:mb-8 drop-shadow-lg">
+                    {slide.heading}
+                  </h1>
 
-                  <div className="bg-black/40 backdrop-blur-sm p-6 rounded-lg mb-8 max-w-xl">
-                    <p className="text-xl text-white">{slide.description}</p>
+                  <div className="bg-black/40 backdrop-blur-sm p-4 sm:p-6 rounded-lg mb-6 sm:mb-8 max-w-xl">
+                    <p className="text-base sm:text-xl text-white">{slide.description}</p>
                   </div>
 
                   <div
-                    className={`${getBgColorClass(slide.color)} text-white inline-flex items-center gap-2 px-8 py-4 rounded-md mb-10 shadow-lg`}
+                    className={`${getBgColorClass(slide.color)} text-white inline-flex items-center gap-2 px-4 sm:px-8 py-3 sm:py-4 rounded-md mb-6 sm:mb-10 shadow-lg`}
                   >
                     <Clock className="h-5 w-5" />
-                    <span className="font-bold">{slide.feature}</span>
+                    <span className="font-bold text-sm sm:text-base">{slide.feature}</span>
                   </div>
 
-                  <div className="flex flex-wrap gap-4">
-                    <Button
-                      className={`${getBgColorClass(slide.color)} hover:bg-opacity-90 text-white px-8 py-6 text-xl shadow-xl rounded-md transition-transform hover:scale-105`}
-                      onClick={() => (window.location.href = "/contacto")}
-                    >
-                      Solicitar Información
-                    </Button>
+                  <div className="flex flex-wrap gap-3 sm:gap-4">
+                    <Link href="/contact">
+                      <Button
+                        className={`${getBgColorClass(slide.color)} hover:bg-opacity-90 text-white px-4 sm:px-8 py-2 sm:py-6 text-base sm:text-xl shadow-xl rounded-md transition-transform hover:scale-105`}
+                      >
+                        Solicitar Información
+                      </Button>
+                    </Link>
 
                     <Button
                       variant="outline"
-                      className="bg-white/20 backdrop-blur-sm border-white text-white hover:bg-white/30 px-8 py-6 text-xl shadow-xl rounded-md"
-                      onClick={() => (window.location.href = "/servicios")}
+                      className="bg-white/20 backdrop-blur-sm border-white text-white hover:bg-white/30 px-4 sm:px-8 py-2 sm:py-6 text-base sm:text-xl shadow-xl rounded-md"
+                      onClick={scrollToCategories}
                     >
-                      Nuestros Servicios
+                      Nuestros Productos
                     </Button>
                   </div>
                 </motion.div>
@@ -233,16 +260,15 @@ export default function Hero() {
                     opacity: currentSlide === index ? 1 : 0,
                     y: currentSlide === index ? 0 : 30,
                     scale: currentSlide === index ? 1 : 0.95,
-                    display: currentSlide === index ? "block" : "none",
                   }}
                   transition={{
                     opacity: { duration: 0.7, ease: "easeInOut" },
                     y: { duration: 0.7, ease: "easeOut" },
                     scale: { duration: 0.7, ease: "easeOut" },
-                    display: { delay: currentSlide === index ? 0 : 0.7 },
                   }}
-                  className="absolute inset-0 flex items-center justify-center"
-                  style={{ display: currentSlide === index ? "flex" : "none" }}
+                  className={`absolute inset-0 flex items-center justify-center ${
+                    currentSlide === index ? "block" : "hidden"
+                  }`}
                 >
                   {/* Contenedor de imagen mejorado */}
                   <div className="relative overflow-hidden rounded-2xl shadow-2xl w-[500px] h-[350px]">
@@ -264,7 +290,7 @@ export default function Hero() {
                     <div
                       className={`absolute top-4 right-4 ${getBgColorClass(slide.color)} text-white px-4 py-2 rounded-full text-sm font-bold shadow-lg`}
                     >
-                      Empresarial
+                      100% Orgánico
                     </div>
                   </div>
 
@@ -283,7 +309,7 @@ export default function Hero() {
       </div>
 
       {/* Controles del carrusel */}
-      <div className="absolute bottom-28 left-0 right-0 z-20">
+      <div className="absolute bottom-20 sm:bottom-28 left-0 right-0 z-30">
         <div className="container mx-auto px-4">
           <div className="flex justify-center space-x-3">
             {slides.map((slide, index) => (
@@ -305,8 +331,8 @@ export default function Hero() {
 
       {/* Scroll Down Indicator */}
       <motion.div
-        className="absolute bottom-10 left-1/2 transform -translate-x-1/2 cursor-pointer z-30"
-        onClick={scrollToContent}
+        className="absolute bottom-6 sm:bottom-10 left-1/2 transform -translate-x-1/2 cursor-pointer z-30"
+        onClick={scrollToCategories}
         initial={{ y: 0 }}
         animate={{ y: [0, 10, 0] }}
         transition={{ repeat: Number.POSITIVE_INFINITY, duration: 1.5 }}
@@ -320,26 +346,26 @@ export default function Hero() {
       </motion.div>
 
       {/* Navigation Buttons */}
-      <div className="absolute inset-y-0 left-0 right-0 flex items-center justify-between px-4 z-20">
+      <div className="absolute inset-y-0 left-0 right-0 flex items-center justify-between px-4 z-30">
         <button
           onClick={prevSlide}
-          className="bg-white/50 hover:bg-white/70 rounded-full p-3 transition-all duration-300 shadow-lg focus:outline-none focus:ring-2 focus:ring-green-600"
+          className="bg-white/50 hover:bg-white/70 rounded-full p-2 sm:p-3 transition-all duration-300 shadow-lg focus:outline-none focus:ring-2 focus:ring-green-600"
           aria-label="Anterior"
         >
-          <ChevronLeft className={`h-6 w-6 ${getColorClass(slides[currentSlide].color)}`} />
+          <ChevronLeft className={`h-5 w-5 sm:h-6 sm:w-6 ${getColorClass(slides[currentSlide].color)}`} />
         </button>
         <button
           onClick={nextSlide}
-          className="bg-white/50 hover:bg-white/70 rounded-full p-3 transition-all duration-300 shadow-lg focus:outline-none focus:ring-2 focus:ring-green-600"
+          className="bg-white/50 hover:bg-white/70 rounded-full p-2 sm:p-3 transition-all duration-300 shadow-lg focus:outline-none focus:ring-2 focus:ring-green-600"
           aria-label="Siguiente"
         >
-          <ChevronRight className={`h-6 w-6 ${getColorClass(slides[currentSlide].color)}`} />
+          <ChevronRight className={`h-5 w-5 sm:h-6 sm:w-6 ${getColorClass(slides[currentSlide].color)}`} />
         </button>
       </div>
 
       {/* Swipe Indicator - solo en móvil */}
-      <div className="absolute bottom-24 left-1/2 transform -translate-x-1/2 text-white text-sm bg-black/50 px-4 py-2 rounded-full md:hidden z-30">
-        Desliza para ver más
+      <div className="absolute bottom-16 left-1/2 transform -translate-x-1/2 text-white text-sm bg-black/50 px-4 py-2 rounded-full md:hidden z-30">
+        Desliza para ver más productos orgánicos
       </div>
     </div>
   )
