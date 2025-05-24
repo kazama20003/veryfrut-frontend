@@ -3,7 +3,7 @@ import Cookies from "js-cookie";
 
 // Crear la instancia de Axios
 export const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000/api", // URL base
+  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL || "https://api.veryfrut.com/api", // URL base
   timeout: 10000, // Tiempo de espera en milisegundos
   headers: {
     "Content-Type": "application/json", // Tipo de contenido predeterminado
