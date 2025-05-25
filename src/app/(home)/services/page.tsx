@@ -4,6 +4,12 @@ import { Button } from "@/components/ui/button"
 import LoadingSpinner from "@/components/global/LoadingSpinner"
 import Header from "@/components/home/header/header"
 import Footer from "@/components/home/footer/footer"
+import { Metadata } from "next"
+export const metadata: Metadata = {
+  title: "Servicios de Distribución | Veryfrut",
+  description: "Descubre nuestros servicios de distribución de frutas y verduras frescas al por mayor. Calidad garantizada para tu negocio, restaurante o mercado.",
+};
+
 
 export default function Services() {
   return (

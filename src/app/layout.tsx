@@ -32,6 +32,14 @@ export const metadata: Metadata = {
     "Distribuidor mayorista de frutas y verduras 100% orgánicas para empresas, restaurantes, hoteles y supermercados. Productos frescos de la mejor calidad con entregas programadas.",
   keywords: [
     "frutas orgánicas",
+    "Arequipa",
+    "Perú",
+    "distribuidor de frutas",
+    "distribuidor de verduras",
+    "distribuidor de frutas orgánicas",
+    "distribuidor de verduras orgánicas",
+    "frutas orgánicas Arequipa",
+    "verduras orgánicas Arequipa",
     "verduras orgánicas",
     "distribuidor mayorista",
     "productos orgánicos",
@@ -129,7 +137,7 @@ export default function RootLayout({
         {/* Favicon and app icons */}
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" href="/icon.svg" type="image/svg+xml" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <link rel="apple-touch-icon" href="/favicon.ico" />
         <link rel="manifest" href="/manifest.json" />
 
         {/* Additional meta tags for better SEO */}

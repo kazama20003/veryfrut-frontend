@@ -2,6 +2,11 @@ import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import Header from "@/components/home/header/header"
 import Footer from "@/components/home/footer/footer"
+import { Metadata } from "next"
+export const metadata: Metadata = {
+  title: "Acerca de | Veryfrut",
+  description: "Descubre nuestros servicios de distribución de frutas y verduras frescas al por mayor. Calidad garantizada para tu negocio, restaurante o mercado.",
+};
 
 export default function AboutUs() {
   return (
