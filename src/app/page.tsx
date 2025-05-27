@@ -13,10 +13,6 @@ const CategorySection = dynamic(() => import("@/components/home/category-section
   ssr: true,
 })
 
-const ProductsSection = dynamic(() => import("@/components/home/products-section"), {
-  loading: () => <LoadingSpinner />,
-  ssr: true,
-})
 
 const TestimonialsSection = dynamic(() => import("@/components/home/testimonials-section"), {
   loading: () => <LoadingSpinner />,
@@ -42,11 +38,6 @@ export default function Home() {
       <Suspense fallback={<LoadingSpinner />}>
         <CategorySection />
       </Suspense>
-
-      <Suspense fallback={<LoadingSpinner />}>
-        <ProductsSection />
-      </Suspense>
-
       <Suspense fallback={<LoadingSpinner />}>
         <TestimonialsSection />
       </Suspense>

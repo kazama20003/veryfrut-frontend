@@ -26,7 +26,7 @@ export default function AboutUs() {
         <div>
           <h2 className="text-3xl font-bold text-gray-800 mb-6">Nuestra Historia</h2>
           <p className="text-gray-600 mb-4">
-            Fundada en 2010, Veryfrut nació con la misión de proporcionar productos orgánicos de la más alta calidad a
+            Fundada en 2021, Veryfrut nació con la misión de proporcionar productos orgánicos de la más alta calidad a
             nuestros clientes. Comenzamos como una pequeña empresa familiar y hemos crecido hasta convertirnos en uno de
             los distribuidores líderes de frutas y verduras orgánicas en la región.
           </p>
@@ -130,8 +130,8 @@ export default function AboutUs() {
                 />
               </svg>
             </div>
-            <h3 className="text-lg font-semibold text-gray-800 mb-2">100% Orgánico</h3>
-            <p className="text-gray-600">Productos certificados orgánicos</p>
+            <h3 className="text-lg font-semibold text-gray-800 mb-2">Calidad</h3>
+            <p className="text-gray-600">Productos De la mejor calidad</p>
           </div>
           <div>
             <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -185,8 +185,8 @@ export default function AboutUs() {
                 />
               </svg>
             </div>
-            <h3 className="text-lg font-semibold text-gray-800 mb-2">Certificados</h3>
-            <p className="text-gray-600">Cumplimos con todos los estándares</p>
+            <h3 className="text-lg font-semibold text-gray-800 mb-2">Compromiso</h3>
+            <p className="text-gray-600">Responsabilidad y dedicación en cada entrega.</p>
           </div>
         </div>
       </div>

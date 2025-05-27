@@ -60,26 +60,28 @@ export function NavUser() {
   }, [])
 
   // Función para cerrar sesión
- const handleLogout = () => {
+const handleLogout = () => {
   try {
-    // Eliminar todas las cookies
+    // Eliminar cookies visibles desde el cliente
     document.cookie.split(";").forEach((cookie) => {
-      const name = cookie.split("=")[0].trim()
-      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`
-    })
+      const name = cookie.split("=")[0].trim();
+      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+    });
 
     toast.success("Sesión cerrada", {
       description: "Has cerrado sesión correctamente.",
-    })
+    });
 
-    router.push("/login")
+    // Forzar recarga para aplicar el cambio de cookies inmediatamente
+    window.location.href = "/login";
   } catch (error) {
-    console.error("Error al cerrar sesión:", error)
+    console.error("Error al cerrar sesión:", error);
     toast.error("Error al cerrar sesión", {
       description: "No se pudo cerrar la sesión. Por favor, intenta nuevamente.",
-    })
+    });
   }
 }
+
 
 
   // Obtener el nombre completo y las iniciales
