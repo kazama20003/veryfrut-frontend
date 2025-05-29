@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useCallback, useState } from "react"
+import { useEffect, useCallback, useState, useMemo, useRef } from "react"
 import Image from "next/image"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
@@ -50,7 +50,6 @@ interface Product {
   productUnits: ProductUnit[]
 }
 
-// Actualizar la interfaz OrderItem para incluir unitMeasurementId y unitMeasurement
 interface OrderItem {
   id: number
   orderId: number
@@ -86,89 +85,96 @@ export default function OrdersHistoryPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [productsCache, setProductsCache] = useState<Record<number, Product>>({})
-  const [areasCache, setAreasCache] = useState<Record<number, Area>>({})
 
-  // Función para obtener los detalles de un producto
-  const fetchProductDetails = useCallback(
-    async (productId: number) => {
-      try {
-        // Verificar si ya tenemos el producto en caché
-        if (productsCache[productId]) {
-          return productsCache[productId]
-        }
+  // Usar useRef para las cachés para evitar re-renders innecesarios
+  const productsCacheRef = useRef<Record<number, Product>>({})
+  const areasCacheRef = useRef<Record<number, Area>>({})
+  const lastFetchTimeRef = useRef<number>(0)
+  const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
-        // Si no está en caché, obtenerlo de la API
-        const response = await api.get(`/products/${productId}`)
-        const product = response.data
+  // Memoizar el userId para evitar recalcularlo en cada render
+  const userId = useMemo(() => getUserIdFromCookies(), [])
 
-        // Actualizar la caché
-        setProductsCache((prev) => ({
-          ...prev,
-          [productId]: product,
-        }))
-
-        return product
-      } catch (error) {
-        console.error(`Error al obtener detalles del producto ${productId}:`, error)
-        return null
+  // Función optimizada para obtener detalles de producto
+  const fetchProductDetails = useCallback(async (productId: number): Promise<Product | null> => {
+    try {
+      // Verificar caché primero
+      if (productsCacheRef.current[productId]) {
+        return productsCacheRef.current[productId]
       }
-    },
-    [productsCache],
-  )
 
-  // Función para obtener los detalles de un área
-  const fetchAreaDetails = useCallback(
-    async (areaId: number) => {
-      try {
-        // Verificar si ya tenemos el área en caché
-        if (areasCache[areaId]) {
-          return areasCache[areaId]
-        }
+      const response = await api.get(`/products/${productId}`)
+      const product = response.data
 
-        // Si no está en caché, obtenerla de la API
-        const response = await api.get(`/areas/${areaId}`)
-        const area = response.data
+      // Actualizar caché
+      productsCacheRef.current[productId] = product
+      return product
+    } catch (error) {
+      console.error(`Error al obtener producto ${productId}:`, error)
+      return null
+    }
+  }, [])
 
-        // Actualizar la caché
-        setAreasCache((prev) => ({
-          ...prev,
-          [areaId]: area,
-        }))
-
-        return area
-      } catch (error) {
-        console.error(`Error al obtener detalles del área ${areaId}:`, error)
-        return null
+  // Función optimizada para obtener detalles de área
+  const fetchAreaDetails = useCallback(async (areaId: number): Promise<Area | null> => {
+    try {
+      // Verificar caché primero
+      if (areasCacheRef.current[areaId]) {
+        return areasCacheRef.current[areaId]
       }
-    },
-    [areasCache],
-  )
 
-  // Función para enriquecer las órdenes con los detalles de los productos y áreas
+      const response = await api.get(`/areas/${areaId}`)
+      const area = response.data
+
+      // Actualizar caché
+      areasCacheRef.current[areaId] = area
+      return area
+    } catch (error) {
+      console.error(`Error al obtener área ${areaId}:`, error)
+      return null
+    }
+  }, [])
+
+  // Función optimizada para enriquecer órdenes
   const enrichOrdersWithDetails = useCallback(
-    async (ordersData: Order[]) => {
+    async (ordersData: Order[]): Promise<Order[]> => {
       const enrichedOrders = [...ordersData]
 
-      // Para cada orden
-      for (const order of enrichedOrders) {
-        // Obtener detalles del área si no existe
+      // Recopilar todos los IDs únicos que necesitamos
+      const productIds = new Set<number>()
+      const areaIds = new Set<number>()
+
+      ordersData.forEach((order) => {
         if (!order.area) {
-          const areaDetails = await fetchAreaDetails(order.areaId)
-          if (areaDetails) {
-            order.area = areaDetails
+          areaIds.add(order.areaId)
+        }
+        order.orderItems.forEach((item) => {
+          if (!item.product) {
+            productIds.add(item.productId)
           }
+        })
+      })
+
+      // Obtener datos en paralelo para mejor rendimiento
+      await Promise.all([
+        ...Array.from(productIds).map((id) => fetchProductDetails(id)),
+        ...Array.from(areaIds).map((id) => fetchAreaDetails(id)),
+      ])
+
+      // Aplicar los datos obtenidos a las órdenes
+      for (const order of enrichedOrders) {
+        // Asignar área si no existe
+        if (!order.area && areasCacheRef.current[order.areaId]) {
+          order.area = areasCacheRef.current[order.areaId]
         }
 
-        // Para cada item de la orden
+        // Asignar productos a los items
         for (let i = 0; i < order.orderItems.length; i++) {
           const item = order.orderItems[i]
-          // Obtener detalles del producto
-          const productDetails = await fetchProductDetails(item.productId)
-          if (productDetails) {
+          if (!item.product && productsCacheRef.current[item.productId]) {
             order.orderItems[i] = {
               ...item,
-              product: productDetails,
+              product: productsCacheRef.current[item.productId],
             }
           }
         }
@@ -179,118 +185,142 @@ export default function OrdersHistoryPage() {
     [fetchProductDetails, fetchAreaDetails],
   )
 
-  // Función para cargar las órdenes del usuario
-  const fetchOrders = useCallback(async () => {
-    try {
-      setIsLoading(true)
-      setErrorMessage(null)
+  // Función principal para cargar órdenes con throttling
+  const fetchOrders = useCallback(
+    async (forceRefresh = false) => {
+      const now = Date.now()
 
-      // Obtener el ID del usuario
-      const userId = getUserIdFromCookies()
-
-      if (!userId) {
-        setErrorMessage("No se pudo identificar al usuario. Por favor, inicia sesión nuevamente.")
-        toast.error("Error de autenticación", {
-          description: "No se pudo identificar al usuario. Por favor, inicia sesión nuevamente.",
-        })
+      // Throttling: evitar llamadas muy frecuentes (mínimo 5 segundos entre llamadas)
+      if (!forceRefresh && now - lastFetchTimeRef.current < 5000) {
         return
       }
 
-      // Obtener las órdenes del usuario
-      const response = await api.get(`/orders/customer/${userId}`)
-      const ordersData = response.data
+      try {
+        setIsLoading(true)
+        setErrorMessage(null)
+        lastFetchTimeRef.current = now
 
-      // Enriquecer las órdenes con los detalles de los productos y áreas
-      const enrichedOrders = await enrichOrdersWithDetails(ordersData)
-      setOrders(enrichedOrders)
-    } catch (err) {
-      console.error("Error al obtener el historial de pedidos:", err)
-      setErrorMessage("Error al cargar el historial de pedidos. Por favor, intenta nuevamente.")
-      toast.error("Error al cargar pedidos", {
-        description: "No se pudieron cargar tus pedidos. Por favor, intenta nuevamente.",
-      })
-    } finally {
-      setIsLoading(false)
-    }
-  }, [enrichOrdersWithDetails])
+        if (!userId) {
+          setErrorMessage("No se pudo identificar al usuario. Por favor, inicia sesión nuevamente.")
+          toast.error("Error de autenticación", {
+            description: "No se pudo identificar al usuario. Por favor, inicia sesión nuevamente.",
+          })
+          return
+        }
 
-  // Cargar órdenes al montar el componente
+        // Obtener órdenes del usuario
+        const response = await api.get(`/orders/customer/${userId}`)
+        console.log('====================================');
+        console.log(response);
+        console.log('====================================');
+        const ordersData = response.data
+
+        // Solo enriquecer si tenemos datos nuevos o si es la primera carga
+        if (ordersData && ordersData.length > 0) {
+          const enrichedOrders = await enrichOrdersWithDetails(ordersData)
+          setOrders(enrichedOrders)
+        } else {
+          setOrders([])
+        }
+      } catch (err) {
+        console.error("Error al obtener el historial de pedidos:", err)
+        setErrorMessage("Error al cargar el historial de pedidos. Por favor, intenta nuevamente.")
+        toast.error("Error al cargar pedidos", {
+          description: "No se pudieron cargar tus pedidos. Por favor, intenta nuevamente.",
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [userId], // Solo incluir userId como dependencia y usar eslint-disable para evitar warnings
+  )
+
+  // Efecto principal optimizado
   useEffect(() => {
-    fetchOrders()
+    // Cargar datos iniciales
+    fetchOrders(true)
 
-    // Configurar un intervalo para actualizar las órdenes cada 30 segundos
-    const intervalId = setInterval(() => {
-      fetchOrders()
-    }, 30000)
+    // Configurar intervalo solo si es necesario (cada 60 segundos en lugar de 30)
+    intervalRef.current = setInterval(() => {
+      fetchOrders(false)
+    }, 60000)
 
-    // Limpiar el intervalo al desmontar
-    return () => clearInterval(intervalId)
+    // Cleanup
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+      }
+    }
+  }, [fetchOrders]) // Incluir fetchOrders como dependencia
+
+  // Función manual para refrescar
+  const handleRefresh = useCallback(() => {
+    fetchOrders(true)
   }, [fetchOrders])
 
-  // Función para obtener el color y texto del estado de la orden
-  const getOrderStatusInfo = (status: OrderStatus) => {
-    switch (status) {
-      case OrderStatus.CREATED:
-        return {
-          color: "bg-blue-500",
-          text: "Creado",
-          icon: <Package className="h-4 w-4" />,
-        }
-      case OrderStatus.PROCESS:
-        return {
-          color: "bg-amber-500",
-          text: "En proceso",
-          icon: <Truck className="h-4 w-4" />,
-        }
-      case OrderStatus.DELIVERED:
-        return {
-          color: "bg-green-600",
-          text: "Entregado",
-          icon: <ShoppingBag className="h-4 w-4" />,
-        }
-      default:
-        return {
-          color: "bg-gray-500",
-          text: "Desconocido",
-          icon: <Package className="h-4 w-4" />,
-        }
-    }
-  }
+  // Funciones de utilidad memoizadas
+  const getOrderStatusInfo = useMemo(
+    () => (status: OrderStatus) => {
+      switch (status) {
+        case OrderStatus.CREATED:
+          return {
+            color: "bg-blue-500",
+            text: "Creado",
+            icon: <Package className="h-4 w-4" />,
+          }
+        case OrderStatus.PROCESS:
+          return {
+            color: "bg-amber-500",
+            text: "En proceso",
+            icon: <Truck className="h-4 w-4" />,
+          }
+        case OrderStatus.DELIVERED:
+          return {
+            color: "bg-green-600",
+            text: "Entregado",
+            icon: <ShoppingBag className="h-4 w-4" />,
+          }
+        default:
+          return {
+            color: "bg-gray-500",
+            text: "Desconocido",
+            icon: <Package className="h-4 w-4" />,
+          }
+      }
+    },
+    [],
+  )
 
-  // Función para formatear la fecha
-  const formatDate = (dateString: string) => {
+  const formatDate = useCallback((dateString: string) => {
     try {
       return format(new Date(dateString), "d 'de' MMMM, yyyy", { locale: es })
     } catch {
       return "Fecha desconocida"
     }
-  }
+  }, [])
 
-  // Función para formatear la hora
-  const formatTime = (dateString: string) => {
+  const formatTime = useCallback((dateString: string) => {
     try {
       return format(new Date(dateString), "h:mm a", { locale: es })
     } catch {
       return ""
     }
-  }
+  }, [])
 
-  // Función para ver detalles de un pedido
-  const handleViewDetails = (order: Order) => {
+  const handleViewDetails = useCallback((order: Order) => {
     setSelectedOrder(order)
     setIsDialogOpen(true)
-  }
+  }, [])
 
-  // Función para obtener el nombre del área
-  const getAreaName = (order: Order) => {
+  const getAreaName = useCallback((order: Order) => {
     if (order.area?.name) {
       return order.area.name
     }
     return `Área #${order.areaId}`
-  }
+  }, [])
 
-  // Actualizar la función getUnitName para usar directamente unitMeasurement del orderItem
-  const getUnitName = (item: OrderItem) => {
+  const getUnitName = useCallback((item: OrderItem) => {
     if (item.unitMeasurement) {
       return item.unitMeasurement.name
     }
@@ -301,13 +331,16 @@ export default function OrdersHistoryPage() {
     }
 
     return "unidad(es)"
-  }
+  }, [])
 
   return (
     <>
       <div className="flex min-h-screen flex-col">
         <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b bg-background px-4 md:px-6">
           <h1 className="text-xl font-semibold md:text-2xl">Historial de Pedidos</h1>
+          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
+            Actualizar
+          </Button>
         </header>
 
         <main className="flex-1 p-4 md:p-6">
@@ -341,7 +374,7 @@ export default function OrdersHistoryPage() {
               </div>
               <h2 className="mb-2 text-xl font-semibold">No se pudieron cargar tus pedidos</h2>
               <p className="mb-4 max-w-md text-muted-foreground">{errorMessage}</p>
-              <Button onClick={() => fetchOrders()}>Intentar nuevamente</Button>
+              <Button onClick={handleRefresh}>Intentar nuevamente</Button>
             </div>
           ) : orders.length === 0 ? (
             // Sin pedidos
@@ -379,7 +412,6 @@ export default function OrdersHistoryPage() {
                         <Clock className="h-3.5 w-3.5" />
                         {formatTime(order.createdAt)}
                       </CardDescription>
-                      {/* Mostrar el área del pedido */}
                       <CardDescription className="flex items-center gap-1 mt-1 text-blue-600">
                         <Building className="h-3.5 w-3.5" />
                         {getAreaName(order)}
@@ -389,7 +421,6 @@ export default function OrdersHistoryPage() {
                     <CardContent>
                       <div className="space-y-2">
                         <p className="text-sm font-medium">Productos:</p>
-                        {/* Actualizar la visualización de los items en la lista de pedidos para mostrar la unidad de medida */}
                         <ul className="space-y-2">
                           {order.orderItems.slice(0, 3).map((item) => (
                             <li key={`order-item-${item.id}`} className="flex items-center gap-2 text-sm">
@@ -441,8 +472,6 @@ export default function OrdersHistoryPage() {
                         <Eye className="mr-2 h-4 w-4" />
                         Ver detalles
                       </Button>
-
-                      {/* Botón de edición que solo aparece si la orden es del día actual y está en estado "created" */}
                       <OrderEditButton order={order} />
                     </CardFooter>
                   </Card>
@@ -491,7 +520,6 @@ export default function OrdersHistoryPage() {
                   </Badge>
                 </div>
 
-                {/* Mostrar mensaje de edición si aplica */}
                 {isToday(new Date(selectedOrder.createdAt)) && selectedOrder.status === OrderStatus.CREATED && (
                   <div className="mt-3 rounded-md bg-blue-50 p-2 text-xs text-blue-700">
                     Este pedido puede ser editado hasta el final del día de hoy.
@@ -503,7 +531,6 @@ export default function OrdersHistoryPage() {
               <div>
                 <h3 className="mb-3 font-medium">Productos</h3>
                 <div className="space-y-3 rounded-lg border p-4">
-                  {/* Actualizar la visualización de los items en el diálogo de detalles para mostrar la unidad de medida */}
                   {selectedOrder.orderItems.map((item) => (
                     <div key={`detail-item-${item.id}`} className="flex items-center gap-3">
                       <div className="relative h-16 w-16 overflow-hidden rounded-md border">
@@ -579,7 +606,6 @@ export default function OrdersHistoryPage() {
                   Cerrar
                 </Button>
 
-                {/* Mostrar botón de edición en el diálogo si aplica */}
                 {isToday(new Date(selectedOrder.createdAt)) && selectedOrder.status === OrderStatus.CREATED && (
                   <OrderEditButton order={selectedOrder} />
                 )}

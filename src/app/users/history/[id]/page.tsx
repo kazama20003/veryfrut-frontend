@@ -43,7 +43,6 @@ interface Product {
   productUnits?: ProductUnit[]
 }
 
-// Actualizar la interfaz OrderItem para incluir unitMeasurementId y unitMeasurement
 interface OrderItem {
   id: number
   orderId: number
@@ -98,6 +97,54 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
   const [isSearching, setIsSearching] = useState(false)
   const [unitMeasurements, setUnitMeasurements] = useState<UnitMeasurement[]>([])
   const [allProducts, setAllProducts] = useState<Product[]>([])
+
+  // Función para actualizar cantidad con soporte para decimales
+  const updateQuantity = useCallback((productId: number, selectedUnitId: number, quantity: number) => {
+    if (quantity <= 0) {
+      // Si la cantidad es 0 o menos, eliminar el producto
+      setCart((prev) => prev.filter((item) => !(item.id === productId && item.selectedUnitId === selectedUnitId)))
+    } else {
+      // Redondear a 2 decimales y actualizar la cantidad
+      const roundedQuantity = Math.round(quantity * 100) / 100
+      setCart((prev) =>
+        prev.map((item) =>
+          item.id === productId && item.selectedUnitId === selectedUnitId
+            ? { ...item, quantity: roundedQuantity }
+            : item,
+        ),
+      )
+    }
+  }, [])
+
+  // Función para manejar cambio directo en el input
+  const handleQuantityInputChange = useCallback(
+    (productId: number, selectedUnitId: number, value: string) => {
+      const numValue = Number.parseFloat(value)
+      if (!isNaN(numValue) && numValue > 0) {
+        updateQuantity(productId, selectedUnitId, numValue)
+      } else if (value === "" || value === "0") {
+        // Permitir campo vacío temporalmente
+        setCart((prev) =>
+          prev.map((item) =>
+            item.id === productId && item.selectedUnitId === selectedUnitId ? { ...item, quantity: 0 } : item,
+          ),
+        )
+      }
+    },
+    [updateQuantity],
+  )
+
+  // Función para manejar cuando el input pierde el foco
+  const handleQuantityInputBlur = useCallback(
+    (productId: number, selectedUnitId: number, value: string) => {
+      const numValue = Number.parseFloat(value)
+      if (isNaN(numValue) || numValue <= 0) {
+        // Si el valor no es válido, establecer a 0.1 como mínimo
+        updateQuantity(productId, selectedUnitId, 0.1)
+      }
+    },
+    [updateQuantity],
+  )
 
   // Actualizar la función fetchOrderData para manejar correctamente las unidades de medida
   const fetchOrderData = useCallback(async () => {
@@ -262,21 +309,6 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
     })
   }
 
-  // Actualizar cantidad de un producto
-  const updateQuantity = (productId: number, selectedUnitId: number, quantity: number) => {
-    if (quantity <= 0) {
-      // Si la cantidad es 0 o menos, eliminar el producto
-      setCart((prev) => prev.filter((item) => !(item.id === productId && item.selectedUnitId === selectedUnitId)))
-    } else {
-      // Actualizar la cantidad
-      setCart((prev) =>
-        prev.map((item) =>
-          item.id === productId && item.selectedUnitId === selectedUnitId ? { ...item, quantity } : item,
-        ),
-      )
-    }
-  }
-
   // Eliminar un producto del carrito
   const removeFromCart = (productId: number, selectedUnitId: number) => {
     setCart((prev) => prev.filter((item) => !(item.id === productId && item.selectedUnitId === selectedUnitId)))
@@ -306,7 +338,7 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
           productId: item.id,
           quantity: item.quantity,
           price: item.price,
-          unitMeasurementId: item.selectedUnitId, // Añadir unitMeasurementId
+          unitMeasurementId: item.selectedUnitId,
         })),
       }
 
@@ -413,6 +445,7 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
               <li>Puedes añadir o quitar productos de este pedido.</li>
               <li>La edición solo está disponible hasta el final del día de hoy.</li>
               <li>La entrega de los productos será mañana.</li>
+              <li>Puedes usar cantidades decimales (ej: 2.5, 0.75).</li>
             </ul>
           </AlertDescription>
         </Alert>
@@ -548,24 +581,39 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
                     </div>
                   </div>
 
-                  <div className="mt-2 flex items-center justify-between">
-                    <div className="flex items-center">
+                  {/* Control de cantidad con soporte para decimales */}
+                  <div className="mt-3 flex items-center justify-center">
+                    <div className="flex items-center gap-2">
                       <Button
                         variant="outline"
                         size="icon"
-                        className="h-7 w-7 rounded-full"
-                        onClick={() => updateQuantity(item.id, item.selectedUnitId, item.quantity - 1)}
-                        disabled={item.quantity <= 1 || isSubmitting}
+                        className="h-8 w-8 rounded-full flex-shrink-0"
+                        onClick={() => updateQuantity(item.id, item.selectedUnitId, Math.max(0.1, item.quantity - 0.5))}
+                        disabled={item.quantity <= 0.1 || isSubmitting}
                       >
                         <Minus className="h-3 w-3" />
                         <span className="sr-only">Disminuir</span>
                       </Button>
-                      <span className="mx-2 w-6 text-center text-sm">{item.quantity}</span>
+
+                      <div className="flex flex-col items-center">
+                        <Input
+                          type="number"
+                          min="0.1"
+                          step="0.1"
+                          value={item.quantity}
+                          onChange={(e) => handleQuantityInputChange(item.id, item.selectedUnitId, e.target.value)}
+                          onBlur={(e) => handleQuantityInputBlur(item.id, item.selectedUnitId, e.target.value)}
+                          className="w-16 h-8 text-center text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          disabled={isSubmitting}
+                        />
+                        <span className="text-xs text-muted-foreground mt-1">{getUnitName(item)}</span>
+                      </div>
+
                       <Button
                         variant="outline"
                         size="icon"
-                        className="h-7 w-7 rounded-full"
-                        onClick={() => updateQuantity(item.id, item.selectedUnitId, item.quantity + 1)}
+                        className="h-8 w-8 rounded-full flex-shrink-0"
+                        onClick={() => updateQuantity(item.id, item.selectedUnitId, item.quantity + 0.5)}
                         disabled={isSubmitting}
                       >
                         <Plus className="h-3 w-3" />
@@ -581,18 +629,29 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
 
         <Separator className="my-6" />
 
+        {/* Total del pedido */}
+
         {/* Botones de acción */}
-        <div className="flex justify-between">
-          <Button variant="outline" onClick={handleCancel} disabled={isSubmitting}>
+        <div className="flex flex-col sm:flex-row justify-between gap-3">
+          <Button variant="outline" onClick={handleCancel} disabled={isSubmitting} className="order-2 sm:order-1">
             Cancelar
           </Button>
 
-          <div className="flex gap-2">
-            <Button variant="destructive" onClick={() => setCart([])} disabled={cart.length === 0 || isSubmitting}>
+          <div className="flex flex-col sm:flex-row gap-2 order-1 sm:order-2">
+            <Button
+              variant="destructive"
+              onClick={() => setCart([])}
+              disabled={cart.length === 0 || isSubmitting}
+              className="w-full sm:w-auto"
+            >
               Vaciar pedido
             </Button>
 
-            <Button className="bg-green-600 hover:bg-green-700" onClick={handleSaveChanges} disabled={isSubmitting}>
+            <Button
+              className="bg-green-600 hover:bg-green-700 w-full sm:w-auto"
+              onClick={handleSaveChanges}
+              disabled={isSubmitting}
+            >
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -168,9 +168,18 @@ export default function ProductsPage() {
     return id % 5 === 0
   }, [])
 
-  // Manejar la adición al carrito con notificación
+  // Función para formatear números con coma como separador decimal
+  const formatQuantity = (quantity: number): string => {
+    if (quantity % 1 === 0) {
+      return quantity.toFixed(0)
+    } else {
+      return quantity.toFixed(2).replace(".", ",")
+    }
+  }
+
+  // Manejar la adición al carrito con notificación (actualizada para incluir cantidad)
   const handleAddToCart = useCallback(
-    (product: Product, selectedUnitId: number) => {
+    (product: Product, selectedUnitId: number, quantity: number) => {
       if (isPageBlocked) return // Evitar acciones si la página está bloqueada
 
       // Asegurarse de que el producto tenga las propiedades necesarias antes de pasarlo a addToCart
@@ -180,17 +189,36 @@ export default function ProductsPage() {
         selectedUnitId: selectedUnitId,
       }
 
-      addToCart(productWithRequiredProps, selectedUnitId)
+      // Agregar la cantidad especificada al carrito
+      for (let i = 0; i < quantity; i += 0.25) {
+        const remainingQuantity = Math.min(0.25, quantity - i)
+        if (remainingQuantity > 0) {
+          addToCart(productWithRequiredProps, selectedUnitId)
+          // Si necesitamos agregar una cantidad específica diferente a 0.25, actualizamos
+          if (remainingQuantity !== 0.25 && i === 0) {
+            // Actualizar directamente a la cantidad deseada
+            updateCartItemQuantity(product.id, selectedUnitId, quantity)
+            break
+          }
+        }
+      }
+
+      // Si la cantidad es exacta, actualizar directamente
+      if (quantity !== Math.floor(quantity / 0.25) * 0.25) {
+        updateCartItemQuantity(product.id, selectedUnitId, quantity)
+      } else if (quantity > 0.25) {
+        updateCartItemQuantity(product.id, selectedUnitId, quantity)
+      }
 
       // Obtener el nombre de la unidad seleccionada
       const selectedUnit = product.productUnits.find((pu) => pu.unitMeasurement.id === selectedUnitId)
       const unitName = selectedUnit?.unitMeasurement.name || ""
 
       toast.success("Producto agregado", {
-        description: `${product.name} (${unitName}) se ha agregado al carrito.`,
+        description: `${formatQuantity(quantity)} ${product.name} (${unitName}) agregado al carrito.`,
       })
     },
-    [addToCart, isPageBlocked],
+    [addToCart, updateCartItemQuantity, isPageBlocked],
   )
 
   // Función para abrir el carrito
