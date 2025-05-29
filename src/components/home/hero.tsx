@@ -48,7 +48,7 @@ const slides: SlideInfo[] = [
   },
   {
     id: 3,
-    title: "COMPROMISO ORGÁNICO",
+    title: "COMPROMISO SOSTENIBLE",
     heading: "Soluciones Sostenibles",
     description:
       "Adaptamos nuestros servicios de distribución de productos de la mejor calidad a las necesidades específicas de cada cliente empresarial. Comprometidos con el medio ambiente y su salud.",
@@ -321,7 +321,7 @@ export default function Hero() {
                       <div
                         className={`absolute top-4 right-4 ${getBgColorClass(slide.color)} text-white px-3 py-1 rounded-full text-sm font-bold shadow-lg`}
                       >
-                        100% Orgánico
+                        100% Calidad
                       </div>
                     </div>
                   </motion.div>
