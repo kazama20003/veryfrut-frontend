@@ -127,11 +127,12 @@ function CategorySection() {
 function InstitutionalLineSection() {
   const institutionalProduct = {
     id: 4,
-    name: "Línea Institucional",
-    description: "Productos adaptados a las necesidades de comedores escolares, hospitales y servicios de catering.",
+    name: "Líneas de Productos",
+    description:
+      "Ofrecemos una amplia gama de productos frescos de alta calidad para satisfacer las necesidades específicas de su negocio. Todas nuestras líneas de productos cumplen con los más altos estándares de calidad y seguridad alimentaria.",
     image: "https://res.cloudinary.com/demzflxgq/image/upload/v1744911096/shutterstock_1756689209_xlpwey.jpg",
     features: ["Volumen garantizado", "Precios estables", "Entregas programadas"],
-    certification: "ISO 22000",
+    certification: "Premiun",
     minOrder: "Consultar según volumen",
   }
 
@@ -188,7 +189,15 @@ function InstitutionalLineSection() {
 
             {/* Detalles en grid horizontal */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-gray-50 rounded-lg p-4">
-          
+              <div className="flex items-center space-x-3">
+                <div className="bg-green-100 rounded-full p-2">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">Calidad</p>
+                  <p className="text-xs text-gray-600">{institutionalProduct.certification}</p>
+                </div>
+              </div>
 
               <div className="flex items-center space-x-3">
                 <div className="bg-green-100 rounded-full p-2">

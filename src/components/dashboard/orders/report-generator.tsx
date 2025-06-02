@@ -87,6 +87,7 @@ interface Order {
   area?: Area
   totalAmount: number
   status: string
+  observation?: string
   orderItems: OrderItem[]
   createdAt?: string
 }
@@ -263,6 +264,10 @@ export function ReportGenerator() {
     return defaultColors[index % defaultColors.length]
   }
 
+  // Eliminar la función getObservationsByArea ya que no se usa
+  // Buscar y eliminar esta función completa:
+  // Función para obtener observaciones agrupadas por área/compañía
+
   // Generar y descargar Excel
   const downloadExcel = async () => {
     try {
@@ -280,83 +285,112 @@ export function ReportGenerator() {
       // Crear un nuevo libro de Excel
       const wb = XLSX_STYLE.utils.book_new()
 
+      // Crear datos para el Excel con estilos
+      const excelData: StyledCell[][] = []
+
+      // Agregar encabezado con fecha
+      excelData.push([
+        {
+          v: `fecha: ${reportDate}`,
+          t: "s",
+          s: {
+            font: { bold: true },
+            fill: { fgColor: { rgb: "E2EFDA" } },
+            border: {
+              top: { style: "thin" },
+              left: { style: "thin" },
+              bottom: { style: "thin" },
+              right: { style: "thin" },
+            },
+          },
+        },
+      ])
+
+      // Fila vacía para separación
+      excelData.push([])
+
       // Obtener productos agrupados por categoría
       const productsByCategory = getProductsForReport()
 
-      let hasSheets = false
+      // Filtrar compañías que tienen áreas con pedidos
+      const companiesWithOrders = companies.filter((company) => {
+        const companyAreas = getAreasByCompany()[company.id] || []
+        return companyAreas.some((area: Area) => areasWithOrders.includes(area.id))
+      })
 
-      // Para cada categoría, crear una hoja en el Excel
-      for (const [categoryIdStr, categoryProducts] of Object.entries(productsByCategory)) {
-        const categoryId = Number.parseInt(categoryIdStr)
+      // Preparar la fila de encabezados de compañías (solo una vez)
+      const companyRow: StyledCell[] = [
+        {
+          v: "PRODUCTOS",
+          t: "s",
+          s: {
+            font: { bold: true },
+            fill: { fgColor: { rgb: "F2F2F2" } },
+            border: {
+              top: { style: "thin" },
+              left: { style: "thin" },
+              bottom: { style: "thin" },
+              right: { style: "thin" },
+            },
+          },
+        },
+      ]
 
-        // Obtener el nombre de la categoría
-        const categoryName = categories[categoryId]?.name || `Categoría ${categoryId}`
+      // Preparar la fila de áreas
+      const areaRow: StyledCell[] = [
+        {
+          v: "",
+          t: "s",
+          s: {
+            fill: { fgColor: { rgb: "F2F2F2" } },
+            border: {
+              top: { style: "thin" },
+              left: { style: "thin" },
+              bottom: { style: "thin" },
+              right: { style: "thin" },
+            },
+          },
+        },
+      ]
 
-        // Filtrar solo productos con pedidos
-        const productsWithOrders = categoryProducts.filter((product: Product) => {
-          // Verificar si hay algún pedido para este producto en cualquier área
-          for (const areaId in productQuantities) {
-            if (productQuantities[areaId][product.id]) {
-              return true
-            }
-          }
-          return false
+      // Agregar compañías y áreas a las filas de encabezado
+      companiesWithOrders.forEach((company) => {
+        // Filtrar solo áreas con pedidos
+        const companyAreas =
+          getAreasByCompany()[company.id]?.filter((area: Area) => areasWithOrders.includes(area.id)) || []
+
+        if (companyAreas.length === 0) {
+          return // Saltar esta compañía si no tiene áreas con pedidos
+        }
+
+        const companyColor = getExcelColorFromTailwind(company.color)
+        const textColor = company.color && company.color.includes("text-white") ? "FFFFFF" : "000000"
+
+        // Agregar la compañía
+        companyRow.push({
+          v: company.name,
+          t: "s",
+          s: {
+            font: { bold: true, color: { rgb: textColor } },
+            fill: { fgColor: { rgb: companyColor } },
+            alignment: { horizontal: "center" },
+            border: {
+              top: { style: "thin" },
+              left: { style: "thin" },
+              bottom: { style: "thin" },
+              right: { style: "thin" },
+            },
+          },
         })
 
-        // Si no hay productos con pedidos en esta categoría, omitir la hoja
-        if (productsWithOrders.length === 0) continue
-
-        hasSheets = true
-
-        // Crear datos para el Excel con estilos
-        const excelData: StyledCell[][] = []
-
-        // Agregar encabezado con fecha
-        excelData.push([
-          {
-            v: `fecha: ${reportDate}`,
-            t: "s",
-            s: {
-              font: { bold: true },
-              fill: { fgColor: { rgb: "E2EFDA" } },
-              border: {
-                top: { style: "thin" },
-                left: { style: "thin" },
-                bottom: { style: "thin" },
-                right: { style: "thin" },
-              },
-            },
-          },
-        ])
-
-        // Fila vacía para separación
-        excelData.push([])
-
-        // Preparar la fila de encabezados de compañías
-        const companyRow: StyledCell[] = [
-          {
-            v: categoryName.toUpperCase(),
-            t: "s",
-            s: {
-              font: { bold: true },
-              fill: { fgColor: { rgb: "F2F2F2" } },
-              border: {
-                top: { style: "thin" },
-                left: { style: "thin" },
-                bottom: { style: "thin" },
-                right: { style: "thin" },
-              },
-            },
-          },
-        ]
-
-        // Preparar la fila de áreas
-        const areaRow: StyledCell[] = [
-          {
+        // Agregar celdas vacías para el colspan
+        for (let i = 1; i < companyAreas.length; i++) {
+          companyRow.push({
             v: "",
             t: "s",
             s: {
-              fill: { fgColor: { rgb: "F2F2F2" } },
+              font: { bold: true, color: { rgb: textColor } },
+              fill: { fgColor: { rgb: companyColor } },
               border: {
                 top: { style: "thin" },
                 left: { style: "thin" },
@@ -364,31 +398,13 @@ export function ReportGenerator() {
                 right: { style: "thin" },
               },
             },
-          },
-        ]
+          })
+        }
 
-        // Filtrar compañías que tienen áreas con pedidos
-        const companiesWithOrders = companies.filter((company) => {
-          const companyAreas = getAreasByCompany()[company.id] || []
-          return companyAreas.some((area: Area) => areasWithOrders.includes(area.id))
-        })
-
-        // Agregar compañías y áreas a las filas de encabezado
-        companiesWithOrders.forEach((company) => {
-          // Filtrar solo áreas con pedidos
-          const companyAreas =
-            getAreasByCompany()[company.id]?.filter((area: Area) => areasWithOrders.includes(area.id)) || []
-
-          if (companyAreas.length === 0) {
-            return // Saltar esta compañía si no tiene áreas con pedidos
-          }
-
-          const companyColor = getExcelColorFromTailwind(company.color)
-          const textColor = company.color && company.color.includes("text-white") ? "FFFFFF" : "000000"
-
-          // Agregar la compañía
-          companyRow.push({
-            v: company.name,
+        // Agregar las áreas
+        companyAreas.forEach((area) => {
+          areaRow.push({
+            v: area.name,
             t: "s",
             s: {
               font: { bold: true, color: { rgb: textColor } },
@@ -402,34 +418,59 @@ export function ReportGenerator() {
               },
             },
           })
+        })
+      })
 
-          // Agregar celdas vacías para el colspan
-          for (let i = 1; i < companyAreas.length; i++) {
-            companyRow.push({
+      excelData.push(companyRow)
+      excelData.push(areaRow)
+
+      // Agregar productos por categoría
+      Object.entries(productsByCategory).forEach(([categoryIdStr, categoryProducts]) => {
+        const categoryId = Number.parseInt(categoryIdStr)
+        const categoryName = categories[categoryId]?.name || `Categoría ${categoryId}`
+
+        // Filtrar solo productos con pedidos
+        const productsWithOrders = categoryProducts.filter((product: Product) => {
+          // Verificar si hay algún pedido para este producto en cualquier área
+          for (const areaId in productQuantities) {
+            if (productQuantities[areaId][product.id]) {
+              return true
+            }
+          }
+          return false
+        })
+
+        // Si no hay productos con pedidos en esta categoría, omitir
+        if (productsWithOrders.length === 0) return
+
+        // Agregar encabezado de categoría
+        const categoryHeaderRow: StyledCell[] = [
+          {
+            v: categoryName.toUpperCase(),
+            t: "s",
+            s: {
+              font: { bold: true },
+              fill: { fgColor: { rgb: "E6E6FA" } },
+              border: {
+                top: { style: "thin" },
+                left: { style: "thin" },
+                bottom: { style: "thin" },
+                right: { style: "thin" },
+              },
+            },
+          },
+        ]
+
+        // Agregar celdas vacías para el resto de columnas
+        companiesWithOrders.forEach((company) => {
+          const companyAreas =
+            getAreasByCompany()[company.id]?.filter((area: Area) => areasWithOrders.includes(area.id)) || []
+          companyAreas.forEach(() => {
+            categoryHeaderRow.push({
               v: "",
               t: "s",
               s: {
-                font: { bold: true, color: { rgb: textColor } },
-                fill: { fgColor: { rgb: companyColor } },
-                border: {
-                  top: { style: "thin" },
-                  left: { style: "thin" },
-                  bottom: { style: "thin" },
-                  right: { style: "thin" },
-                },
-              },
-            })
-          }
-
-          // Agregar las áreas
-          companyAreas.forEach((area) => {
-            areaRow.push({
-              v: area.name,
-              t: "s",
-              s: {
-                font: { bold: true, color: { rgb: textColor } },
-                fill: { fgColor: { rgb: companyColor } },
-                alignment: { horizontal: "center" },
+                fill: { fgColor: { rgb: "E6E6FA" } },
                 border: {
                   top: { style: "thin" },
                   left: { style: "thin" },
@@ -441,10 +482,9 @@ export function ReportGenerator() {
           })
         })
 
-        excelData.push(companyRow)
-        excelData.push(areaRow)
+        excelData.push(categoryHeaderRow)
 
-        // Agregar productos con sus cantidades por área
+        // Agregar productos de esta categoría
         productsWithOrders.forEach((product: Product) => {
           const productRow: StyledCell[] = [
             {
@@ -496,14 +536,14 @@ export function ReportGenerator() {
           excelData.push(productRow)
         })
 
-        // Agregar fila de totales
+        // Agregar fila de totales para esta categoría
         const totalRow: StyledCell[] = [
           {
-            v: "TOTAL",
+            v: `TOTAL ${categoryName.toUpperCase()}`,
             t: "s",
             s: {
               font: { bold: true },
-              fill: { fgColor: { rgb: "FFFFFF" } },
+              fill: { fgColor: { rgb: "F0F0F0" } },
               border: {
                 top: { style: "thin" },
                 left: { style: "thin" },
@@ -533,6 +573,7 @@ export function ReportGenerator() {
               s: {
                 font: { bold: true },
                 alignment: { horizontal: "center" },
+                fill: { fgColor: { rgb: "F0F0F0" } },
                 border: {
                   top: { style: "thin" },
                   left: { style: "thin" },
@@ -546,69 +587,122 @@ export function ReportGenerator() {
 
         excelData.push(totalRow)
 
-        // Crear hoja de cálculo
-        const ws = XLSX_STYLE.utils.aoa_to_sheet(excelData)
+        // Agregar fila vacía para separación entre categorías
+        excelData.push([])
+      })
 
-        // Definir anchos de columna
-        const wscols = [
-          { wch: 20 }, // Nombre del producto
+      // Agregar sección de observaciones al final (una sola vez)
+      const allObservations: string[] = []
+      orders.forEach((order) => {
+        if (order.observation && order.observation.trim()) {
+          if (!allObservations.includes(order.observation)) {
+            allObservations.push(order.observation)
+          }
+        }
+      })
+
+      if (allObservations.length > 0) {
+        // Fila vacía para separación
+        excelData.push([])
+
+        // Fila de observaciones
+        const observationRow: StyledCell[] = [
+          {
+            v: "OBSERVACION",
+            t: "s",
+            s: {
+              font: { bold: true },
+              fill: { fgColor: { rgb: "FFFF00" } }, // Amarillo
+              border: {
+                top: { style: "thin" },
+                left: { style: "thin" },
+                bottom: { style: "thin" },
+                right: { style: "thin" },
+              },
+            },
+          },
         ]
 
-        // Agregar anchos para las columnas de áreas
-        companiesWithOrders.forEach((company) => {
-          // Filtrar solo áreas con pedidos
-          const companyAreas =
-            getAreasByCompany()[company.id]?.filter((area: Area) => areasWithOrders.includes(area.id)) || []
-
-          if (companyAreas.length === 0) {
-            return // Saltar esta compañía si no tiene áreas con pedidos
-          }
-
-          companyAreas.forEach(() => {
-            wscols.push({ wch: 12 })
+        // Agregar cada observación como una columna
+        allObservations.forEach((observation) => {
+          observationRow.push({
+            v: observation,
+            t: "s",
+            s: {
+              fill: { fgColor: { rgb: "FFFF99" } }, // Amarillo claro
+              alignment: { horizontal: "left", wrapText: true },
+              border: {
+                top: { style: "thin" },
+                left: { style: "thin" },
+                bottom: { style: "thin" },
+                right: { style: "thin" },
+              },
+            },
           })
         })
 
-        ws["!cols"] = wscols
-
-        // Combinar celdas para los encabezados de compañías
-        const merges: CellRange[] = []
-        let colIndex = 1 // Empezamos en la columna B (índice 1)
-
-        companiesWithOrders.forEach((company) => {
-          // Filtrar solo áreas con pedidos
-          const companyAreas =
-            getAreasByCompany()[company.id]?.filter((area: Area) => areasWithOrders.includes(area.id)) || []
-
-          if (companyAreas.length === 0) {
-            return // Saltar esta compañía si no tiene áreas con pedidos
-          }
-
-          if (companyAreas.length > 1) {
-            // Combinar celdas para el nombre de la compañía
-            merges.push({
-              s: { r: 2, c: colIndex },
-              e: { r: 2, c: colIndex + companyAreas.length - 1 },
-            })
-            colIndex += companyAreas.length
-          } else {
-            colIndex += 1
-          }
-        })
-
-        ws["!merges"] = merges
-
-        // Agregar hoja al libro
-        XLSX_STYLE.utils.book_append_sheet(wb, ws, categoryName)
+        excelData.push(observationRow)
       }
 
-      // Verificar si se agregó alguna hoja al libro
-      if (!hasSheets) {
-        toast.error("No hay datos para generar el Excel", {
-          description: "No se encontraron órdenes para el período seleccionado.",
+      // Crear hoja de cálculo
+      const ws = XLSX_STYLE.utils.aoa_to_sheet(excelData)
+
+      // Definir anchos de columna
+      const wscols = [
+        { wch: 25 }, // Nombre del producto/categoría
+      ]
+
+      // Agregar anchos para las columnas de áreas
+      companiesWithOrders.forEach((company) => {
+        // Filtrar solo áreas con pedidos
+        const companyAreas =
+          getAreasByCompany()[company.id]?.filter((area: Area) => areasWithOrders.includes(area.id)) || []
+
+        if (companyAreas.length === 0) {
+          return // Saltar esta compañía si no tiene áreas con pedidos
+        }
+
+        companyAreas.forEach(() => {
+          wscols.push({ wch: 12 })
         })
-        return
-      }
+      })
+
+      // Agregar anchos para las columnas de observaciones
+      allObservations.forEach(() => {
+        wscols.push({ wch: 20 })
+      })
+
+      ws["!cols"] = wscols
+
+      // Combinar celdas para los encabezados de compañías
+      const merges: CellRange[] = []
+      let colIndex = 1 // Empezamos en la columna B (índice 1)
+
+      companiesWithOrders.forEach((company) => {
+        // Filtrar solo áreas con pedidos
+        const companyAreas =
+          getAreasByCompany()[company.id]?.filter((area: Area) => areasWithOrders.includes(area.id)) || []
+
+        if (companyAreas.length === 0) {
+          return // Saltar esta compañía si no tiene áreas con pedidos
+        }
+
+        if (companyAreas.length > 1) {
+          // Combinar celdas para el nombre de la compañía
+          merges.push({
+            s: { r: 2, c: colIndex },
+            e: { r: 2, c: colIndex + companyAreas.length - 1 },
+          })
+          colIndex += companyAreas.length
+        } else {
+          colIndex += 1
+        }
+      })
+
+      ws["!merges"] = merges
+
+      // Agregar hoja al libro con nombre único
+      XLSX_STYLE.utils.book_append_sheet(wb, ws, "Reporte de Productos")
 
       // Generar archivo y descargar
       XLSX_STYLE.writeFile(wb, `Reporte_Productos_${reportDate.replace(/\//g, "-").replace(/\s/g, "_")}.xlsx`)
@@ -772,6 +866,59 @@ export function ReportGenerator() {
     return areasByCompany
   }
 
+  // Función para renderizar la tabla de observaciones
+  const renderObservationsTable = () => {
+    // Obtener todas las observaciones únicas
+    const allObservations: string[] = []
+
+    orders.forEach((order) => {
+      if (order.observation && order.observation.trim()) {
+        // Evitar duplicados
+        if (!allObservations.includes(order.observation)) {
+          allObservations.push(order.observation)
+        }
+      }
+    })
+
+    if (allObservations.length === 0) {
+      return null
+    }
+
+    return (
+      <div className="mb-8">
+        <h4 className="text-md font-medium mb-2">Observaciones</h4>
+        <div className="rounded-md border overflow-hidden">
+          <div className="max-h-[200px] overflow-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead className="sticky top-0 z-10">
+                <tr>
+                  <th className="px-4 py-2 text-left border font-medium bg-yellow-200 sticky left-0 z-10">
+                    OBSERVACION
+                  </th>
+                  {allObservations.map((_, index) => (
+                    <th key={index} className="px-4 py-2 text-center border bg-yellow-100 min-w-[120px]">
+                      {index + 1}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="px-4 py-2 border font-medium bg-yellow-50 sticky left-0 z-10">Detalle</td>
+                  {allObservations.map((observation, index) => (
+                    <td key={index} className="px-4 py-2 border bg-yellow-50 min-w-[120px]">
+                      {observation}
+                    </td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // Modificar la función generatePreview para asegurar que use las fechas seleccionadas
   const generatePreview = async () => {
     setIsLoading(true)
@@ -825,6 +972,9 @@ export function ReportGenerator() {
         const ordersResponse = await api.get(apiUrl)
         orders = ordersResponse.data
         console.log("Órdenes cargadas:", orders.length)
+        console.log("====================================")
+        console.log(ordersResponse.data)
+        console.log("====================================")
       } else {
         console.error("No se pudo determinar la URL de la API")
         toast.error("Error al generar vista previa", {
@@ -1290,7 +1440,10 @@ export function ReportGenerator() {
                 </div>
               </div>
 
-              <div className="flex-1 overflow-auto">{renderCategoryTables()}</div>
+              <div className="flex-1 overflow-auto">
+                {renderCategoryTables()}
+                {renderObservationsTable()}
+              </div>
 
               <div className="text-sm text-muted-foreground">
                 <div className="mb-2">Reporte para: {reportDate}</div>

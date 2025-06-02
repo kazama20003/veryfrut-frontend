@@ -31,6 +31,7 @@ import {
 import { Input } from "@/components/ui/input"
 // Añadir la importación del componente ProductSearchEdit
 import { ProductSearchEdit } from "./history/product-search-edit"
+import { Textarea } from "@/components/ui/textarea"
 
 // Enum para los estados de la orden
 enum OrderStatus {
@@ -90,6 +91,7 @@ interface Order {
   status: string
   createdAt: string
   updatedAt: string
+  observation?: string
 }
 
 // Modificar la interfaz ShoppingCartDrawerProps para incluir la información del área
@@ -136,6 +138,7 @@ export function ShoppingCartDrawer({
     selectedUnitId: number
     value: string
   } | null>(null)
+  const [observation, setObservation] = useState<string>("")
 
   // Memoizar fetchUserData para evitar recreaciones
   const fetchUserData = useCallback(async () => {
@@ -396,6 +399,7 @@ export function ShoppingCartDrawer({
         // Preparar los datos para la edición según el DTO
         const updateData = {
           totalAmount: totalPrice,
+          ...(observation.trim() && { observation: observation.trim() }),
           orderItems:
             cart.length === 0
               ? []
@@ -426,6 +430,8 @@ export function ShoppingCartDrawer({
         // Mostrar mensaje de confirmación
         setIsOrderComplete(true)
 
+        setObservation("")
+
         // Cerrar el drawer después de un breve retraso
         setTimeout(() => {
           setIsOrderComplete(false)
@@ -453,6 +459,7 @@ export function ShoppingCartDrawer({
           areaId: Number(selectedAreaId),
           totalAmount: totalPrice,
           status: OrderStatus.CREATED,
+          ...(observation.trim() && { observation: observation.trim() }),
           orderItems: cart.map((item) => ({
             productId: item.id,
             quantity: item.quantity,
@@ -482,6 +489,8 @@ export function ShoppingCartDrawer({
 
         // Mostrar mensaje de confirmación
         setIsOrderComplete(true)
+
+        setObservation("")
 
         // Cerrar el drawer después de un breve retraso
         setTimeout(() => {
@@ -548,6 +557,7 @@ export function ShoppingCartDrawer({
 
       // Cerrar el drawer
       onClose()
+      setObservation("")
     }
   }
 
@@ -937,6 +947,24 @@ export function ShoppingCartDrawer({
                     ))}
                   </ul>
                 </div>
+              </div>
+
+              <div className="mt-4">
+                <label htmlFor="observation" className="block text-sm font-medium mb-2">
+                  Observaciones (opcional)
+                </label>
+                <Textarea
+                  id="observation"
+                  placeholder="¿Algún producto específico o algo especial que quieras agregar?"
+                  value={observation}
+                  onChange={(e) => setObservation(e.target.value)}
+                  disabled={isSubmitting}
+                  className="min-h-[80px] text-sm"
+                  maxLength={500}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Máximo 500 caracteres. Especifica cualquier detalle especial sobre los productos.
+                </p>
               </div>
 
               <Alert className="mt-4 bg-amber-50 border-amber-200">

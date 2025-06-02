@@ -1,16 +1,13 @@
 "use client"
 
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
-
-import { DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
-
-import { DropdownMenuLabel } from "@/components/ui/dropdown-menu"
-
-import { DropdownMenuContent } from "@/components/ui/dropdown-menu"
-
-import { DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-
-import { DropdownMenu } from "@/components/ui/dropdown-menu"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu"
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
@@ -50,6 +47,7 @@ import {
   Loader2,
   Trash2,
   Edit,
+  MessageSquare,
 } from "lucide-react"
 import Link from "next/link"
 import { format } from "date-fns"
@@ -82,6 +80,7 @@ interface Order {
   status: OrderStatus
   orderItems: OrderItem[] // Replace any with proper type
   createdAt?: string
+  observation?: string
 }
 
 // Add OrderItem interface
@@ -92,10 +91,6 @@ interface OrderItem {
   quantity: number
   price: number
   total?: number
-}
-
-interface UsersMap {
-  [key: number]: User
 }
 
 // Componente para mostrar el estado del pedido
@@ -161,6 +156,15 @@ function OrderCard({ order, onDelete }: { order: Order; onDelete: (id: number) =
             {order.orderItems.length} {order.orderItems.length === 1 ? "producto" : "productos"}
           </p>
         </div>
+        {order.observation && (
+          <div className="flex flex-col gap-1">
+            <p className="text-sm font-medium flex items-center gap-1">
+              <MessageSquare className="h-3 w-3" />
+              Observaciones:
+            </p>
+            <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded line-clamp-2">{order.observation}</p>
+          </div>
+        )}
         <div className="flex justify-between gap-2">
           <Button size="sm" variant="outline" className="flex-1" asChild>
             <Link href={`/dashboard/orders/${order.id}`}>
@@ -207,29 +211,43 @@ export default function OrdersPage() {
   const [orderToDelete, setOrderToDelete] = useState<number | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const ordersPerPage = 10
+  const [totalItems, setTotalItems] = useState(0)
+  const [totalPages, setTotalPages] = useState(0)
 
   // Fix the fetchData function to handle both userId and customerId
-  const fetchOrders = async () => {
+  const fetchOrders = async (page = 1, limit = 10) => {
     setLoading(true)
     setError(null)
     try {
-      const [ordersResponse, usersResponse] = await Promise.all([api.get("/orders"), api.get("/users")])
+      const ordersResponse = await api.get(`/orders?page=${page}&limit=${limit}`)
 
-      // Crear un mapa de usuarios para acceso rápido
-      const usersMap: UsersMap = usersResponse.data.reduce((acc: UsersMap, user: User) => {
-        acc[user.id] = user
-        return acc
-      }, {})
+      // Extract data and pagination info from the API response
+      const responseData = ordersResponse.data
+      const ordersData = responseData.data || responseData || []
 
-      // Asignar los datos de usuario a cada orden
-      const ordersWithUsers = ordersResponse.data.map((order: Order) => {
-        // Use userId if available, otherwise fall back to customerId
-        const userId = order.userId || order.customerId
-        return {
+      // Set pagination metadata
+      setTotalItems(responseData.total || 0)
+      setTotalPages(responseData.totalPages || 0)
+
+      // Map the orders to match our interface, handling the "User" field from the API
+      const ordersWithUsers = ordersData.map(
+        (order: {
+          id: number
+          userId: number
+          areaId?: number
+          totalAmount: number
+          status: OrderStatus
+          observation?: string
+          createdAt?: string
+          updatedAt?: string
+          orderItems: OrderItem[]
+          User?: User
+          customer?: User
+        }) => ({
           ...order,
-          customer: userId ? usersMap[userId] : null,
-        }
-      })
+          customer: order.User || order.customer || null, // Handle both "User" and "customer" fields
+        }),
+      )
 
       setOrders(ordersWithUsers)
     } catch (err) {
@@ -241,8 +259,8 @@ export default function OrdersPage() {
   }
 
   useEffect(() => {
-    fetchOrders()
-  }, [])
+    fetchOrders(currentPage, ordersPerPage)
+  }, [currentPage])
 
   // Función para eliminar un pedido
   const handleDeleteOrder = async (id: number) => {
@@ -272,53 +290,15 @@ export default function OrdersPage() {
   }
 
   // Filtrar pedidos por búsqueda y estado
-  const filteredOrders = orders.filter((order) => {
-    const customerName = order.customer ? `${order.customer.firstName} ${order.customer.lastName}`.toLowerCase() : ""
-    const customerEmail = order.customer?.email?.toLowerCase() || ""
+  // Since we're using server-side pagination, we work directly with the orders from the API
+  const displayOrders = orders
 
-    const matchesSearch =
-      String(order.id).toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customerName.includes(searchTerm.toLowerCase()) ||
-      customerEmail.includes(searchTerm.toLowerCase()) ||
-      order.orderItems.some(
-        (item) =>
-          (item.productName || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-          String(item.productId).includes(searchTerm),
-      )
-
-    const matchesStatus =
-      selectedStatus === "all" ||
-      (selectedStatus === "created" && order.status === OrderStatus.CREATED) ||
-      (selectedStatus === "process" && order.status === OrderStatus.PROCESS) ||
-      (selectedStatus === "delivered" && order.status === OrderStatus.DELIVERED)
-
-    return matchesSearch && matchesStatus
-  })
-
-  // Ordenar pedidos
-  const sortedOrders = [...filteredOrders].sort((a, b) => {
-    const dateA = new Date(a.createdAt || 0).getTime()
-    const dateB = new Date(b.createdAt || 0).getTime()
-
-    switch (sortOrder) {
-      case "oldest":
-        return dateA - dateB
-      case "total-asc":
-        return a.totalAmount - b.totalAmount
-      case "total-desc":
-        return b.totalAmount - a.totalAmount
-      default: // newest
-        return dateB - dateA
-    }
-  })
-
-  // Calcular pedidos para la página actual
-  const indexOfLastOrder = currentPage * ordersPerPage
-  const indexOfFirstOrder = indexOfLastOrder - ordersPerPage
-  const currentOrders = sortedOrders.slice(indexOfFirstOrder, indexOfLastOrder)
-
-  // Calcular total de páginas
-  const totalPages = Math.ceil(sortedOrders.length / ordersPerPage)
+  const handleSearch = (searchValue: string) => {
+    setSearchTerm(searchValue)
+    setCurrentPage(1) // Reset to first page
+    // You may want to add a debounce here and pass search params to the API
+    fetchOrders(1, ordersPerPage)
+  }
 
   if (loading) {
     return (
@@ -334,7 +314,7 @@ export default function OrdersPage() {
         <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
         <h2 className="text-xl font-semibold mb-2">Error al cargar órdenes</h2>
         <p className="text-muted-foreground">{error}</p>
-        <Button className="mt-4" onClick={() => fetchOrders()}>
+        <Button className="mt-4" onClick={() => fetchOrders(currentPage, ordersPerPage)}>
           Intentar de nuevo
         </Button>
       </div>
@@ -377,10 +357,7 @@ export default function OrdersPage() {
                 placeholder="Buscar pedidos..."
                 className="w-full pl-8 h-9"
                 value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value)
-                  setCurrentPage(1) // Reset to first page on search
-                }}
+                onChange={(e) => handleSearch(e.target.value)}
               />
             </div>
             <div className="flex gap-2">
@@ -421,14 +398,14 @@ export default function OrdersPage() {
         {/* Resultados de búsqueda */}
         {searchTerm && (
           <div className="text-sm text-muted-foreground">
-            {sortedOrders.length} resultados para &quot;{searchTerm}&quot;
+            {totalItems} resultados para &quot;{searchTerm}&quot;
           </div>
         )}
 
         {/* Vista móvil: Tarjetas */}
         <div className="md:hidden space-y-3">
-          {currentOrders.length > 0 ? (
-            currentOrders.map((order) => <OrderCard key={order.id} order={order} onDelete={handleDeleteOrder} />)
+          {displayOrders.length > 0 ? (
+            displayOrders.map((order) => <OrderCard key={order.id} order={order} onDelete={handleDeleteOrder} />)
           ) : (
             <div className="py-8 text-center">
               <p className="text-muted-foreground">No se encontraron pedidos</p>
@@ -451,12 +428,13 @@ export default function OrdersPage() {
                     <th className="px-4 py-3 text-left text-sm font-medium">Fecha</th>
                     <th className="px-4 py-3 text-left text-sm font-medium">Estado</th>
                     <th className="px-4 py-3 text-left text-sm font-medium">Productos</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium">Observaciones</th>
                     <th className="px-4 py-3 text-right text-sm font-medium">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {currentOrders.length > 0 ? (
-                    currentOrders.map((order) => (
+                  {displayOrders.length > 0 ? (
+                    displayOrders.map((order) => (
                       <tr key={order.id} className="border-b">
                         <td className="px-4 py-3 text-sm">#{order.id}</td>
                         <td className="px-4 py-3 text-sm">
@@ -479,6 +457,15 @@ export default function OrdersPage() {
                         </td>
                         <td className="px-4 py-3 text-sm">
                           {order.orderItems.length} {order.orderItems.length === 1 ? "producto" : "productos"}
+                        </td>
+                        <td className="px-4 py-3 text-sm max-w-[200px]">
+                          {order.observation ? (
+                            <div className="truncate" title={order.observation}>
+                              {order.observation}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">Sin observaciones</span>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex justify-end gap-2">
@@ -503,7 +490,7 @@ export default function OrdersPage() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                      <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
                         No se encontraron pedidos
                       </td>
                     </tr>
@@ -523,7 +510,9 @@ export default function OrdersPage() {
                   href="#"
                   onClick={(e) => {
                     e.preventDefault()
-                    if (currentPage > 1) setCurrentPage(currentPage - 1)
+                    if (currentPage > 1) {
+                      setCurrentPage(currentPage - 1)
+                    }
                   }}
                   className={currentPage === 1 ? "cursor-not-allowed opacity-50" : ""}
                 />
@@ -589,7 +578,9 @@ export default function OrdersPage() {
                   href="#"
                   onClick={(e) => {
                     e.preventDefault()
-                    if (currentPage < totalPages) setCurrentPage(currentPage + 1)
+                    if (currentPage < totalPages) {
+                      setCurrentPage(currentPage + 1)
+                    }
                   }}
                   className={currentPage === totalPages ? "cursor-not-allowed opacity-50" : ""}
                 />

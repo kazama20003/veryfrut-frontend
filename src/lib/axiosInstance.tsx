@@ -13,10 +13,9 @@ export const api = axios.create({
 // Interceptor de solicitudes para agregar el token de autorización
 api.interceptors.request.use(
   (config) => {
-    // Obtener el token de las cookies
     const token = Cookies.get("token");
     if (token) {
-      config.headers.Authorization = `${token}`;
+      config.headers.Authorization = `Bearer ${token}`; // <-- AQUI
     }
     return config;
   },

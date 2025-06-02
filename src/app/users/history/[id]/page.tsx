@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import React from "react"
 import Image from "next/image"
-import { Building, ChevronLeft, InfoIcon, Loader2, Minus, Plus, Search, ShoppingCart, Trash2 } from "lucide-react"
+import { Building, ChevronLeft, InfoIcon, Loader2, Minus, Plus, Search, ShoppingCart, Trash2 } from 'lucide-react'
 import { toast } from "sonner"
 
 import { api } from "@/lib/axiosInstance"
@@ -15,6 +15,7 @@ import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent } from "@/components/ui/card"
+import { Textarea } from "@/components/ui/textarea"
 
 // Interfaces
 interface UnitMeasurement {
@@ -69,6 +70,7 @@ interface Order {
   status: string
   createdAt: string
   updatedAt: string
+  observation?: string
   orderItems: OrderItem[]
 }
 
@@ -97,6 +99,7 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
   const [isSearching, setIsSearching] = useState(false)
   const [unitMeasurements, setUnitMeasurements] = useState<UnitMeasurement[]>([])
   const [allProducts, setAllProducts] = useState<Product[]>([])
+  const [observation, setObservation] = useState<string>("")
 
   // Función para actualizar cantidad con soporte para decimales
   const updateQuantity = useCallback((productId: number, selectedUnitId: number, quantity: number) => {
@@ -164,6 +167,9 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
       const orderData = response.data
 
       setOrder(orderData)
+
+      // Initialize observation from order data
+      setObservation(orderData.observation || "")
 
       // Convertir items del pedido al formato del carrito
       const cartItems: CartItem[] = []
@@ -334,6 +340,7 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
       // Preparar los datos para la actualización
       const updateData = {
         totalAmount: cart.reduce((total, item) => total + item.price * item.quantity, 0),
+        ...(observation.trim() && { observation: observation.trim() }),
         orderItems: cart.map((item) => ({
           productId: item.id,
           quantity: item.quantity,
@@ -625,6 +632,22 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
               ))}
             </ul>
           )}
+        </div>
+
+        {/* Observaciones */}
+        <div className="mb-6">
+          <h3 className="text-base font-medium mb-2">Observaciones (opcional)</h3>
+          <Textarea
+            placeholder="¿Algún producto específico o algo especial que quieras agregar?"
+            value={observation}
+            onChange={(e) => setObservation(e.target.value)}
+            disabled={isSubmitting}
+            className="min-h-[100px] text-sm"
+            maxLength={500}
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Máximo 500 caracteres. Especifica cualquier detalle especial sobre los productos.
+          </p>
         </div>
 
         <Separator className="my-6" />

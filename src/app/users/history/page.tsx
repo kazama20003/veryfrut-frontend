@@ -5,7 +5,7 @@ import Image from "next/image"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { isToday } from "date-fns"
-import { Calendar, Clock, Eye, Package, ShoppingBag, Truck, Building } from "lucide-react"
+import { Calendar, Clock, Eye, Package, ShoppingBag, Truck, Building } from 'lucide-react'
 
 import { api } from "@/lib/axiosInstance"
 import { getUserIdFromCookies } from "@/lib/cookies"
@@ -76,6 +76,7 @@ interface Order {
   status: OrderStatus
   createdAt: string
   updatedAt: string
+  observation?: string
   orderItems: OrderItem[]
 }
 
@@ -453,6 +454,15 @@ export default function OrdersHistoryPage() {
                         </ul>
                       </div>
 
+                      {order.observation && (
+                        <div className="mt-3">
+                          <p className="text-xs font-medium text-muted-foreground mb-1">Observaciones:</p>
+                          <p className="text-xs text-muted-foreground line-clamp-2 bg-muted/50 p-2 rounded">
+                            {order.observation}
+                          </p>
+                        </div>
+                      )}
+
                       <Separator className="my-3" />
 
                       <div className="flex items-center justify-between">
@@ -600,6 +610,16 @@ export default function OrdersHistoryPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Observaciones */}
+              {selectedOrder.observation && (
+                <div>
+                  <h3 className="mb-3 font-medium">Observaciones</h3>
+                  <div className="rounded-lg border p-4 bg-muted/50">
+                    <p className="text-sm whitespace-pre-wrap">{selectedOrder.observation}</p>
+                  </div>
+                </div>
+              )}
 
               <div className="flex justify-between pt-2">
                 <Button variant="outline" onClick={() => setIsDialogOpen(false)}>

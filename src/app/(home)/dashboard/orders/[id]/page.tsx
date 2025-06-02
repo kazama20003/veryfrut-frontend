@@ -8,7 +8,7 @@ import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
-import { ArrowLeft, Printer, Truck, AlertCircle, CheckCircle2, Clock, Download, Plus, Trash2, Save } from "lucide-react"
+import { ArrowLeft, Printer, Truck, AlertCircle, CheckCircle2, Clock, Download, Plus, Trash2, Save } from 'lucide-react'
 import Link from "next/link"
 import Image from "next/image"
 import { format } from "date-fns"
@@ -18,7 +18,6 @@ import { api } from "@/lib/axiosInstance"
 import {
   type Order,
   OrderStatus,
-  type UpdateOrderDto,
   type OrderItem as BackendOrderItem,
   type Product as BackendProduct,
 } from "@/types/order"
@@ -98,6 +97,7 @@ export default function OrderDetailPage() {
   const [orderItems, setOrderItems] = useState<OrderItem[]>([])
   const [productSearch, setProductSearch] = useState("")
   const [editMode, setEditMode] = useState(false)
+  const [observation, setObservation] = useState("")
 
   // Cargar datos del pedido, cliente y productos
   useEffect(() => {
@@ -160,6 +160,7 @@ export default function OrderDetailPage() {
         setNotes(orderData.notes || "")
         setStatus(orderData.status)
         setProducts(productsData)
+        setObservation(orderData.observation || "")
       } catch (err) {
         console.error("Error al cargar el pedido:", err)
         setError("No se pudo cargar la información del pedido. Por favor, intenta de nuevo más tarde.")
@@ -268,9 +269,9 @@ export default function OrderDetailPage() {
     setUpdating(true)
     try {
       // Crear objeto de actualización según el DTO del backend
-      const updateData: UpdateOrderDto = {
+      const updateData = {
         status,
-        notes,
+        ...(observation.trim() && { observation: observation.trim() }),
       }
 
       await api.patch(`/orders/${orderId}`, updateData)
@@ -278,8 +279,8 @@ export default function OrderDetailPage() {
       setOrder({
         ...order,
         status,
-        notes,
-      })
+        observation,
+      } as Order)
 
       toast.success("Pedido actualizado", {
         description: "El estado del pedido ha sido actualizado correctamente.",
@@ -381,7 +382,8 @@ export default function OrderDetailPage() {
       // Crear el objeto de actualización con el formato correcto
       const updateData = {
         orderItems: updateOrderItems,
-        totalAmount: calculateTotal(), // Añadir el total calculado
+        totalAmount: calculateTotal(),
+        ...(observation.trim() && { observation: observation.trim() }),
       }
 
       console.log("Enviando datos de actualización:", updateData)
@@ -711,6 +713,20 @@ export default function OrderDetailPage() {
                     onChange={(e) => setNotes(e.target.value)}
                     rows={3}
                   />
+                </div>
+
+                <div>
+                  <h3 className="font-medium mb-2">Observaciones</h3>
+                  <Textarea
+                    placeholder="Observaciones especiales del cliente sobre el pedido..."
+                    value={observation}
+                    onChange={(e) => setObservation(e.target.value)}
+                    rows={3}
+                    maxLength={500}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Máximo 500 caracteres. Observaciones específicas del cliente.
+                  </p>
                 </div>
 
                 <div className="flex justify-end">
