@@ -49,7 +49,7 @@ export function middleware(request: NextRequest) {
       if (isAuthRoute) {
         return user.role === "admin"
           ? NextResponse.redirect(`${origin}/dashboard`)
-          : NextResponse.redirect(`${origin}/users/products`)
+          : NextResponse.redirect(`${origin}/users`)
       }
     } catch (error) {
       console.error("Error decoding token:", error)

@@ -430,15 +430,17 @@ export function ReportGenerator() {
         const categoryName = categories[categoryId]?.name || `Categoría ${categoryId}`
 
         // Filtrar solo productos con pedidos
-        const productsWithOrders = categoryProducts.filter((product: Product) => {
-          // Verificar si hay algún pedido para este producto en cualquier área
-          for (const areaId in productQuantities) {
-            if (productQuantities[areaId][product.id]) {
-              return true
+        const productsWithOrders = categoryProducts
+          .filter((product: Product) => {
+            // Verificar si hay algún pedido para este producto en cualquier área
+            for (const areaId in productQuantities) {
+              if (productQuantities[areaId][product.id]) {
+                return true
+              }
             }
-          }
-          return false
-        })
+            return false
+          })
+          .sort((a: Product, b: Product) => a.name.localeCompare(b.name)) // Ordenar alfabéticamente
 
         // Si no hay productos con pedidos en esta categoría, omitir
         if (productsWithOrders.length === 0) return
@@ -774,24 +776,29 @@ export function ReportGenerator() {
         productsByCategory[categoryId].push(product)
       })
 
+      // Ordenar productos alfabéticamente dentro de cada categoría
+      Object.keys(productsByCategory).forEach((categoryId) => {
+        productsByCategory[Number(categoryId)].sort((a: Product, b: Product) => a.name.localeCompare(b.name))
+      })
+
       return productsByCategory
     }
 
     // Si no, usar lista estática agrupada por categoría (solo para demostración)
     return {
       1: [
-        // Verduras
+        // Verduras - ordenados alfabéticamente
         { id: 1, name: "Acelga", unitMeasurement: { name: "kg-mz" }, categoryId: 1 },
         { id: 2, name: "Cebolla china", unitMeasurement: { name: "kg-mz" }, categoryId: 1 },
         { id: 3, name: "Cilandro Macho", unitMeasurement: { name: "kg-mz" }, categoryId: 1 },
       ],
       2: [
-        // Frutas
+        // Frutas - ordenados alfabéticamente
         { id: 4, name: "Manzana", unitMeasurement: { name: "kg" }, categoryId: 2 },
         { id: 5, name: "Plátano", unitMeasurement: { name: "kg" }, categoryId: 2 },
       ],
       4: [
-        // Otros
+        // Otros - ordenados alfabéticamente
         { id: 6, name: "Huatacay", unitMeasurement: { name: "kg-mz" }, categoryId: 4 },
         { id: 7, name: "Oregano", unitMeasurement: { name: "kg-mz" }, categoryId: 4 },
       ],
@@ -1150,15 +1157,17 @@ export function ReportGenerator() {
       const categoryName = categories[categoryId]?.name || `Categoría ${categoryId}`
 
       // Filtrar solo productos con pedidos
-      const productsWithOrders = categoryProducts.filter((product: Product) => {
-        // Verificar si hay algún pedido para este producto en cualquier área
-        for (const areaId in productQuantities) {
-          if (productQuantities[areaId][product.id]) {
-            return true
+      const productsWithOrders = categoryProducts
+        .filter((product: Product) => {
+          // Verificar si hay algún pedido para este producto en cualquier área
+          for (const areaId in productQuantities) {
+            if (productQuantities[areaId][product.id]) {
+              return true
+            }
           }
-        }
-        return false
-      })
+          return false
+        })
+        .sort((a: Product, b: Product) => a.name.localeCompare(b.name)) // Ordenar alfabéticamente
 
       // Si no hay productos con pedidos en esta categoría, no mostrar la tabla
       if (productsWithOrders.length === 0) return null
