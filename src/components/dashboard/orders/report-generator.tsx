@@ -566,7 +566,7 @@ export function ReportGenerator() {
           }
 
           companyAreas.forEach((area) => {
-            // Calcular total solo para productos de esta categoría
+            // Calcular total contando productos únicos para esta categoría
             const total = calculateAreaTotalByCategory(area.id, categoryId)
 
             totalRow.push({
@@ -841,19 +841,19 @@ export function ReportGenerator() {
   const calculateAreaTotalByCategory = (areaId: number, categoryId: number) => {
     if (!productQuantities[areaId]) return 0
 
-    let total = 0
+    let productCount = 0
 
     // Obtener productos de esta categoría
     const categoryProducts = products.filter((p) => p.categoryId === categoryId)
 
-    // Sumar cantidades solo de productos de esta categoría
+    // Contar productos que tienen pedidos (sin importar la cantidad)
     categoryProducts.forEach((product) => {
-      if (productQuantities[areaId][product.id]) {
-        total += productQuantities[areaId][product.id]
+      if (productQuantities[areaId][product.id] && productQuantities[areaId][product.id] > 0) {
+        productCount += 1 // Contar como 1 producto independientemente de la cantidad
       }
     })
 
-    return total
+    return productCount
   }
 
   // Agrupar áreas por compañía
