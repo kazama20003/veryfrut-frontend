@@ -79,7 +79,7 @@ export default function NewOrderPage() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   const [selectedAreaId, setSelectedAreaId] = useState<string>("")
   const [orderItems, setOrderItems] = useState<OrderItem[]>([])
-  const [notes, setNotes] = useState("")
+  const [observation, setObservation] = useState("")
   const [status, setStatus] = useState<OrderStatus>(OrderStatus.CREATED)
 
   // Cargar clientes y productos
@@ -177,8 +177,9 @@ export default function NewOrderPage() {
   }
 
   // Actualizar cantidad de un producto
-  const handleQuantityChange = (index: number, quantity: number) => {
-    if (quantity < 1) return
+  const handleQuantityChange = (index: number, value: string) => {
+    const quantity = Number.parseFloat(value) || 0
+    if (quantity < 0) return
 
     const newItems = [...orderItems]
     newItems[index].quantity = quantity
@@ -245,6 +246,15 @@ export default function NewOrderPage() {
       return false
     }
 
+    // Validar que todas las cantidades sean válidas
+    const invalidItems = orderItems.filter((item) => item.quantity <= 0)
+    if (invalidItems.length > 0) {
+      toast.error("Error de validación", {
+        description: "Todas las cantidades deben ser mayores a 0.",
+      })
+      return false
+    }
+
     return true
   }
 
@@ -262,6 +272,7 @@ export default function NewOrderPage() {
         areaId: Number(selectedAreaId),
         totalAmount: calculateTotal(),
         status,
+        ...(observation.trim() && { observation: observation.trim() }),
         orderItems: orderItems.map((item) => ({
           productId: item.productId,
           quantity: item.quantity,
@@ -423,12 +434,12 @@ export default function NewOrderPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="notes">Notas (opcional)</Label>
+                <Label htmlFor="observation">Observación (opcional)</Label>
                 <Textarea
-                  id="notes"
-                  placeholder="Añadir notas sobre el pedido..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
+                  id="observation"
+                  placeholder="Añadir observación sobre el pedido..."
+                  value={observation}
+                  onChange={(e) => setObservation(e.target.value)}
                   rows={3}
                 />
               </div>
@@ -496,12 +507,12 @@ export default function NewOrderPage() {
                                     {filteredProducts.length > 0
                                       ? filteredProducts.map((product) => (
                                           <SelectItem key={product.id} value={product.id.toString()}>
-                                            {product.name} - ${product.price.toFixed(2)}
+                                            {product.name}
                                           </SelectItem>
                                         ))
                                       : products.map((product) => (
                                           <SelectItem key={product.id} value={product.id.toString()}>
-                                            {product.name} - ${product.price.toFixed(2)}
+                                            {product.name}
                                           </SelectItem>
                                         ))}
                                   </SelectContent>
@@ -510,10 +521,21 @@ export default function NewOrderPage() {
                               <td className="px-4 py-3 text-center">
                                 <Input
                                   type="number"
-                                  min="1"
+                                  min="0"
+                                  step="0.001"
                                   value={item.quantity}
-                                  onChange={(e) => handleQuantityChange(index, Number(e.target.value))}
+                                  onChange={(e) => handleQuantityChange(index, e.target.value)}
+                                  onBlur={(e) => {
+                                    // Asegurar que el valor mínimo sea 0.001 cuando se pierde el foco
+                                    const value = Number.parseFloat(e.target.value) || 0
+                                    if (value > 0 && value < 0.001) {
+                                      handleQuantityChange(index, "0.001")
+                                    } else if (value === 0) {
+                                      handleQuantityChange(index, "0.001")
+                                    }
+                                  }}
                                   className="w-20 mx-auto text-center"
+                                  placeholder="0.001"
                                 />
                               </td>
                               <td className="px-4 py-3 text-center">

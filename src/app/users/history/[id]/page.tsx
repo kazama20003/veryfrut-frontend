@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import React from "react"
 import Image from "next/image"
-import { Building, ChevronLeft, InfoIcon, Loader2, Minus, Plus, Search, ShoppingCart, Trash2 } from 'lucide-react'
+import { Building, ChevronLeft, InfoIcon, Loader2, Minus, Plus, Search, ShoppingCart, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { api } from "@/lib/axiosInstance"
@@ -85,6 +85,14 @@ interface CartItem {
   productUnits: ProductUnit[]
 }
 
+// Constantes para manejo de cantidades decimales
+const QUANTITY_LIMITS = {
+  MIN: 0.001,
+  MAX: 999.999,
+  STEP: 0.001,
+  DECIMALS: 3,
+} as const
+
 export default function EditOrderPage({ params }: { params: Promise<{ id: string }> }) {
   // Usar React.use para acceder a los parámetros
   const { id } = React.use(params)
@@ -101,37 +109,61 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
   const [allProducts, setAllProducts] = useState<Product[]>([])
   const [observation, setObservation] = useState<string>("")
 
-  // Función para actualizar cantidad con soporte para decimales
+  // Estado para manejar la edición de cantidades
+  const [editingQuantity, setEditingQuantity] = useState<{
+    productId: number
+    selectedUnitId: number
+    value: string
+  } | null>(null)
+
+  // Función para formatear cantidades con hasta 3 decimales
+  const formatQuantity = useCallback((quantity: number): string => {
+    if (quantity % 1 === 0) {
+      return quantity.toFixed(0)
+    }
+    return Number.parseFloat(quantity.toFixed(QUANTITY_LIMITS.DECIMALS)).toString().replace(".", ",")
+  }, [])
+
+  // Función para actualizar cantidad con soporte para decimales hasta 0.001
   const updateQuantity = useCallback((productId: number, selectedUnitId: number, quantity: number) => {
     if (quantity <= 0) {
       // Si la cantidad es 0 o menos, eliminar el producto
       setCart((prev) => prev.filter((item) => !(item.id === productId && item.selectedUnitId === selectedUnitId)))
     } else {
-      // Redondear a 2 decimales y actualizar la cantidad
-      const roundedQuantity = Math.round(quantity * 100) / 100
+      // Redondear a 3 decimales y actualizar la cantidad
+      const roundedQuantity = Math.round(quantity * 1000) / 1000
+      const clampedQuantity = Math.max(QUANTITY_LIMITS.MIN, Math.min(QUANTITY_LIMITS.MAX, roundedQuantity))
+
       setCart((prev) =>
         prev.map((item) =>
           item.id === productId && item.selectedUnitId === selectedUnitId
-            ? { ...item, quantity: roundedQuantity }
+            ? { ...item, quantity: clampedQuantity }
             : item,
         ),
       )
     }
   }, [])
 
-  // Función para manejar cambio directo en el input
+  // Función para manejar cambio directo en el input con validación de decimales
   const handleQuantityInputChange = useCallback(
     (productId: number, selectedUnitId: number, value: string) => {
-      const numValue = Number.parseFloat(value)
-      if (!isNaN(numValue) && numValue > 0) {
-        updateQuantity(productId, selectedUnitId, numValue)
-      } else if (value === "" || value === "0") {
-        // Permitir campo vacío temporalmente
-        setCart((prev) =>
-          prev.map((item) =>
-            item.id === productId && item.selectedUnitId === selectedUnitId ? { ...item, quantity: 0 } : item,
-          ),
-        )
+      const normalizedValue = value.replace(",", ".")
+      const regex = /^\d*\.?\d{0,3}$/
+
+      if (regex.test(normalizedValue) || value === "") {
+        setEditingQuantity({
+          productId,
+          selectedUnitId,
+          value: value,
+        })
+
+        if (normalizedValue !== "") {
+          const numValue = Number.parseFloat(normalizedValue)
+          if (!isNaN(numValue) && numValue > 0) {
+            const roundedValue = Math.round(numValue * 1000) / 1000
+            updateQuantity(productId, selectedUnitId, roundedValue)
+          }
+        }
       }
     },
     [updateQuantity],
@@ -139,14 +171,36 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
 
   // Función para manejar cuando el input pierde el foco
   const handleQuantityInputBlur = useCallback(
-    (productId: number, selectedUnitId: number, value: string) => {
-      const numValue = Number.parseFloat(value)
-      if (isNaN(numValue) || numValue <= 0) {
-        // Si el valor no es válido, establecer a 0.1 como mínimo
-        updateQuantity(productId, selectedUnitId, 0.1)
+    (productId: number, selectedUnitId: number) => {
+      if (
+        editingQuantity &&
+        editingQuantity.productId === productId &&
+        editingQuantity.selectedUnitId === selectedUnitId
+      ) {
+        const normalizedValue = editingQuantity.value.replace(",", ".")
+        const numValue = Number.parseFloat(normalizedValue)
+
+        if (!isNaN(numValue) && numValue > 0) {
+          updateQuantity(productId, selectedUnitId, numValue)
+        } else {
+          // Si el valor no es válido, establecer a 0.001 como mínimo
+          updateQuantity(productId, selectedUnitId, QUANTITY_LIMITS.MIN)
+        }
+
+        setEditingQuantity(null)
       }
     },
-    [updateQuantity],
+    [editingQuantity, updateQuantity],
+  )
+
+  // Función para manejar Enter en el input
+  const handleQuantityKeyPress = useCallback(
+    (e: React.KeyboardEvent, productId: number, selectedUnitId: number) => {
+      if (e.key === "Enter") {
+        handleQuantityInputBlur(productId, selectedUnitId)
+      }
+    },
+    [handleQuantityInputBlur],
   )
 
   // Actualizar la función fetchOrderData para manejar correctamente las unidades de medida
@@ -452,7 +506,7 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
               <li>Puedes añadir o quitar productos de este pedido.</li>
               <li>La edición solo está disponible hasta el final del día de hoy.</li>
               <li>La entrega de los productos será mañana.</li>
-              <li>Puedes usar cantidades decimales (ej: 2.5, 0.75).</li>
+              <li>Puedes usar cantidades decimales hasta 3 decimales (ej: 2.5, 0.75, 0.001).</li>
             </ul>
           </AlertDescription>
         </Alert>
@@ -588,31 +642,56 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
                     </div>
                   </div>
 
-                  {/* Control de cantidad con soporte para decimales */}
+                  {/* Control de cantidad con soporte para decimales hasta 0.001 */}
                   <div className="mt-3 flex items-center justify-center">
                     <div className="flex items-center gap-2">
                       <Button
                         variant="outline"
                         size="icon"
                         className="h-8 w-8 rounded-full flex-shrink-0"
-                        onClick={() => updateQuantity(item.id, item.selectedUnitId, Math.max(0.1, item.quantity - 0.5))}
-                        disabled={item.quantity <= 0.1 || isSubmitting}
+                        onClick={() =>
+                          updateQuantity(
+                            item.id,
+                            item.selectedUnitId,
+                            Math.max(QUANTITY_LIMITS.MIN, item.quantity - QUANTITY_LIMITS.STEP),
+                          )
+                        }
+                        disabled={item.quantity <= QUANTITY_LIMITS.MIN || isSubmitting}
                       >
                         <Minus className="h-3 w-3" />
                         <span className="sr-only">Disminuir</span>
                       </Button>
 
                       <div className="flex flex-col items-center">
-                        <Input
-                          type="number"
-                          min="0.1"
-                          step="0.1"
-                          value={item.quantity}
-                          onChange={(e) => handleQuantityInputChange(item.id, item.selectedUnitId, e.target.value)}
-                          onBlur={(e) => handleQuantityInputBlur(item.id, item.selectedUnitId, e.target.value)}
-                          className="w-16 h-8 text-center text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          disabled={isSubmitting}
-                        />
+                        {editingQuantity &&
+                        editingQuantity.productId === item.id &&
+                        editingQuantity.selectedUnitId === item.selectedUnitId ? (
+                          <Input
+                            type="text"
+                            value={editingQuantity.value}
+                            onChange={(e) => handleQuantityInputChange(item.id, item.selectedUnitId, e.target.value)}
+                            onBlur={() => handleQuantityInputBlur(item.id, item.selectedUnitId)}
+                            onKeyPress={(e) => handleQuantityKeyPress(e, item.id, item.selectedUnitId)}
+                            className="w-20 h-8 text-center text-sm"
+                            autoFocus
+                            disabled={isSubmitting}
+                            inputMode="decimal"
+                          />
+                        ) : (
+                          <button
+                            onClick={() =>
+                              setEditingQuantity({
+                                productId: item.id,
+                                selectedUnitId: item.selectedUnitId,
+                                value: formatQuantity(item.quantity),
+                              })
+                            }
+                            className="w-20 h-8 text-center text-sm border rounded px-2 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            disabled={isSubmitting}
+                          >
+                            {formatQuantity(item.quantity)}
+                          </button>
+                        )}
                         <span className="text-xs text-muted-foreground mt-1">{getUnitName(item)}</span>
                       </div>
 
@@ -620,7 +699,9 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
                         variant="outline"
                         size="icon"
                         className="h-8 w-8 rounded-full flex-shrink-0"
-                        onClick={() => updateQuantity(item.id, item.selectedUnitId, item.quantity + 0.5)}
+                        onClick={() =>
+                          updateQuantity(item.id, item.selectedUnitId, item.quantity + QUANTITY_LIMITS.STEP)
+                        }
                         disabled={isSubmitting}
                       >
                         <Plus className="h-3 w-3" />
@@ -651,8 +732,6 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
         </div>
 
         <Separator className="my-6" />
-
-        {/* Total del pedido */}
 
         {/* Botones de acción */}
         <div className="flex flex-col sm:flex-row justify-between gap-3">

@@ -20,14 +20,7 @@ import {
 } from "@/components/ui/drawer"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 // Añadir la importación del componente ProductSearchEdit
 import { ProductSearchEdit } from "./history/product-search-edit"
@@ -66,6 +59,7 @@ interface Product {
   productUnits: ProductUnit[]
   quantity: number
   selectedUnitId: number
+  cartItemId?: string
 }
 
 interface Area {
@@ -99,8 +93,8 @@ interface ShoppingCartDrawerProps {
   isOpen: boolean
   onClose: () => void
   cart: Product[]
-  onUpdateQuantity: (productId: number, selectedUnitId: number, quantity: number) => void
-  onRemoveItem: (productId: number, selectedUnitId: number) => void
+  onUpdateQuantity: (productId: number, selectedUnitId: number, quantity: number, cartItemId?: string) => void
+  onRemoveItem: (productId: number, selectedUnitId: number, cartItemId?: string) => void
   onClearCart: () => void
   totalPrice: number
   onPageBlock?: (blocked: boolean) => void
@@ -137,6 +131,7 @@ export function ShoppingCartDrawer({
     productId: number
     selectedUnitId: number
     value: string
+    cartItemId?: string
   } | null>(null)
   const [observation, setObservation] = useState<string>("")
 
@@ -283,55 +278,54 @@ export function ShoppingCartDrawer({
     return selectedUnit?.unitMeasurement.name || "Unidad"
   }
 
-  // Función para formatear números con coma como separador decimal
+  // Función para formatear números con coma como separador decimal - MEJORADA para 3 decimales
   const formatQuantity = (quantity: number): string => {
     if (quantity % 1 === 0) {
       return quantity.toFixed(0)
     } else {
-      // Reemplazar punto por coma en el número con 2 decimales
-      return quantity.toFixed(2).replace(".", ",")
+      // Reemplazar punto por coma en el número con hasta 3 decimales
+      return Number.parseFloat(quantity.toFixed(3)).toString().replace(".", ",")
     }
   }
 
-  // Función para manejar el cambio de cantidad con decimales
-  const handleQuantityChange = (productId: number, selectedUnitId: number, value: string) => {
-    // Permitir números con coma como separador decimal
-    // Reemplazar comas por puntos para el procesamiento interno
+  // Función para manejar el cambio de cantidad con decimales - ACTUALIZADA
+  const handleQuantityChange = (productId: number, selectedUnitId: number, value: string, cartItemId?: string) => {
     const normalizedValue = value.replace(",", ".")
-    const regex = /^\d*\.?\d{0,2}$/
+    const regex = /^\d*\.?\d{0,3}$/
 
     if (regex.test(normalizedValue) || value === "") {
-      // Guardar el valor con coma para la visualización
       setEditingQuantity({
         productId,
         selectedUnitId,
+        cartItemId,
         value: value,
       })
     }
   }
 
-  // Función para confirmar el cambio de cantidad
-  const handleQuantityBlur = (productId: number, selectedUnitId: number) => {
+  // Función para confirmar el cambio de cantidad - ACTUALIZADA
+  const handleQuantityBlur = (productId: number, selectedUnitId: number, cartItemId?: string) => {
     if (
       editingQuantity &&
       editingQuantity.productId === productId &&
-      editingQuantity.selectedUnitId === selectedUnitId
+      editingQuantity.selectedUnitId === selectedUnitId &&
+      editingQuantity.cartItemId === cartItemId
     ) {
-      // Normalizar el valor reemplazando coma por punto para el cálculo
       const normalizedValue = editingQuantity.value.replace(",", ".")
       const numValue = Number.parseFloat(normalizedValue)
 
       if (!isNaN(numValue) && numValue > 0) {
-        // Redondear a múltiplos de 0.25
-        const roundedValue = Math.round(numValue * 4) / 4
-        onUpdateQuantity(productId, selectedUnitId, roundedValue)
+        const roundedValue = Math.round(numValue * 1000) / 1000
+        onUpdateQuantity(productId, selectedUnitId, roundedValue, cartItemId)
       } else {
-        // Si el valor no es válido, mantener la cantidad actual
-        const currentItem = cart.find((item) => item.id === productId && item.selectedUnitId === selectedUnitId)
+        const currentItem = cart.find(
+          (item) => item.id === productId && item.selectedUnitId === selectedUnitId && item.cartItemId === cartItemId,
+        )
         if (currentItem) {
           setEditingQuantity({
             productId,
             selectedUnitId,
+            cartItemId,
             value: formatQuantity(currentItem.quantity),
           })
         }
@@ -341,9 +335,14 @@ export function ShoppingCartDrawer({
   }
 
   // Función para manejar Enter en el input de cantidad
-  const handleQuantityKeyPress = (e: React.KeyboardEvent, productId: number, selectedUnitId: number) => {
+  const handleQuantityKeyPress = (
+    e: React.KeyboardEvent,
+    productId: number,
+    selectedUnitId: number,
+    cartItemId?: string,
+  ) => {
     if (e.key === "Enter") {
-      handleQuantityBlur(productId, selectedUnitId)
+      handleQuantityBlur(productId, selectedUnitId, cartItemId)
     }
   }
 
@@ -564,9 +563,10 @@ export function ShoppingCartDrawer({
   return (
     <>
       <Drawer open={isOpen} onOpenChange={handleClose}>
-        <DrawerContent className="h-[85vh] flex flex-col">
-          <DrawerHeader className="flex items-center justify-between px-4 py-3 border-b shrink-0">
-            <div>
+        <DrawerContent className="h-[90vh] sm:h-[85vh] flex flex-col">
+          {/* Header mejorado para móvil */}
+          <DrawerHeader className="flex items-center justify-between px-4 py-3 border-b shrink-0 bg-white">
+            <div className="flex-1">
               <DrawerTitle className="flex items-center text-lg">
                 <ShoppingCart className="mr-2 h-5 w-5" />
                 {isEditMode ? "Editar Pedido" : "Carrito de Compras"}
@@ -577,18 +577,27 @@ export function ShoppingCartDrawer({
                   <span className="text-sm font-medium text-blue-700">Área: {editAreaName}</span>
                 </div>
               )}
-              <DrawerDescription>
+              <DrawerDescription className="text-sm text-muted-foreground">
                 {cart.length === 0
                   ? "Tu carrito está vacío"
                   : `${cart.length} ${cart.length === 1 ? "producto" : "productos"} en tu carrito`}
               </DrawerDescription>
             </div>
-            <DrawerClose asChild>
-              <Button variant="ghost" size="icon" disabled={isSubmitting}>
-                <X className="h-4 w-4" />
-                <span className="sr-only">Cerrar</span>
-              </Button>
-            </DrawerClose>
+
+            {/* Botón de cerrar mejorado para móvil */}
+            <div className="flex items-center gap-2 ml-4">
+              <DrawerClose asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  disabled={isSubmitting}
+                  className="h-10 w-10 rounded-full bg-gray-100 hover:bg-gray-200 flex-shrink-0"
+                >
+                  <X className="h-5 w-5" />
+                  <span className="sr-only">Cerrar</span>
+                </Button>
+              </DrawerClose>
+            </div>
           </DrawerHeader>
 
           <div className="flex-1 overflow-hidden flex flex-col">
@@ -600,7 +609,7 @@ export function ShoppingCartDrawer({
                 <h3 className="mb-2 text-lg font-medium">
                   {isEditMode ? "¡Pedido actualizado con éxito!" : "¡Pedido realizado con éxito!"}
                 </h3>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-muted-foreground mb-4 px-4">
                   {isEditMode
                     ? "Tu pedido ha sido actualizado y será procesado pronto. La entrega será mañana."
                     : "Tu pedido ha sido enviado y será procesado pronto. La entrega será mañana."}
@@ -613,7 +622,7 @@ export function ShoppingCartDrawer({
                     }
                     onClose()
                   }}
-                  className="mt-4"
+                  className="mt-2"
                 >
                   Continuar comprando
                 </Button>
@@ -621,13 +630,13 @@ export function ShoppingCartDrawer({
             ) : (
               <>
                 {/* Contenido fijo (no scrolleable) */}
-                <div className="px-4 py-2 shrink-0">
+                <div className="px-4 py-3 shrink-0">
                   {cart.length > 0 && (
                     <>
                       {/* Información importante sobre pedidos */}
                       <Alert className="mb-4 bg-blue-50 border-blue-200">
                         <InfoIcon className="h-4 w-4 text-blue-500" />
-                        <AlertTitle className="text-blue-700">Información importante</AlertTitle>
+                        <AlertTitle className="text-blue-700 text-sm">Información importante</AlertTitle>
                         <AlertDescription className="text-blue-600">
                           <ul className="list-disc pl-5 space-y-1 text-xs">
                             <li>Solo se permite una orden por área por día.</li>
@@ -641,7 +650,7 @@ export function ShoppingCartDrawer({
                       {isEditMode && (
                         <Alert className="mb-4 bg-blue-50 border-blue-200">
                           <InfoIcon className="h-4 w-4 text-blue-500" />
-                          <AlertTitle className="text-blue-700 flex items-center">
+                          <AlertTitle className="text-blue-700 flex items-center text-sm">
                             <Building className="h-4 w-4 mr-1.5" />
                             Editando pedido para área: {editAreaName || "No especificada"}
                           </AlertTitle>
@@ -733,7 +742,10 @@ export function ShoppingCartDrawer({
                   {cart.length > 0 ? (
                     <ul className="space-y-3">
                       {cart.map((item) => (
-                        <li key={`${item.id}-${item.selectedUnitId}`} className="rounded-lg border p-3">
+                        <li
+                          key={item.cartItemId || `${item.id}-${item.selectedUnitId}`}
+                          className="rounded-lg border p-3 bg-white"
+                        >
                           <div className="flex items-start gap-3">
                             <div className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-md">
                               <Image
@@ -744,16 +756,16 @@ export function ShoppingCartDrawer({
                                 sizes="56px"
                               />
                             </div>
-                            <div className="flex flex-1 flex-col">
-                              <h4 className="font-medium text-sm">{item.name}</h4>
+                            <div className="flex flex-1 flex-col min-w-0">
+                              <h4 className="font-medium text-sm truncate">{item.name}</h4>
                               <p className="text-xs text-muted-foreground line-clamp-1">{item.description}</p>
                               <div className="mt-1 flex items-center justify-between">
                                 <span className="text-xs font-medium">{getUnitName(item)}</span>
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-6 w-6 text-red-500 hover:bg-red-50 hover:text-red-600"
-                                  onClick={() => onRemoveItem(item.id, item.selectedUnitId)}
+                                  className="h-6 w-6 text-red-500 hover:bg-red-50 hover:text-red-600 flex-shrink-0"
+                                  onClick={() => onRemoveItem(item.id, item.selectedUnitId, item.cartItemId)}
                                   disabled={isSubmitting}
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
@@ -763,34 +775,49 @@ export function ShoppingCartDrawer({
                             </div>
                           </div>
 
-                          {/* Controles de cantidad con mejor espaciado */}
-                          <div className="mt-3 flex items-center">
-                            <div className="flex items-center gap-1">
+                          {/* Controles de cantidad con mejor espaciado - MEJORADOS para 0.001 */}
+                          <div className="mt-3 flex items-center justify-center">
+                            <div className="flex items-center gap-2">
                               <Button
                                 variant="outline"
                                 size="icon"
-                                className="h-7 w-7 rounded-full"
+                                className="h-8 w-8 rounded-full"
                                 onClick={() =>
-                                  onUpdateQuantity(item.id, item.selectedUnitId, Math.max(0.25, item.quantity - 0.25))
+                                  onUpdateQuantity(
+                                    item.id,
+                                    item.selectedUnitId,
+                                    Math.max(0.001, item.quantity - 0.001),
+                                    item.cartItemId,
+                                  )
                                 }
-                                disabled={item.quantity <= 0.25 || isSubmitting}
+                                disabled={item.quantity <= 0.001 || isSubmitting}
                               >
                                 <Minus className="h-3 w-3" />
                                 <span className="sr-only">Disminuir</span>
                               </Button>
 
                               {/* Input editable para cantidad con decimales */}
-                              <div className="mx-1 w-16 text-center">
+                              <div className="mx-1 w-20 text-center">
                                 {editingQuantity &&
                                 editingQuantity.productId === item.id &&
-                                editingQuantity.selectedUnitId === item.selectedUnitId ? (
+                                editingQuantity.selectedUnitId === item.selectedUnitId &&
+                                editingQuantity.cartItemId === item.cartItemId ? (
                                   <Input
                                     type="text"
                                     value={editingQuantity.value}
-                                    onChange={(e) => handleQuantityChange(item.id, item.selectedUnitId, e.target.value)}
-                                    onBlur={() => handleQuantityBlur(item.id, item.selectedUnitId)}
-                                    onKeyPress={(e) => handleQuantityKeyPress(e, item.id, item.selectedUnitId)}
-                                    className="h-7 text-center text-sm"
+                                    onChange={(e) =>
+                                      handleQuantityChange(
+                                        item.id,
+                                        item.selectedUnitId,
+                                        e.target.value,
+                                        item.cartItemId,
+                                      )
+                                    }
+                                    onBlur={() => handleQuantityBlur(item.id, item.selectedUnitId, item.cartItemId)}
+                                    onKeyPress={(e) =>
+                                      handleQuantityKeyPress(e, item.id, item.selectedUnitId, item.cartItemId)
+                                    }
+                                    className="h-8 text-center text-sm"
                                     autoFocus
                                     disabled={isSubmitting}
                                   />
@@ -800,10 +827,11 @@ export function ShoppingCartDrawer({
                                       setEditingQuantity({
                                         productId: item.id,
                                         selectedUnitId: item.selectedUnitId,
+                                        cartItemId: item.cartItemId,
                                         value: formatQuantity(item.quantity),
                                       })
                                     }
-                                    className="w-full h-7 text-center text-sm border rounded px-2 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    className="w-full h-8 text-center text-sm border rounded px-2 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                     disabled={isSubmitting}
                                   >
                                     {formatQuantity(item.quantity)}
@@ -814,8 +842,10 @@ export function ShoppingCartDrawer({
                               <Button
                                 variant="outline"
                                 size="icon"
-                                className="h-7 w-7 rounded-full"
-                                onClick={() => onUpdateQuantity(item.id, item.selectedUnitId, item.quantity + 0.25)}
+                                className="h-8 w-8 rounded-full"
+                                onClick={() =>
+                                  onUpdateQuantity(item.id, item.selectedUnitId, item.quantity + 0.001, item.cartItemId)
+                                }
                                 disabled={isSubmitting}
                               >
                                 <Plus className="h-3 w-3" />
@@ -845,15 +875,15 @@ export function ShoppingCartDrawer({
                 </div>
 
                 {/* Footer siempre visible - Separado claramente del contenido scrolleable */}
-                <div className="border-t p-4 pt-3 pb-4 bg-background shrink-0 mt-auto">
+                <div className="border-t p-4 pt-3 pb-6 bg-white shrink-0 mt-auto">
                   {cart.length > 0 && (
                     <>
-                      <div className="grid grid-cols-2 gap-2">
-                        <Button variant="outline" onClick={onClearCart} disabled={isSubmitting}>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Button variant="outline" onClick={onClearCart} disabled={isSubmitting} className="h-11">
                           Vaciar Carrito
                         </Button>
                         <Button
-                          className="bg-green-600 hover:bg-green-700"
+                          className="bg-green-600 hover:bg-green-700 h-11"
                           onClick={handleShowConfirmation}
                           disabled={
                             isSubmitting ||
@@ -883,7 +913,7 @@ export function ShoppingCartDrawer({
                     </>
                   )}
                   {cart.length === 0 && (
-                    <Button onClick={handleClose} disabled={isSubmitting}>
+                    <Button onClick={handleClose} disabled={isSubmitting} className="w-full h-11">
                       Continuar Comprando
                     </Button>
                   )}
@@ -894,40 +924,57 @@ export function ShoppingCartDrawer({
         </DrawerContent>
       </Drawer>
 
-      {/* Diálogo de confirmación de pedido */}
+      {/* Diálogo de confirmación de pedido CORREGIDO - Accesible y sin duplicados */}
       {isConfirmDialogOpen && (
         <Dialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              {/* Modificar el diálogo de confirmación para mostrar el área en modo edición */}
-              <DialogTitle>{isEditMode ? "Actualizar Pedido" : "Confirmar Pedido"}</DialogTitle>
-              <DialogDescription>
-                Revisa los productos de tu pedido antes de confirmar. La entrega será mañana.
-              </DialogDescription>
+          <DialogContent
+            className="w-[95vw] max-w-md mx-auto my-2 h-[85vh] flex flex-col p-0 gap-0 rounded-xl shadow-2xl"
+            onOpenAutoFocus={(e) => e.preventDefault()}
+          >
+            {/* Header con título accesible */}
+            <DialogHeader className="px-4 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-t-xl flex-shrink-0">
+              <DialogTitle className="text-lg font-bold text-white flex items-center">
+                <ShoppingCart className="mr-2 h-4 w-4" />
+                {isEditMode ? "Actualizar Pedido" : "Confirmar Pedido"}
+              </DialogTitle>
+              <p className="text-green-100 text-xs mt-0.5">Revisa tu pedido antes de confirmar</p>
             </DialogHeader>
 
-            <div className="py-4">
-              <div className="flex items-center mb-2">
-                <Building className="h-4 w-4 mr-1.5 text-blue-600" />
-                <h3 className="font-medium text-sm">
-                  Área: {isEditMode ? editAreaName || "No especificada" : getSelectedAreaName()}
-                </h3>
+            {/* Contenido scrolleable optimizado para teclado */}
+            <div className="flex-1 overflow-y-auto min-h-0">
+              {/* Información del área */}
+              <div className="px-4 py-3 bg-blue-50 border-b">
+                <div className="flex items-center">
+                  <div className="flex items-center justify-center w-6 h-6 bg-blue-100 rounded-full mr-2">
+                    <Building className="h-3 w-3 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-blue-900 text-sm">Área de entrega</h3>
+                    <p className="text-blue-700 text-xs">
+                      {isEditMode ? editAreaName || "No especificada" : getSelectedAreaName()}
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              <div className="border rounded-md overflow-hidden">
-                <div className="bg-muted px-4 py-2 border-b">
-                  <h4 className="text-sm font-medium">Resumen del pedido</h4>
-                </div>
+              {/* Resumen del pedido compacto */}
+              <div className="px-4 py-3">
+                <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                  <div className="bg-gray-50 px-3 py-2 border-b border-gray-200">
+                    <h4 className="font-medium text-gray-900 text-sm flex items-center">
+                      <ShoppingCart className="h-3 w-3 mr-1 text-gray-600" />
+                      Pedido ({cart.length} {cart.length === 1 ? "producto" : "productos"})
+                    </h4>
+                  </div>
 
-                <div className="p-4 max-h-60 overflow-y-auto">
-                  <ul className="space-y-3">
-                    {cart.map((item) => (
-                      <li
-                        key={`confirm-${item.id}-${item.selectedUnitId}`}
-                        className="flex justify-between items-center"
-                      >
-                        <div className="flex items-center gap-2">
-                          <div className="relative h-8 w-8 overflow-hidden rounded-md">
+                  <div className="p-3 max-h-32 overflow-y-auto">
+                    <ul className="space-y-2">
+                      {cart.map((item, index) => (
+                        <li
+                          key={item.cartItemId || `confirm-${item.id}-${item.selectedUnitId}-${index}`}
+                          className="flex items-center gap-2"
+                        >
+                          <div className="relative h-8 w-8 overflow-hidden rounded flex-shrink-0 bg-gray-100">
                             <Image
                               src={item.imageUrl || "/placeholder.svg"}
                               alt={item.name}
@@ -936,64 +983,80 @@ export function ShoppingCartDrawer({
                               sizes="32px"
                             />
                           </div>
-                          <div>
-                            <p className="text-sm font-medium">{item.name}</p>
-                            <p className="text-xs text-muted-foreground">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-xs text-gray-900 truncate">{item.name}</p>
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
                               {formatQuantity(item.quantity)} {getUnitName(item)}
-                            </p>
+                            </span>
                           </div>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 </div>
               </div>
 
-              <div className="mt-4">
-                <label htmlFor="observation" className="block text-sm font-medium mb-2">
-                  Observaciones (opcional)
-                </label>
-                <Textarea
-                  id="observation"
-                  placeholder="¿Algún producto específico o algo especial que quieras agregar?"
-                  value={observation}
-                  onChange={(e) => setObservation(e.target.value)}
-                  disabled={isSubmitting}
-                  className="min-h-[80px] text-sm"
-                  maxLength={500}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Máximo 500 caracteres. Especifica cualquier detalle especial sobre los productos.
-                </p>
+              {/* Campo de observaciones compacto */}
+              <div className="px-4 pb-3">
+                <div className="bg-white rounded-lg border border-gray-200 p-3">
+                  <label htmlFor="observation" className="block text-sm font-medium text-gray-900 mb-2">
+                    💬 Observaciones
+                  </label>
+                  <Textarea
+                    id="observation"
+                    placeholder="¿Algo especial para tu pedido?"
+                    value={observation}
+                    onChange={(e) => setObservation(e.target.value)}
+                    disabled={isSubmitting}
+                    className="min-h-[50px] text-sm resize-none border-gray-300 focus:border-green-500 focus:ring-green-500/20"
+                    maxLength={500}
+                    rows={2}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">{observation.length}/500</p>
+                </div>
               </div>
 
-              <Alert className="mt-4 bg-amber-50 border-amber-200">
-                <InfoIcon className="h-4 w-4 text-amber-500" />
-                <AlertDescription className="text-amber-700 text-xs">
-                  {isEditMode
-                    ? "Recuerda que solo puedes editar tu pedido hasta el final del día."
-                    : "Recuerda que solo puedes realizar un pedido por área por día. La orden se puede editar hasta el final del día."}
-                </AlertDescription>
-              </Alert>
+              {/* Información importante compacta */}
+              <div className="px-4 pb-3">
+                <Alert className="bg-amber-50 border-amber-200 py-2">
+                  <InfoIcon className="h-3 w-3 text-amber-600" />
+                  <AlertDescription className="text-amber-800 text-xs">
+                    {isEditMode ? "Solo puedes editar hasta el final del día." : "Solo un pedido por área por día."}
+                  </AlertDescription>
+                </Alert>
+              </div>
             </div>
 
-            <DialogFooter className="sm:justify-between">
-              <Button variant="outline" onClick={() => setIsConfirmDialogOpen(false)} disabled={isSubmitting}>
-                Cancelar
-              </Button>
-              <Button onClick={handleSubmitOrder} className="bg-green-600 hover:bg-green-700" disabled={isSubmitting}>
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Procesando...
-                  </>
-                ) : isEditMode ? (
-                  "Actualizar Pedido"
-                ) : (
-                  "Confirmar Pedido"
-                )}
-              </Button>
-            </DialogFooter>
+            {/* Footer fijo con botones - Siempre visible */}
+            <div className="border-t bg-white px-4 py-3 flex-shrink-0 rounded-b-xl">
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsConfirmDialogOpen(false)}
+                  disabled={isSubmitting}
+                  className="flex-1 text-sm h-10 border-gray-300 hover:bg-gray-100"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleSubmitOrder}
+                  className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white text-sm h-10"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                      Procesando...
+                    </>
+                  ) : (
+                    <>
+                      <ShoppingCart className="mr-1 h-3 w-3" />
+                      {isEditMode ? "Actualizar" : "Confirmar"}
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
       )}
