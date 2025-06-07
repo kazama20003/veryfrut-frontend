@@ -187,6 +187,7 @@ export default function NewOrderPage() {
       return
     }
 
+    // Asegurar que se acepten hasta 3 decimales
     const quantity = Number.parseFloat(value)
 
     // Validar que sea un número válido y no negativo
@@ -534,7 +535,7 @@ export default function NewOrderPage() {
                                   type="number"
                                   min="0"
                                   step="0.001"
-                                  value={item.quantity === 0 ? "" : item.quantity.toString()}
+                                  value={item.quantity === 0 ? "" : item.quantity}
                                   onChange={(e) => handleQuantityChange(index, e.target.value)}
                                   onBlur={(e) => {
                                     const value = e.target.value.trim()
@@ -543,13 +544,6 @@ export default function NewOrderPage() {
                                     if (value === "" || Number.parseFloat(value) === 0) {
                                       handleQuantityChange(index, "0.001")
                                       return
-                                    }
-
-                                    const numValue = Number.parseFloat(value)
-
-                                    // Si es un número válido pero menor que 0.001, establecer 0.001
-                                    if (!isNaN(numValue) && numValue > 0 && numValue < 0.001) {
-                                      handleQuantityChange(index, "0.001")
                                     }
                                   }}
                                   className="w-20 mx-auto text-center"
