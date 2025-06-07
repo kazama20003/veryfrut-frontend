@@ -159,9 +159,9 @@ export default function NewOrderPage() {
     const newItem: OrderItem = {
       productId: productToAdd.id,
       productName: productToAdd.name,
-      quantity: 1,
+      quantity: 0.001, // Cambiar de 1 a 0.001 para consistencia
       price: productToAdd.price,
-      total: productToAdd.price,
+      total: productToAdd.price * 0.001,
       unitMeasurementId: defaultUnit.unitMeasurementId,
       unitMeasurementName: defaultUnit.unitMeasurement.name,
     }
@@ -178,8 +178,19 @@ export default function NewOrderPage() {
 
   // Actualizar cantidad de un producto
   const handleQuantityChange = (index: number, value: string) => {
-    const quantity = Number.parseFloat(value) || 0
-    if (quantity < 0) return
+    // Permitir valores vacíos temporalmente para mejor UX
+    if (value === "") {
+      const newItems = [...orderItems]
+      newItems[index].quantity = 0
+      newItems[index].total = 0
+      setOrderItems(newItems)
+      return
+    }
+
+    const quantity = Number.parseFloat(value)
+
+    // Validar que sea un número válido y no negativo
+    if (isNaN(quantity) || quantity < 0) return
 
     const newItems = [...orderItems]
     newItems[index].quantity = quantity
@@ -247,10 +258,10 @@ export default function NewOrderPage() {
     }
 
     // Validar que todas las cantidades sean válidas
-    const invalidItems = orderItems.filter((item) => item.quantity <= 0)
+    const invalidItems = orderItems.filter((item) => item.quantity < 0.001)
     if (invalidItems.length > 0) {
       toast.error("Error de validación", {
-        description: "Todas las cantidades deben ser mayores a 0.",
+        description: "Todas las cantidades deben ser de al menos 0.001.",
       })
       return false
     }
@@ -523,14 +534,21 @@ export default function NewOrderPage() {
                                   type="number"
                                   min="0"
                                   step="0.001"
-                                  value={item.quantity}
+                                  value={item.quantity === 0 ? "" : item.quantity.toString()}
                                   onChange={(e) => handleQuantityChange(index, e.target.value)}
                                   onBlur={(e) => {
-                                    // Asegurar que el valor mínimo sea 0.001 cuando se pierde el foco
-                                    const value = Number.parseFloat(e.target.value) || 0
-                                    if (value > 0 && value < 0.001) {
+                                    const value = e.target.value.trim()
+
+                                    // Si está vacío o es 0, establecer el mínimo
+                                    if (value === "" || Number.parseFloat(value) === 0) {
                                       handleQuantityChange(index, "0.001")
-                                    } else if (value === 0) {
+                                      return
+                                    }
+
+                                    const numValue = Number.parseFloat(value)
+
+                                    // Si es un número válido pero menor que 0.001, establecer 0.001
+                                    if (!isNaN(numValue) && numValue > 0 && numValue < 0.001) {
                                       handleQuantityChange(index, "0.001")
                                     }
                                   }}
