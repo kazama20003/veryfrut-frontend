@@ -2,12 +2,16 @@
 
 import { useState, useEffect } from "react"
 
+const CART_STORAGE_KEY = "cart"
+
+// Define a type for the unit measurement
 interface UnitMeasurement {
   id: number
   name: string
   description: string
 }
 
+// Define a type for the product unit
 interface ProductUnit {
   id: number
   productId: number
@@ -15,6 +19,7 @@ interface ProductUnit {
   unitMeasurement: UnitMeasurement
 }
 
+// Define a type for the product
 interface Product {
   id: number
   name: string
@@ -28,18 +33,10 @@ interface Product {
   productUnits: ProductUnit[]
   quantity: number
   selectedUnitId: number
-  // Añadir un ID único para cada item del carrito
   cartItemId?: string
 }
 
-// Clave para almacenar el carrito en localStorage
-const CART_STORAGE_KEY = "user_cart"
-
-// Función para generar un ID único para cada item del carrito
-const generateCartItemId = () => {
-  return `cart_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-}
-
+// Custom hook for managing the cart
 export function useCart() {
   const [cart, setCart] = useState<Product[]>([])
 
@@ -49,7 +46,6 @@ export function useCart() {
     if (savedCart) {
       try {
         const parsedCart = JSON.parse(savedCart)
-        // Asegurar que cada item tenga un cartItemId único
         const cartWithIds = parsedCart.map((item: Product) => ({
           ...item,
           cartItemId: item.cartItemId || generateCartItemId(),
@@ -67,30 +63,32 @@ export function useCart() {
     localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart))
   }, [cart])
 
+  // Function to generate a unique ID for each cart item
+  const generateCartItemId = () => {
+    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+  }
+
   // Añadir producto al carrito - MODIFICADO para permitir duplicados
   const addToCart = (product: Product, selectedUnitId: number, allowDuplicate = false) => {
     setCart((prevCart) => {
       if (!allowDuplicate) {
-        // Comportamiento original: verificar si el producto ya está en el carrito con la misma unidad
         const existingItemIndex = prevCart.findIndex(
           (item) => item.id === product.id && item.selectedUnitId === selectedUnitId,
         )
 
         if (existingItemIndex >= 0) {
-          // Si ya existe, incrementar la cantidad
           const updatedCart = [...prevCart]
           updatedCart[existingItemIndex] = {
             ...updatedCart[existingItemIndex],
-            quantity: updatedCart[existingItemIndex].quantity + 1,
+            quantity: updatedCart[existingItemIndex].quantity + product.quantity,
           }
           return updatedCart
         }
       }
 
-      // Nuevo comportamiento: siempre añadir como nuevo item con ID único
       const newCartItem = {
         ...product,
-        quantity: 1,
+        quantity: product.quantity || 1,
         selectedUnitId,
         cartItemId: generateCartItemId(),
       }
@@ -99,41 +97,38 @@ export function useCart() {
     })
   }
 
-  // Actualizar cantidad de un producto en el carrito - MODIFICADO para usar cartItemId
+  // Nueva función para añadir producto como duplicado
+  const addToCartAsDuplicate = (product: Product, selectedUnitId: number) => {
+    addToCart(product, selectedUnitId, true)
+  }
+
+  // Actualizar cantidad de un producto en el carrito
   const updateCartItemQuantity = (productId: number, selectedUnitId: number, quantity: number, cartItemId?: string) => {
     setCart((prevCart) => {
       if (quantity <= 0) {
-        // Si la cantidad es 0 o menos, eliminar el producto
         if (cartItemId) {
-          // Si tenemos cartItemId, eliminar ese item específico
           return prevCart.filter((item) => item.cartItemId !== cartItemId)
         } else {
-          // Comportamiento original para compatibilidad
           return prevCart.filter((item) => !(item.id === productId && item.selectedUnitId === selectedUnitId))
         }
       }
 
-      // Actualizar la cantidad
       return prevCart.map((item) => {
         if (cartItemId) {
-          // Si tenemos cartItemId, actualizar ese item específico
           return item.cartItemId === cartItemId ? { ...item, quantity } : item
         } else {
-          // Comportamiento original para compatibilidad
           return item.id === productId && item.selectedUnitId === selectedUnitId ? { ...item, quantity } : item
         }
       })
     })
   }
 
-  // Eliminar un producto del carrito - MODIFICADO para usar cartItemId
+  // Eliminar un producto del carrito
   const removeFromCart = (productId: number, selectedUnitId: number, cartItemId?: string) => {
     setCart((prevCart) => {
       if (cartItemId) {
-        // Si tenemos cartItemId, eliminar ese item específico
         return prevCart.filter((item) => item.cartItemId !== cartItemId)
       } else {
-        // Comportamiento original para compatibilidad
         return prevCart.filter((item) => !(item.id === productId && item.selectedUnitId === selectedUnitId))
       }
     })
@@ -155,12 +150,7 @@ export function useCart() {
     return cart.reduce((total, item) => total + item.quantity, 0)
   }
 
-  // Nueva función para añadir producto como duplicado
-  const addToCartAsDuplicate = (product: Product, selectedUnitId: number) => {
-    addToCart(product, selectedUnitId, true)
-  }
-
-  // Nueva función para obtener items agrupados (para mostrar resumen)
+  // Nueva función para obtener items agrupados
   const getGroupedItems = () => {
     const grouped = cart.reduce(
       (acc, item) => {
@@ -186,12 +176,12 @@ export function useCart() {
     cart,
     setCart,
     addToCart,
-    addToCartAsDuplicate, // Nueva función
+    addToCartAsDuplicate,
     updateCartItemQuantity,
     removeFromCart,
     clearCart,
     getTotalPrice,
     getTotalItems,
-    getGroupedItems, // Nueva función
+    getGroupedItems,
   }
 }

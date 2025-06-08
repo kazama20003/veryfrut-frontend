@@ -4,7 +4,18 @@ import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import React from "react"
 import Image from "next/image"
-import { Building, ChevronLeft, InfoIcon, Loader2, Minus, Plus, Search, ShoppingCart, Trash2 } from "lucide-react"
+import {
+  Building,
+  ChevronLeft,
+  InfoIcon,
+  Loader2,
+  Minus,
+  Plus,
+  Search,
+  ShoppingCart,
+  Trash2,
+  PlusCircle,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { api } from "@/lib/axiosInstance"
@@ -13,9 +24,9 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
+import { Badge } from "@/components/ui/badge"
 
 // Interfaces
 interface UnitMeasurement {
@@ -83,15 +94,21 @@ interface CartItem {
   quantity: number
   selectedUnitId: number
   productUnits: ProductUnit[]
+  cartItemId: string // ID único para cada item del carrito
 }
 
-// Constantes para manejo de cantidades decimales
+// Constantes para manejo de cantidades decimales - ACTUALIZADO A 2 DECIMALES
 const QUANTITY_LIMITS = {
-  MIN: 0.001,
-  MAX: 999.999,
-  STEP: 0.001,
-  DECIMALS: 3,
+  MIN: 0.01, // Mínimo 0.01 en lugar de 0.001
+  MAX: 999.99, // Máximo con 2 decimales
+  STEP: 0.01, // Incrementos de 0.01
+  DECIMALS: 2, // Solo 2 decimales permitidos
 } as const
+
+// Función para generar un ID único para cada item del carrito
+const generateCartItemId = () => {
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+}
 
 export default function EditOrderPage({ params }: { params: Promise<{ id: string }> }) {
   // Usar React.use para acceder a los parámetros
@@ -105,18 +122,18 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<Product[]>([])
   const [isSearching, setIsSearching] = useState(false)
-  const [unitMeasurements, setUnitMeasurements] = useState<UnitMeasurement[]>([])
+  const [, setUnitMeasurements] = useState<UnitMeasurement[]>([])
   const [allProducts, setAllProducts] = useState<Product[]>([])
   const [observation, setObservation] = useState<string>("")
+  const [showSearchHelp, setShowSearchHelp] = useState(true) // Estado para mostrar ayuda de búsqueda
 
   // Estado para manejar la edición de cantidades
   const [editingQuantity, setEditingQuantity] = useState<{
-    productId: number
-    selectedUnitId: number
+    cartItemId: string
     value: string
   } | null>(null)
 
-  // Función para formatear cantidades con hasta 3 decimales
+  // Función para formatear cantidades con hasta 2 decimales
   const formatQuantity = useCallback((quantity: number): string => {
     if (quantity % 1 === 0) {
       return quantity.toFixed(0)
@@ -124,44 +141,40 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
     return Number.parseFloat(quantity.toFixed(QUANTITY_LIMITS.DECIMALS)).toString().replace(".", ",")
   }, [])
 
-  // Función para actualizar cantidad con soporte para decimales hasta 0.001
-  const updateQuantity = useCallback((productId: number, selectedUnitId: number, quantity: number) => {
+  // Función para actualizar cantidad con soporte para decimales hasta 0.01
+  const updateQuantity = useCallback((cartItemId: string, quantity: number) => {
     if (quantity <= 0) {
       // Si la cantidad es 0 o menos, eliminar el producto
-      setCart((prev) => prev.filter((item) => !(item.id === productId && item.selectedUnitId === selectedUnitId)))
+      setCart((prev) => prev.filter((item) => item.cartItemId !== cartItemId))
     } else {
-      // Redondear a 3 decimales y actualizar la cantidad
-      const roundedQuantity = Math.round(quantity * 1000) / 1000
+      // Redondear a 2 decimales y actualizar la cantidad
+      const roundedQuantity = Math.round(quantity * 100) / 100
       const clampedQuantity = Math.max(QUANTITY_LIMITS.MIN, Math.min(QUANTITY_LIMITS.MAX, roundedQuantity))
 
       setCart((prev) =>
-        prev.map((item) =>
-          item.id === productId && item.selectedUnitId === selectedUnitId
-            ? { ...item, quantity: clampedQuantity }
-            : item,
-        ),
+        prev.map((item) => (item.cartItemId === cartItemId ? { ...item, quantity: clampedQuantity } : item)),
       )
     }
   }, [])
 
   // Función para manejar cambio directo en el input con validación de decimales
   const handleQuantityInputChange = useCallback(
-    (productId: number, selectedUnitId: number, value: string) => {
+    (cartItemId: string, value: string) => {
       const normalizedValue = value.replace(",", ".")
-      const regex = /^\d*\.?\d{0,3}$/
+      // Regex actualizado para permitir solo 2 decimales
+      const regex = /^\d*\.?\d{0,2}$/
 
       if (regex.test(normalizedValue) || value === "") {
         setEditingQuantity({
-          productId,
-          selectedUnitId,
+          cartItemId,
           value: value,
         })
 
         if (normalizedValue !== "") {
           const numValue = Number.parseFloat(normalizedValue)
           if (!isNaN(numValue) && numValue > 0) {
-            const roundedValue = Math.round(numValue * 1000) / 1000
-            updateQuantity(productId, selectedUnitId, roundedValue)
+            const roundedValue = Math.round(numValue * 100) / 100
+            updateQuantity(cartItemId, roundedValue)
           }
         }
       }
@@ -171,20 +184,16 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
 
   // Función para manejar cuando el input pierde el foco
   const handleQuantityInputBlur = useCallback(
-    (productId: number, selectedUnitId: number) => {
-      if (
-        editingQuantity &&
-        editingQuantity.productId === productId &&
-        editingQuantity.selectedUnitId === selectedUnitId
-      ) {
+    (cartItemId: string) => {
+      if (editingQuantity && editingQuantity.cartItemId === cartItemId) {
         const normalizedValue = editingQuantity.value.replace(",", ".")
         const numValue = Number.parseFloat(normalizedValue)
 
         if (!isNaN(numValue) && numValue > 0) {
-          updateQuantity(productId, selectedUnitId, numValue)
+          updateQuantity(cartItemId, numValue)
         } else {
-          // Si el valor no es válido, establecer a 0.001 como mínimo
-          updateQuantity(productId, selectedUnitId, QUANTITY_LIMITS.MIN)
+          // Si el valor no es válido, establecer a 0.01 como mínimo
+          updateQuantity(cartItemId, QUANTITY_LIMITS.MIN)
         }
 
         setEditingQuantity(null)
@@ -195,9 +204,9 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
 
   // Función para manejar Enter en el input
   const handleQuantityKeyPress = useCallback(
-    (e: React.KeyboardEvent, productId: number, selectedUnitId: number) => {
+    (e: React.KeyboardEvent, cartItemId: string) => {
       if (e.key === "Enter") {
-        handleQuantityInputBlur(productId, selectedUnitId)
+        handleQuantityInputBlur(cartItemId)
       }
     },
     [handleQuantityInputBlur],
@@ -268,7 +277,7 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
         // Usar unitMeasurementId del item si está disponible, de lo contrario usar el primero disponible
         const selectedUnitId = item.unitMeasurementId || productDetails.productUnits[0].unitMeasurement.id
 
-        // Añadir al carrito
+        // Añadir al carrito con un ID único
         cartItems.push({
           id: productDetails.id,
           name: productDetails.name,
@@ -278,6 +287,7 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
           quantity: item.quantity,
           selectedUnitId: selectedUnitId,
           productUnits: productDetails.productUnits,
+          cartItemId: generateCartItemId(), // Generar ID único para cada item
         })
       }
 
@@ -329,49 +339,52 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
     const timer = setTimeout(() => {
       if (searchQuery) {
         handleSearch()
+        // Ocultar el mensaje de ayuda cuando se está buscando
+        setShowSearchHelp(false)
       } else {
         setSearchResults([])
+        // Mostrar el mensaje de ayuda cuando no hay búsqueda
+        setShowSearchHelp(true)
       }
     }, 300)
 
     return () => clearTimeout(timer)
   }, [searchQuery, handleSearch])
 
-  // Añadir producto al carrito
+  // Añadir producto al carrito - MODIFICADO para permitir duplicados
   const addToCart = (product: Product, unitId: number) => {
-    // Verificar si el producto ya está en el carrito
-    const existingItemIndex = cart.findIndex((item) => item.id === product.id && item.selectedUnitId === unitId)
+    // Siempre añadir como nuevo item con ID único
+    setCart((prev) => [
+      ...prev,
+      {
+        id: product.id,
+        name: product.name,
+        description: product.description,
+        price: product.price,
+        imageUrl: product.imageUrl || "",
+        quantity: 1, // Iniciar con cantidad 1
+        selectedUnitId: unitId,
+        productUnits: product.productUnits || [],
+        cartItemId: generateCartItemId(), // Generar ID único para cada item
+      },
+    ])
 
-    if (existingItemIndex >= 0) {
-      // Si ya existe, incrementar la cantidad
-      const updatedCart = [...cart]
-      updatedCart[existingItemIndex].quantity += 1
-      setCart(updatedCart)
-    } else {
-      // Si no existe, añadir como nuevo item
-      setCart((prev) => [
-        ...prev,
-        {
-          id: product.id,
-          name: product.name,
-          description: product.description,
-          price: product.price,
-          imageUrl: product.imageUrl || "",
-          quantity: 1,
-          selectedUnitId: unitId,
-          productUnits: product.productUnits || [],
-        },
-      ])
-    }
+    // Mostrar mensaje de éxito
+    const selectedUnit = product.productUnits?.find((pu) => pu.unitMeasurement.id === unitId)
+    const unitName = selectedUnit?.unitMeasurement.name || "Unidad"
 
     toast.success("Producto añadido", {
-      description: `${product.name} ha sido añadido al pedido.`,
+      description: `${product.name} (${unitName}) ha sido añadido al pedido.`,
     })
+
+    // Limpiar la búsqueda después de añadir
+    setSearchQuery("")
+    setSearchResults([])
   }
 
   // Eliminar un producto del carrito
-  const removeFromCart = (productId: number, selectedUnitId: number) => {
-    setCart((prev) => prev.filter((item) => !(item.id === productId && item.selectedUnitId === selectedUnitId)))
+  const removeFromCart = (cartItemId: string) => {
+    setCart((prev) => prev.filter((item) => item.cartItemId !== cartItemId))
   }
 
   // Obtener el nombre de la unidad de medida
@@ -433,6 +446,20 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
   const handleCancel = () => {
     router.push("/users/history")
   }
+
+  // Agrupar productos por tipo y unidad para mostrar contadores
+  const getProductCounts = useCallback(() => {
+    const counts: Record<string, number> = {}
+
+    cart.forEach((item) => {
+      const key = `${item.id}-${item.selectedUnitId}`
+      counts[key] = (counts[key] || 0) + 1
+    })
+
+    return counts
+  }, [cart])
+
+  const productCounts = getProductCounts()
 
   if (isLoading) {
     return (
@@ -506,12 +533,13 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
               <li>Puedes añadir o quitar productos de este pedido.</li>
               <li>La edición solo está disponible hasta el final del día de hoy.</li>
               <li>La entrega de los productos será mañana.</li>
-              <li>Puedes usar cantidades decimales hasta 3 decimales (ej: 2.5, 0.75, 0.001).</li>
+              <li>Puedes usar cantidades decimales hasta 2 decimales (ej: 2.5, 0.75, 0.01).</li>
+              <li>Puedes añadir el mismo producto varias veces como elementos separados.</li>
             </ul>
           </AlertDescription>
         </Alert>
 
-        {/* Buscador de productos */}
+        {/* Buscador de productos - MEJORADO */}
         <div className="mb-6">
           <h3 className="text-base font-medium mb-2">Añadir productos al pedido</h3>
           <div className="relative">
@@ -531,7 +559,21 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
               </div>
             )}
 
-            {/* Resultados de búsqueda */}
+            {/* Mensaje de ayuda para la búsqueda */}
+            {showSearchHelp && (
+              <div className="mt-2 p-3 bg-muted/30 rounded-md border border-dashed">
+                <div className="flex items-center text-muted-foreground">
+                  <InfoIcon className="h-4 w-4 mr-2 text-blue-500" />
+                  <p className="text-sm">Escribe el nombre de un producto para buscarlo y añadirlo al pedido.</p>
+                </div>
+                <div className="mt-2 flex items-center text-muted-foreground">
+                  <PlusCircle className="h-4 w-4 mr-2 text-green-500" />
+                  <p className="text-sm">Puedes añadir el mismo producto varias veces como elementos separados.</p>
+                </div>
+              </div>
+            )}
+
+            {/* Resultados de búsqueda - MEJORADOS */}
             {searchResults.length > 0 && (
               <Card className="absolute z-10 w-full mt-1 shadow-lg">
                 <CardContent className="p-0">
@@ -550,42 +592,54 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
                               />
                             </div>
                             <div className="flex-1">
-                              <h4 className="font-medium text-sm">{product.name}</h4>
+                              <div className="flex items-center justify-between">
+                                <h4 className="font-medium text-sm">{product.name}</h4>
+
+                                {/* Mostrar contador si el producto ya está en el carrito */}
+                                {product.productUnits &&
+                                  product.productUnits.some((pu) => {
+                                    const key = `${product.id}-${pu.unitMeasurement.id}`
+                                    return productCounts[key] && productCounts[key] > 0
+                                  }) && (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs bg-green-50 text-green-700 border-green-200"
+                                    >
+                                      Ya en pedido
+                                    </Badge>
+                                  )}
+                              </div>
+
                               <p className="text-xs text-muted-foreground line-clamp-1">{product.description}</p>
 
-                              <div className="mt-2 flex items-center justify-between">
-                                <Select
-                                  defaultValue={
-                                    product.productUnits && product.productUnits.length > 0
-                                      ? product.productUnits[0].unitMeasurement.id.toString()
-                                      : "1"
-                                  }
-                                  onValueChange={(value) => {
-                                    // Cuando se selecciona una unidad, añadir el producto con esa unidad
-                                    addToCart(product, Number(value))
-                                    // Limpiar la búsqueda después de añadir
-                                    setSearchQuery("")
-                                    setSearchResults([])
-                                  }}
-                                  disabled={isSubmitting}
-                                >
-                                  <SelectTrigger className="h-7 text-xs w-32 bg-background border-border/60">
-                                    <SelectValue placeholder="Seleccionar unidad" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {product.productUnits && product.productUnits.length > 0
-                                      ? product.productUnits.map((pu) => (
-                                          <SelectItem key={pu.id} value={pu.unitMeasurement.id.toString()}>
-                                            {pu.unitMeasurement.name}
-                                          </SelectItem>
-                                        ))
-                                      : unitMeasurements.map((um) => (
-                                          <SelectItem key={um.id} value={um.id.toString()}>
-                                            {um.name}
-                                          </SelectItem>
-                                        ))}
-                                  </SelectContent>
-                                </Select>
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {product.productUnits && product.productUnits.length > 0 ? (
+                                  product.productUnits.map((pu) => {
+                                    const key = `${product.id}-${pu.unitMeasurement.id}`
+                                    const count = productCounts[key] || 0
+
+                                    return (
+                                      <Button
+                                        key={pu.id}
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-8 text-xs flex items-center gap-1 bg-white"
+                                        onClick={() => addToCart(product, pu.unitMeasurement.id)}
+                                        disabled={isSubmitting}
+                                      >
+                                        <PlusCircle className="h-3 w-3 mr-1" />
+                                        <span>{pu.unitMeasurement.name}</span>
+                                        {count > 0 && (
+                                          <Badge className="ml-1 h-5 bg-green-100 text-green-800 text-[10px]">
+                                            {count}
+                                          </Badge>
+                                        )}
+                                      </Button>
+                                    )
+                                  })
+                                ) : (
+                                  <p className="text-xs text-muted-foreground">No hay unidades disponibles</p>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -611,8 +665,8 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
             </div>
           ) : (
             <ul className="space-y-3">
-              {cart.map((item, index) => (
-                <li key={`cart-item-${item.id}-${item.selectedUnitId}-${index}`} className="rounded-lg border p-3">
+              {cart.map((item) => (
+                <li key={item.cartItemId} className="rounded-lg border p-3">
                   <div className="flex items-start gap-3">
                     <div className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-md">
                       <Image
@@ -632,7 +686,7 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6 text-red-500 hover:bg-red-50 hover:text-red-600"
-                          onClick={() => removeFromCart(item.id, item.selectedUnitId)}
+                          onClick={() => removeFromCart(item.cartItemId)}
                           disabled={isSubmitting}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -642,7 +696,7 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
                     </div>
                   </div>
 
-                  {/* Control de cantidad con soporte para decimales hasta 0.001 */}
+                  {/* Control de cantidad con soporte para decimales hasta 0.01 */}
                   <div className="mt-3 flex items-center justify-center">
                     <div className="flex items-center gap-2">
                       <Button
@@ -651,8 +705,7 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
                         className="h-8 w-8 rounded-full flex-shrink-0"
                         onClick={() =>
                           updateQuantity(
-                            item.id,
-                            item.selectedUnitId,
+                            item.cartItemId,
                             Math.max(QUANTITY_LIMITS.MIN, item.quantity - QUANTITY_LIMITS.STEP),
                           )
                         }
@@ -663,15 +716,13 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
                       </Button>
 
                       <div className="flex flex-col items-center">
-                        {editingQuantity &&
-                        editingQuantity.productId === item.id &&
-                        editingQuantity.selectedUnitId === item.selectedUnitId ? (
+                        {editingQuantity && editingQuantity.cartItemId === item.cartItemId ? (
                           <Input
                             type="text"
                             value={editingQuantity.value}
-                            onChange={(e) => handleQuantityInputChange(item.id, item.selectedUnitId, e.target.value)}
-                            onBlur={() => handleQuantityInputBlur(item.id, item.selectedUnitId)}
-                            onKeyPress={(e) => handleQuantityKeyPress(e, item.id, item.selectedUnitId)}
+                            onChange={(e) => handleQuantityInputChange(item.cartItemId, e.target.value)}
+                            onBlur={() => handleQuantityInputBlur(item.cartItemId)}
+                            onKeyPress={(e) => handleQuantityKeyPress(e, item.cartItemId)}
                             className="w-20 h-8 text-center text-sm"
                             autoFocus
                             disabled={isSubmitting}
@@ -681,8 +732,7 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
                           <button
                             onClick={() =>
                               setEditingQuantity({
-                                productId: item.id,
-                                selectedUnitId: item.selectedUnitId,
+                                cartItemId: item.cartItemId,
                                 value: formatQuantity(item.quantity),
                               })
                             }
@@ -699,9 +749,7 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
                         variant="outline"
                         size="icon"
                         className="h-8 w-8 rounded-full flex-shrink-0"
-                        onClick={() =>
-                          updateQuantity(item.id, item.selectedUnitId, item.quantity + QUANTITY_LIMITS.STEP)
-                        }
+                        onClick={() => updateQuantity(item.cartItemId, item.quantity + QUANTITY_LIMITS.STEP)}
                         disabled={isSubmitting}
                       >
                         <Plus className="h-3 w-3" />

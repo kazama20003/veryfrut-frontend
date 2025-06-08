@@ -415,7 +415,7 @@ export function ShoppingCartDrawer({
         // Enviar la actualización al backend
         await api.patch(`/orders/${orderToEdit.id}`, updateData)
 
-        // Cerrar el diálogo de confirmación
+        // Cerrar el diálogo de confirmación PRIMERO
         setIsConfirmDialogOpen(false)
 
         // Mostrar mensaje de éxito
@@ -431,14 +431,14 @@ export function ShoppingCartDrawer({
 
         setObservation("")
 
-        // Cerrar el drawer después de un breve retraso
+        // Cerrar el drawer después de un breve retraso SOLO después del éxito
         setTimeout(() => {
           setIsOrderComplete(false)
           // Desbloquear la página antes de cerrar
           if (onPageBlock) {
             onPageBlock(false)
           }
-          onClose()
+          onClose() // Cerrar el drawer solo aquí
         }, 2000)
       } else {
         // Verificar una última vez si ya existe una orden para esta área
@@ -472,7 +472,7 @@ export function ShoppingCartDrawer({
         // Enviar la orden al backend
         await api.post("/orders", orderData)
 
-        // Cerrar el diálogo de confirmación
+        // Cerrar el diálogo de confirmación PRIMERO
         setIsConfirmDialogOpen(false)
 
         // Mostrar mensaje de éxito
@@ -480,25 +480,27 @@ export function ShoppingCartDrawer({
           description: "Tu pedido ha sido enviado y será procesado pronto. La entrega será mañana.",
         })
 
-        // Actualizar el estado de las áreas con pedidos
-        setAreaOrderStatus((prev) => ({
-          ...prev,
-          [selectedAreaId]: true,
-        }))
+        // Actualizar el estado de las áreas con pedidos (solo si no es modo edición)
+        if (!isEditMode) {
+          setAreaOrderStatus((prev) => ({
+            ...prev,
+            [selectedAreaId]: true,
+          }))
+        }
 
         // Mostrar mensaje de confirmación
         setIsOrderComplete(true)
 
         setObservation("")
 
-        // Cerrar el drawer después de un breve retraso
+        // Cerrar el drawer después de un breve retraso SOLO después del éxito
         setTimeout(() => {
           setIsOrderComplete(false)
           // Desbloquear la página antes de cerrar
           if (onPageBlock) {
             onPageBlock(false)
           }
-          onClose()
+          onClose() // Cerrar el drawer solo aquí
         }, 2000)
       }
 
@@ -924,14 +926,39 @@ export function ShoppingCartDrawer({
         </DrawerContent>
       </Drawer>
 
-      {/* Diálogo de confirmación de pedido CORREGIDO - Accesible y sin duplicados */}
+      {/* Diálogo de confirmación de pedido CORREGIDO - Mantener drawer abierto al cancelar */}
       {isConfirmDialogOpen && (
-        <Dialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
+        <Dialog
+          open={isConfirmDialogOpen}
+          onOpenChange={() => {
+            // COMPLETAMENTE VACÍO - no hacer nada automáticamente
+          }}
+        >
           <DialogContent
             className="w-[95vw] max-w-md mx-auto my-2 h-[85vh] flex flex-col p-0 gap-0 rounded-xl shadow-2xl"
             onOpenAutoFocus={(e) => e.preventDefault()}
+            onEscapeKeyDown={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              if (!isSubmitting) {
+                setIsConfirmDialogOpen(false)
+                // NO llamar onClose() ni handleClose()
+              }
+            }}
+            onPointerDownOutside={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              if (!isSubmitting) {
+                setIsConfirmDialogOpen(false)
+                // NO llamar onClose() ni handleClose()
+              }
+            }}
+            onInteractOutside={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+            }}
           >
-            {/* Header con título accesible */}
+            {/* Header sin X extra - solo el título */}
             <DialogHeader className="px-4 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-t-xl flex-shrink-0">
               <DialogTitle className="text-lg font-bold text-white flex items-center">
                 <ShoppingCart className="mr-2 h-4 w-4" />
@@ -940,7 +967,7 @@ export function ShoppingCartDrawer({
               <p className="text-green-100 text-xs mt-0.5">Revisa tu pedido antes de confirmar</p>
             </DialogHeader>
 
-            {/* Contenido scrolleable optimizado para teclado */}
+            {/* Resto del contenido igual... */}
             <div className="flex-1 overflow-y-auto min-h-0">
               {/* Información del área */}
               <div className="px-4 py-3 bg-blue-50 border-b">
@@ -1032,7 +1059,13 @@ export function ShoppingCartDrawer({
               <div className="flex gap-2">
                 <Button
                   variant="outline"
-                  onClick={() => setIsConfirmDialogOpen(false)}
+                  onClick={() => {
+                    // SOLO cerrar el diálogo - NUNCA tocar el drawer
+                    if (!isSubmitting) {
+                      setIsConfirmDialogOpen(false)
+                      // IMPORTANTE: NO llamar onClose(), handleClose(), ni ninguna función del drawer
+                    }
+                  }}
                   disabled={isSubmitting}
                   className="flex-1 text-sm h-10 border-gray-300 hover:bg-gray-100"
                 >

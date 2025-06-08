@@ -60,15 +60,15 @@ interface ProductCardProps {
   onUpdateCartItemQuantity?: (productId: number, selectedUnitId: number, quantity: number, cartItemId?: string) => void
 }
 
-// Constantes para mejor mantenimiento
+// Constantes para mejor mantenimiento - Actualizado a 2 decimales
 const QUANTITY_LIMITS = {
-  MIN: 0.001,
-  MAX: 999.999,
-  STEP: 0.001,
-  DECIMALS: 3,
+  MIN: 0.01,
+  MAX: 999.99,
+  STEP: 0.01,
+  DECIMALS: 2,
 } as const
 
-const QUANTITY_PRESETS = [0.001, 0.01, 0.1, 1, 5, 10] as const
+const QUANTITY_PRESETS = [0.01, 0.1, 0.5, 1, 5, 10] as const
 
 // Componente para mostrar estrellas de valoración
 const StarRating = ({ rating, size = "sm" }: { rating: number; size?: "sm" | "md" }) => {
@@ -91,7 +91,7 @@ const StarRating = ({ rating, size = "sm" }: { rating: number; size?: "sm" | "md
   )
 }
 
-// Hook personalizado para manejo de cantidad
+// Hook personalizado para manejo de cantidad - Actualizado a 2 decimales
 const useQuantityManager = (initialQuantity = 1) => {
   const [quantity, setQuantity] = useState<number>(initialQuantity)
   const [quantityInput, setQuantityInput] = useState<string>(initialQuantity.toString())
@@ -106,7 +106,7 @@ const useQuantityManager = (initialQuantity = 1) => {
   const updateQuantity = useCallback(
     (newQuantity: number) => {
       if (newQuantity >= QUANTITY_LIMITS.MIN && newQuantity <= QUANTITY_LIMITS.MAX) {
-        const roundedQuantity = Math.round(newQuantity * 1000) / 1000
+        const roundedQuantity = Math.round(newQuantity * 100) / 100
         setQuantity(roundedQuantity)
         setQuantityInput(formatQuantity(roundedQuantity))
         return true
@@ -118,7 +118,7 @@ const useQuantityManager = (initialQuantity = 1) => {
 
   const handleInputChange = useCallback((value: string) => {
     const normalizedValue = value.replace(",", ".")
-    const regex = /^\d*\.?\d{0,3}$/
+    const regex = /^\d*\.?\d{0,2}$/
 
     if (regex.test(normalizedValue) || value === "") {
       setQuantityInput(value)
@@ -126,7 +126,7 @@ const useQuantityManager = (initialQuantity = 1) => {
       if (value !== "") {
         const numValue = Number.parseFloat(normalizedValue)
         if (!isNaN(numValue) && numValue > 0) {
-          const roundedValue = Math.round(numValue * 1000) / 1000
+          const roundedValue = Math.round(numValue * 100) / 100
           setQuantity(roundedValue)
         }
       }
@@ -386,16 +386,16 @@ export function ProductCard({
       const cartProduct = createCartProduct(product, selectedUnitId, quantity)
 
       if (allowDuplicate) {
+        // Para duplicados, agregar directamente con la cantidad especificada
         onAddToCartAsDuplicate(cartProduct, selectedUnitId)
-        if (quantity !== 1 && onUpdateCartItemQuantity) {
-          setTimeout(() => {
-            onUpdateCartItemQuantity(product.id, selectedUnitId, quantity)
-          }, 100)
-        }
       } else {
+        // Para items normales, agregar y luego actualizar cantidad si es necesario
         onAddToCart(cartProduct, selectedUnitId)
         if (quantity !== 1 && onUpdateCartItemQuantity) {
-          onUpdateCartItemQuantity(product.id, selectedUnitId, quantity)
+          // Pequeño delay para asegurar que el item se agregó primero
+          setTimeout(() => {
+            onUpdateCartItemQuantity(product.id, selectedUnitId, quantity)
+          }, 50)
         }
       }
 

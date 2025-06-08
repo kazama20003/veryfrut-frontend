@@ -82,6 +82,9 @@ export default function NewOrderPage() {
   const [observation, setObservation] = useState("")
   const [status, setStatus] = useState<OrderStatus>(OrderStatus.CREATED)
 
+  // Para manejar inputs de cantidad como strings para mejor UX
+  const [quantityInputs, setQuantityInputs] = useState<Record<number, string>>({})
+
   // Cargar clientes y productos
   useEffect(() => {
     const fetchData = async () => {
@@ -159,14 +162,21 @@ export default function NewOrderPage() {
     const newItem: OrderItem = {
       productId: productToAdd.id,
       productName: productToAdd.name,
-      quantity: 0.001, // Cambiar de 1 a 0.001 para consistencia
+      quantity: 0, // Iniciar en 0 como solicitado
       price: productToAdd.price,
-      total: productToAdd.price * 0.001,
+      total: 0, // Total inicial es 0
       unitMeasurementId: defaultUnit.unitMeasurementId,
       unitMeasurementName: defaultUnit.unitMeasurement.name,
     }
 
+    const newIndex = orderItems.length
     setOrderItems([...orderItems, newItem])
+
+    // Inicializar el input de cantidad como "0"
+    setQuantityInputs((prev) => ({
+      ...prev,
+      [newIndex]: "0",
+    }))
   }
 
   // Eliminar producto del pedido
@@ -174,29 +184,32 @@ export default function NewOrderPage() {
     const newItems = [...orderItems]
     newItems.splice(index, 1)
     setOrderItems(newItems)
+
+    // Eliminar el input de cantidad correspondiente
+    const newQuantityInputs = { ...quantityInputs }
+    delete newQuantityInputs[index]
+    setQuantityInputs(newQuantityInputs)
   }
 
-  // Actualizar cantidad de un producto
-  const handleQuantityChange = (index: number, value: string) => {
-    // Permitir valores vacíos temporalmente para mejor UX
-    if (value === "") {
-      const newItems = [...orderItems]
-      newItems[index].quantity = 0
-      newItems[index].total = 0
-      setOrderItems(newItems)
-      return
+  // Actualizar cantidad de un producto - maneja el input como string
+  const handleQuantityInputChange = (index: number, value: string) => {
+    // Permitir valores vacíos, "0", "0." y decimales
+    // Validar que solo contenga números y un punto decimal
+    if (value === "" || value === "0" || value === "0." || /^[0-9]*\.?[0-9]{0,2}$/.test(value)) {
+      setQuantityInputs((prev) => ({
+        ...prev,
+        [index]: value,
+      }))
+
+      // Actualizar el valor numérico en el orderItem
+      const numValue = value === "" || value === "0." ? 0 : Number.parseFloat(value)
+      if (!isNaN(numValue)) {
+        const newItems = [...orderItems]
+        newItems[index].quantity = numValue
+        newItems[index].total = numValue * newItems[index].price
+        setOrderItems(newItems)
+      }
     }
-
-    // Asegurar que se acepten hasta 3 decimales
-    const quantity = Number.parseFloat(value)
-
-    // Validar que sea un número válido y no negativo
-    if (isNaN(quantity) || quantity < 0) return
-
-    const newItems = [...orderItems]
-    newItems[index].quantity = quantity
-    newItems[index].total = quantity * newItems[index].price
-    setOrderItems(newItems)
   }
 
   // Actualizar producto seleccionado
@@ -205,12 +218,13 @@ export default function NewOrderPage() {
     if (!product || !product.productUnits || product.productUnits.length === 0) return
 
     const defaultUnit = product.productUnits[0]
+    const currentQuantity = orderItems[index].quantity
 
     const newItems = [...orderItems]
     newItems[index].productId = product.id
     newItems[index].productName = product.name
     newItems[index].price = product.price
-    newItems[index].total = newItems[index].quantity * product.price
+    newItems[index].total = currentQuantity * product.price
     newItems[index].unitMeasurementId = defaultUnit.unitMeasurementId
     newItems[index].unitMeasurementName = defaultUnit.unitMeasurement.name
     setOrderItems(newItems)
@@ -259,10 +273,10 @@ export default function NewOrderPage() {
     }
 
     // Validar que todas las cantidades sean válidas
-    const invalidItems = orderItems.filter((item) => item.quantity < 0.001)
+    const invalidItems = orderItems.filter((item) => item.quantity <= 0)
     if (invalidItems.length > 0) {
       toast.error("Error de validación", {
-        description: "Todas las cantidades deben ser de al menos 0.001.",
+        description: "Todas las cantidades deben ser mayores a 0.",
       })
       return false
     }
@@ -532,22 +546,17 @@ export default function NewOrderPage() {
                               </td>
                               <td className="px-4 py-3 text-center">
                                 <Input
-                                  type="number"
-                                  min="0"
-                                  step="0.001"
-                                  value={item.quantity === 0 ? "" : item.quantity}
-                                  onChange={(e) => handleQuantityChange(index, e.target.value)}
-                                  onBlur={(e) => {
-                                    const value = e.target.value.trim()
-
-                                    // Si está vacío o es 0, establecer el mínimo
-                                    if (value === "" || Number.parseFloat(value) === 0) {
-                                      handleQuantityChange(index, "0.001")
-                                      return
-                                    }
-                                  }}
+                                  type="text" // Cambiado a text para mejor manejo de "0."
+                                  inputMode="decimal" // Sugiere teclado decimal en móviles
+                                  value={
+                                    quantityInputs[index] !== undefined
+                                      ? quantityInputs[index]
+                                      : item.quantity.toString()
+                                  }
+                                  onChange={(e) => handleQuantityInputChange(index, e.target.value)}
                                   className="w-20 mx-auto text-center"
-                                  placeholder="0.001"
+                                  placeholder="0"
+                                  step="0.01" // Permite 4 decimales
                                 />
                               </td>
                               <td className="px-4 py-3 text-center">
