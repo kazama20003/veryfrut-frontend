@@ -8,7 +8,19 @@ import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
-import { ArrowLeft, Printer, Truck, AlertCircle, CheckCircle2, Clock, Download, Plus, Trash2, Save } from 'lucide-react'
+import {
+  ArrowLeft,
+  Printer,
+  Truck,
+  AlertCircle,
+  CheckCircle2,
+  Clock,
+  Download,
+  Plus,
+  Trash2,
+  Save,
+  Search,
+} from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { format } from "date-fns"
@@ -22,6 +34,7 @@ import {
   type Product as BackendProduct,
 } from "@/types/order"
 import { useParams } from "next/navigation"
+import type { AxiosError } from "axios"
 
 // Interfaces para las respuestas de la API
 interface UnitMeasurement {
@@ -40,6 +53,7 @@ interface ProductUnit {
 // Extendemos la interfaz Product del backend para incluir productUnits
 interface Product extends BackendProduct {
   productUnits: ProductUnit[]
+  selectedUnitId?: number // Propiedad para almacenar la unidad seleccionada temporalmente
 }
 
 // Interfaz para nuestro OrderItem local que incluye las propiedades necesarias
@@ -52,6 +66,22 @@ interface OrderItem extends Omit<BackendOrderItem, "product"> {
 interface OrderItemWithExtras extends BackendOrderItem {
   unitMeasurement?: UnitMeasurement
   product?: BackendProduct & { productUnits?: ProductUnit[] }
+}
+
+// DTO para actualizar el pedido
+interface UpdateOrderDto {
+  userId?: number
+  areaId?: number
+  totalAmount?: number
+  status?: OrderStatus
+  observation?: string
+  orderItems?: {
+    id?: number
+    productId: number
+    quantity: number
+    price: number
+    unitMeasurementId: number
+  }[]
 }
 
 // Componente para mostrar el estado del pedido
@@ -91,13 +121,21 @@ export default function OrderDetailPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [notes, setNotes] = useState("")
   const [status, setStatus] = useState<OrderStatus>(OrderStatus.CREATED)
   const [updating, setUpdating] = useState(false)
   const [orderItems, setOrderItems] = useState<OrderItem[]>([])
   const [productSearch, setProductSearch] = useState("")
   const [editMode, setEditMode] = useState(false)
   const [observation, setObservation] = useState("")
+  const [inputValues, setInputValues] = useState<{ [key: number]: string }>({})
+
+  // Función para formatear la cantidad eliminando ceros innecesarios
+  const formatQuantity = (quantity: number): string => {
+    // Convertir a string con 2 decimales
+    const formatted = quantity.toFixed(2)
+    // Eliminar ceros innecesarios al final
+    return formatted.replace(/\.?0+$/, "") || "0"
+  }
 
   // Cargar datos del pedido, cliente y productos
   useEffect(() => {
@@ -157,7 +195,6 @@ export default function OrderDetailPage() {
 
         setOrder(orderData)
         setOrderItems(orderData.orderItems || [])
-        setNotes(orderData.notes || "")
         setStatus(orderData.status)
         setProducts(productsData)
         setObservation(orderData.observation || "")
@@ -176,70 +213,45 @@ export default function OrderDetailPage() {
 
   // Filtrar productos por búsqueda
   const filteredProducts = products.filter((product) => {
+    if (!productSearch.trim()) return false // No mostrar productos si no hay búsqueda
     const name = product.name.toLowerCase()
     const searchTerm = productSearch.toLowerCase()
-    return name.includes(searchTerm)
+    const productId = product.id.toString()
+    return name.includes(searchTerm) || productId.includes(searchTerm)
   })
 
-  // Añadir producto al pedido
-  const handleAddProduct = () => {
-    if (products.length === 0) return
+  // Actualizar cantidad de un producto con validación de decimales
+  const handleQuantityChange = (index: number, value: string) => {
+    // Permitir string vacío
+    if (value === "") {
+      const newItems = [...orderItems]
+      newItems[index].quantity = 0
+      setOrderItems(newItems)
 
-    // Si hay productos disponibles, usar el primero de la lista filtrada o de todos los productos
-    const productToAdd = filteredProducts.length > 0 ? filteredProducts[0] : products[0]
-
-    // Verificar que el producto tenga unidades de medida
-    if (!productToAdd.productUnits || productToAdd.productUnits.length === 0) {
-      toast.error("Error", {
-        description: "El producto seleccionado no tiene unidades de medida definidas.",
-      })
+      // Actualizar el valor del input
+      const newInputValues = { ...inputValues }
+      newInputValues[index] = ""
+      setInputValues(newInputValues)
       return
     }
 
-    // Usar la primera unidad de medida disponible
-    const defaultUnit = productToAdd.productUnits[0]
+    // Regex que permite números con hasta 2 decimales
+    const regex = /^\d*\.?\d{0,2}$/
 
-    const newItem: OrderItem = {
-      productId: productToAdd.id,
-      quantity: 1,
-      price: productToAdd.price,
-      unitMeasurementId: defaultUnit.unitMeasurementId,
-      product: productToAdd,
-      unitMeasurement: defaultUnit.unitMeasurement,
+    // Si no cumple el patrón, no permitir el cambio
+    if (!regex.test(value)) {
+      return
     }
 
-    setOrderItems([...orderItems, newItem])
-  }
+    // Actualizar el valor del input (mantener como string)
+    const newInputValues = { ...inputValues }
+    newInputValues[index] = value
+    setInputValues(newInputValues)
 
-  // Eliminar producto del pedido
-  const handleRemoveProduct = (index: number) => {
+    // Actualizar el estado numérico
     const newItems = [...orderItems]
-    newItems.splice(index, 1)
-    setOrderItems(newItems)
-  }
-
-  // Actualizar cantidad de un producto
-  const handleQuantityChange = (index: number, quantity: number) => {
-    if (quantity < 1) return
-
-    const newItems = [...orderItems]
-    newItems[index].quantity = quantity
-    setOrderItems(newItems)
-  }
-
-  // Actualizar producto seleccionado
-  const handleProductChange = (index: number, productId: number) => {
-    const product = products.find((p) => p.id === productId)
-    if (!product || !product.productUnits || product.productUnits.length === 0) return
-
-    const defaultUnit = product.productUnits[0]
-
-    const newItems = [...orderItems]
-    newItems[index].productId = product.id
-    newItems[index].price = product.price
-    newItems[index].unitMeasurementId = defaultUnit.unitMeasurementId
-    newItems[index].product = product
-    newItems[index].unitMeasurement = defaultUnit.unitMeasurement
+    const numericValue = Number.parseFloat(value) || 0
+    newItems[index].quantity = numericValue
     setOrderItems(newItems)
   }
 
@@ -259,7 +271,32 @@ export default function OrderDetailPage() {
 
   // Calcular total del pedido
   const calculateTotal = () => {
-    return orderItems.reduce((sum, item) => sum + item.quantity * item.price, 0)
+    return Math.round(orderItems.reduce((sum, item) => sum + item.quantity * item.price, 0) * 100) / 100
+  }
+
+  // Validar datos antes de enviar
+  const validateOrderData = (): string | null => {
+    if (orderItems.length === 0) {
+      return "El pedido debe tener al menos un producto."
+    }
+
+    for (let i = 0; i < orderItems.length; i++) {
+      const item = orderItems[i]
+      if (!item.productId || item.productId <= 0) {
+        return `El producto en la posición ${i + 1} no es válido.`
+      }
+      if (!item.quantity || item.quantity < 0.01) {
+        return `La cantidad del producto en la posición ${i + 1} debe ser al menos 0.01.`
+      }
+      if (!item.price || item.price < 0) {
+        return `El precio del producto en la posición ${i + 1} no es válido.`
+      }
+      if (!item.unitMeasurementId || item.unitMeasurementId <= 0) {
+        return `La unidad de medida del producto en la posición ${i + 1} no es válida.`
+      }
+    }
+
+    return null
   }
 
   // Actualizar estado del pedido
@@ -269,10 +306,12 @@ export default function OrderDetailPage() {
     setUpdating(true)
     try {
       // Crear objeto de actualización según el DTO del backend
-      const updateData = {
+      const updateData: UpdateOrderDto = {
         status,
-        ...(observation.trim() && { observation: observation.trim() }),
+        observation,
       }
+
+      console.log("Enviando actualización de estado:", updateData)
 
       await api.patch(`/orders/${orderId}`, updateData)
 
@@ -289,8 +328,11 @@ export default function OrderDetailPage() {
       setEditMode(false)
     } catch (err) {
       console.error("Error al actualizar el pedido:", err)
+      const axiosError = err as AxiosError
+      const errorMessage =
+        (axiosError.response?.data as { message?: string })?.message || "No se pudo actualizar el estado del pedido."
       toast.error("Error al actualizar", {
-        description: "No se pudo actualizar el estado del pedido. Por favor, intenta de nuevo.",
+        description: errorMessage,
       })
     } finally {
       setUpdating(false)
@@ -347,46 +389,45 @@ export default function OrderDetailPage() {
     // Actualizar el estado
     setOrderItems(originalItems)
     setEditMode(false)
+    setProductSearch("")
+    setInputValues({})
   }
 
   // Actualizar productos del pedido
   const handleUpdateProducts = async () => {
     if (!order) return
 
+    // Validar datos antes de enviar
+    const validationError = validateOrderData()
+    if (validationError) {
+      toast.error("Error de validación", {
+        description: validationError,
+      })
+      return
+    }
+
     setUpdating(true)
     try {
       // Crear objeto de actualización con los items del pedido según el formato que espera el backend
       const updateOrderItems = orderItems.map((item) => {
-        // Solo incluir el id si existe y no es undefined
-        const orderItem: {
-          productId: number
-          quantity: number
-          price: number
-          unitMeasurementId: number
-          id?: number
-        } = {
+        // NO incluir el id, solo los campos que acepta el DTO
+        const orderItem = {
           productId: item.productId,
-          quantity: item.quantity,
-          price: item.price,
-          unitMeasurementId: item.unitMeasurementId || 1, // Asegurar que siempre tenga un valor
-        }
-
-        // Solo añadir el id si existe y no es undefined
-        if (item.id) {
-          orderItem.id = item.id
+          quantity: Math.round(item.quantity * 100) / 100, // Asegurar 2 decimales
+          price: Math.round(item.price * 100) / 100, // Asegurar 2 decimales
+          unitMeasurementId: item.unitMeasurementId || 1,
         }
 
         return orderItem
       })
 
       // Crear el objeto de actualización con el formato correcto
-      const updateData = {
+      const updateData: UpdateOrderDto = {
         orderItems: updateOrderItems,
         totalAmount: calculateTotal(),
-        ...(observation.trim() && { observation: observation.trim() }),
       }
 
-      console.log("Enviando datos de actualización:", updateData)
+      console.log("Enviando datos de actualización de productos:", updateData)
 
       // Usar el mismo endpoint que para actualizar el estado
       await api.patch(`/orders/${orderId}`, updateData)
@@ -408,10 +449,16 @@ export default function OrderDetailPage() {
       })
 
       setEditMode(false)
+      setInputValues({})
+      setProductSearch("")
     } catch (err) {
       console.error("Error al actualizar los productos:", err)
+      const axiosError = err as AxiosError
+      const errorMessage =
+        (axiosError.response?.data as { message?: string })?.message ||
+        "No se pudieron actualizar los productos del pedido."
       toast.error("Error al actualizar", {
-        description: "No se pudieron actualizar los productos del pedido. Por favor, intenta de nuevo.",
+        description: errorMessage,
       })
     } finally {
       setUpdating(false)
@@ -426,6 +473,12 @@ export default function OrderDetailPage() {
     setTimeout(() => {
       window.print()
     }, 500)
+  }
+
+  const handleRemoveProduct = (index: number) => {
+    const newItems = [...orderItems]
+    newItems.splice(index, 1)
+    setOrderItems(newItems)
   }
 
   if (loading) {
@@ -533,26 +586,124 @@ export default function OrderDetailPage() {
         <Card className="md:col-span-2">
           <CardHeader className="pb-3 flex flex-row items-center justify-between">
             <CardTitle className="text-lg">Detalles del pedido</CardTitle>
-            {!editMode ? (
+            {editMode ? (
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="relative w-full">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar producto por nombre o ID..."
+                      value={productSearch}
+                      onChange={(e) => setProductSearch(e.target.value)}
+                      className="pl-8"
+                    />
+                  </div>
+                </div>
+
+                {productSearch.trim() !== "" && filteredProducts.length > 0 && (
+                  <div className="border rounded-md overflow-hidden">
+                    <div className="max-h-60 overflow-y-auto">
+                      <table className="w-full">
+                        <thead className="bg-muted/50 sticky top-0">
+                          <tr>
+                            <th className="px-4 py-2 text-left text-xs font-medium">ID</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium">Producto</th>
+                            <th className="px-4 py-2 text-center text-xs font-medium">Unidad</th>
+                            <th className="px-4 py-2 text-center text-xs font-medium w-16">Acción</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredProducts.slice(0, 5).map((product) => (
+                            <tr key={product.id} className="border-t hover:bg-muted/30">
+                              <td className="px-4 py-2 text-sm">{product.id}</td>
+                              <td className="px-4 py-2 text-sm">
+                                <div className="flex items-center gap-2">
+                                  {product.imageUrl && (
+                                    <div className="relative w-6 h-6">
+                                      <Image
+                                        src={product.imageUrl || "/placeholder.svg"}
+                                        alt={product.name}
+                                        fill
+                                        className="rounded-md object-cover"
+                                        sizes="24px"
+                                      />
+                                    </div>
+                                  )}
+                                  <span>{product.name}</span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-2 text-sm">
+                                <Select
+                                  defaultValue={
+                                    product.productUnits && product.productUnits.length > 0
+                                      ? product.productUnits[0].unitMeasurementId.toString()
+                                      : ""
+                                  }
+                                  onValueChange={(value) => {
+                                    // Almacenar temporalmente la unidad seleccionada
+                                    product.selectedUnitId = Number(value)
+                                  }}
+                                >
+                                  <SelectTrigger className="w-24 h-8">
+                                    <SelectValue placeholder="Unidad" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {product.productUnits?.map((unit) => (
+                                      <SelectItem
+                                        key={unit.unitMeasurementId}
+                                        value={unit.unitMeasurementId.toString()}
+                                      >
+                                        {unit.unitMeasurement.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </td>
+                              <td className="px-4 py-2 text-center">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                  onClick={() => {
+                                    const unitId =
+                                      product.selectedUnitId ||
+                                      (product.productUnits && product.productUnits.length > 0
+                                        ? product.productUnits[0].unitMeasurementId
+                                        : 1)
+
+                                    const unit = product.productUnits?.find(
+                                      (u) => u.unitMeasurementId === unitId,
+                                    )?.unitMeasurement
+
+                                    const newItem: OrderItem = {
+                                      productId: product.id,
+                                      quantity: 1,
+                                      price: product.price,
+                                      unitMeasurementId: unitId,
+                                      product: product,
+                                      unitMeasurement: unit,
+                                    }
+
+                                    setOrderItems([...orderItems, newItem])
+                                    setProductSearch("")
+                                  }}
+                                >
+                                  <Plus className="h-4 w-4" />
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
               <Button variant="outline" size="sm" onClick={() => setEditMode(true)} className="gap-1">
                 Editar productos
               </Button>
-            ) : (
-              <div className="flex items-center gap-2">
-                <div className="relative w-48 hidden sm:block">
-                  <Input
-                    placeholder="Buscar producto..."
-                    value={productSearch}
-                    onChange={(e) => setProductSearch(e.target.value)}
-                    className="w-full"
-                  />
-                </div>
-                <Button type="button" size="sm" onClick={handleAddProduct} className="gap-1">
-                  <Plus className="h-4 w-4" />
-                  <span className="hidden sm:inline">Añadir producto</span>
-                  <span className="sm:hidden">Añadir</span>
-                </Button>
-              </div>
             )}
           </CardHeader>
           <CardContent>
@@ -571,56 +722,43 @@ export default function OrderDetailPage() {
                     {orderItems.map((item, index) => (
                       <tr key={item.id || index} className="border-t">
                         <td className="px-4 py-3 text-sm">
-                          {editMode ? (
-                            <Select
-                              value={item.productId.toString()}
-                              onValueChange={(value) => handleProductChange(index, Number(value))}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Seleccionar producto" />
-                              </SelectTrigger>
-                              <SelectContent className="max-h-[200px]">
-                                {filteredProducts.length > 0
-                                  ? filteredProducts.map((product) => (
-                                      <SelectItem key={product.id} value={product.id.toString()}>
-                                        {product.name}
-                                      </SelectItem>
-                                    ))
-                                  : products.map((product) => (
-                                      <SelectItem key={product.id} value={product.id.toString()}>
-                                        {product.name}
-                                      </SelectItem>
-                                    ))}
-                              </SelectContent>
-                            </Select>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              {item.product?.imageUrl && (
-                                <div className="relative w-8 h-8">
-                                  <Image
-                                    src={item.product.imageUrl || "/placeholder.svg"}
-                                    alt={item.product?.name || `Producto ${item.productId}`}
-                                    fill
-                                    className="rounded-md object-cover"
-                                    sizes="32px"
-                                  />
-                                </div>
-                              )}
-                              <span>{item.product?.name || `Producto #${item.productId}`}</span>
+                          <div className="flex items-center gap-2">
+                            {item.product?.imageUrl && (
+                              <div className="relative w-8 h-8">
+                                <Image
+                                  src={item.product.imageUrl || "/placeholder.svg"}
+                                  alt={item.product?.name || `Producto ${item.productId}`}
+                                  fill
+                                  className="rounded-md object-cover"
+                                  sizes="32px"
+                                />
+                              </div>
+                            )}
+                            <div>
+                              <span className="block">{item.product?.name || `Producto #${item.productId}`}</span>
+                              <span className="text-xs text-muted-foreground">#{item.productId}</span>
                             </div>
-                          )}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-sm text-center">
                           {editMode ? (
                             <Input
-                              type="number"
-                              min="1"
-                              value={item.quantity}
-                              onChange={(e) => handleQuantityChange(index, Number(e.target.value))}
+                              type="text"
+                              value={
+                                // Usar el valor del input si existe, sino usar el valor numérico
+                                inputValues[index] !== undefined
+                                  ? inputValues[index]
+                                  : item.quantity === 0
+                                    ? ""
+                                    : item.quantity.toString()
+                              }
+                              onChange={(e) => handleQuantityChange(index, e.target.value)}
                               className="w-20 mx-auto text-center"
+                              placeholder="0.00"
+                              inputMode="decimal"
                             />
                           ) : (
-                            item.quantity
+                            formatQuantity(item.quantity)
                           )}
                         </td>
                         <td className="px-4 py-3 text-sm text-center">
@@ -651,7 +789,7 @@ export default function OrderDetailPage() {
                               variant="ghost"
                               size="icon"
                               onClick={() => handleRemoveProduct(index)}
-                              className="h-8 w-8 text-red-500"
+                              className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -670,7 +808,7 @@ export default function OrderDetailPage() {
                   </Button>
                   <Button
                     onClick={handleUpdateProducts}
-                    disabled={updating}
+                    disabled={updating || orderItems.length === 0}
                     className="bg-green-600 hover:bg-green-700"
                   >
                     {updating ? (
@@ -706,27 +844,13 @@ export default function OrderDetailPage() {
                 </div>
 
                 <div>
-                  <h3 className="font-medium mb-2">Notas</h3>
-                  <Textarea
-                    placeholder="Añadir notas sobre el pedido..."
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    rows={3}
-                  />
-                </div>
-
-                <div>
                   <h3 className="font-medium mb-2">Observaciones</h3>
                   <Textarea
-                    placeholder="Observaciones especiales del cliente sobre el pedido..."
+                    placeholder="Añadir observaciones sobre el pedido..."
                     value={observation}
                     onChange={(e) => setObservation(e.target.value)}
                     rows={3}
-                    maxLength={500}
                   />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Máximo 500 caracteres. Observaciones específicas del cliente.
-                  </p>
                 </div>
 
                 <div className="flex justify-end">

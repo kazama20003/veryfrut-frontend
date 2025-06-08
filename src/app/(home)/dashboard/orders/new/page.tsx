@@ -64,6 +64,17 @@ interface OrderItem {
   unitMeasurementName: string
 }
 
+// Interfaz para las opciones del dropdown que combina producto y unidad
+// Eliminar esta interfaz
+// interface ProductUnitOption {
+//   productId: number
+//   productName: string
+//   unitMeasurementId: number
+//   unitMeasurementName: string
+//   price: number
+//   displayText: string
+// }
+
 export default function NewOrderPage() {
   const router = useRouter()
 
@@ -84,6 +95,23 @@ export default function NewOrderPage() {
 
   // Para manejar inputs de cantidad como strings para mejor UX
   const [quantityInputs, setQuantityInputs] = useState<Record<number, string>>({})
+
+  // Crear opciones combinadas de producto + unidad de medida
+  // const productUnitOptions: ProductUnitOption[] = products.flatMap((product) =>
+  //   product.productUnits.map((unit) => ({
+  //     productId: product.id,
+  //     productName: product.name,
+  //     unitMeasurementId: unit.unitMeasurementId,
+  //     unitMeasurementName: unit.unitMeasurement.name,
+  //     price: product.price,
+  //     displayText: `${product.name} - ${unit.unitMeasurement.name}`,
+  //   })),
+  // )
+
+  // Filtrar opciones por búsqueda
+  // const filteredProductUnitOptions = productUnitOptions.filter((option) =>
+  //   option.displayText.toLowerCase().includes(productSearch.toLowerCase()),
+  // )
 
   // Cargar clientes y productos
   useEffect(() => {
@@ -133,40 +161,16 @@ export default function NewOrderPage() {
     return fullName.includes(searchTerm) || email.includes(searchTerm)
   })
 
-  // Filtrar productos por búsqueda
-  const filteredProducts = products.filter((product) => {
-    const name = product.name.toLowerCase()
-    const searchTerm = productSearch.toLowerCase()
-
-    return name.includes(searchTerm)
-  })
-
   // Añadir producto al pedido
   const handleAddProduct = () => {
-    if (products.length === 0) return
-
-    // Si hay productos disponibles, usar el primero de la lista filtrada o de todos los productos
-    const productToAdd = filteredProducts.length > 0 ? filteredProducts[0] : products[0]
-
-    // Verificar que el producto tenga unidades de medida
-    if (!productToAdd.productUnits || productToAdd.productUnits.length === 0) {
-      toast.error("Error", {
-        description: "El producto seleccionado no tiene unidades de medida definidas.",
-      })
-      return
-    }
-
-    // Usar la primera unidad de medida disponible
-    const defaultUnit = productToAdd.productUnits[0]
-
     const newItem: OrderItem = {
-      productId: productToAdd.id,
-      productName: productToAdd.name,
-      quantity: 0, // Iniciar en 0 como solicitado
-      price: productToAdd.price,
-      total: 0, // Total inicial es 0
-      unitMeasurementId: defaultUnit.unitMeasurementId,
-      unitMeasurementName: defaultUnit.unitMeasurement.name,
+      productId: 0,
+      productName: "",
+      quantity: 0,
+      price: 0,
+      total: 0,
+      unitMeasurementId: 0,
+      unitMeasurementName: "",
     }
 
     const newIndex = orderItems.length
@@ -212,12 +216,16 @@ export default function NewOrderPage() {
     }
   }
 
-  // Actualizar producto seleccionado
-  const handleProductChange = (index: number, productId: number) => {
-    const product = products.find((p) => p.id === productId)
-    if (!product || !product.productUnits || product.productUnits.length === 0) return
+  // Actualizar producto y unidad seleccionados
+  const handleProductUnitChange = (index: number, optionKey: string) => {
+    const [productId, unitMeasurementId] = optionKey.split("-").map(Number)
 
-    const defaultUnit = product.productUnits[0]
+    const product = products.find((p) => p.id === productId)
+    if (!product) return
+
+    const unit = product.productUnits.find((u) => u.unitMeasurementId === unitMeasurementId)
+    if (!unit) return
+
     const currentQuantity = orderItems[index].quantity
 
     const newItems = [...orderItems]
@@ -225,21 +233,7 @@ export default function NewOrderPage() {
     newItems[index].productName = product.name
     newItems[index].price = product.price
     newItems[index].total = currentQuantity * product.price
-    newItems[index].unitMeasurementId = defaultUnit.unitMeasurementId
-    newItems[index].unitMeasurementName = defaultUnit.unitMeasurement.name
-    setOrderItems(newItems)
-  }
-
-  // Actualizar unidad de medida seleccionada
-  const handleUnitChange = (index: number, unitMeasurementId: number) => {
-    const product = products.find((p) => p.id === orderItems[index].productId)
-    if (!product) return
-
-    const unit = product.productUnits.find((u) => u.unitMeasurementId === unitMeasurementId)
-    if (!unit) return
-
-    const newItems = [...orderItems]
-    newItems[index].unitMeasurementId = unitMeasurementId
+    newItems[index].unitMeasurementId = unit.unitMeasurementId
     newItems[index].unitMeasurementName = unit.unitMeasurement.name
     setOrderItems(newItems)
   }
@@ -268,6 +262,15 @@ export default function NewOrderPage() {
     if (orderItems.length === 0) {
       toast.error("Error de validación", {
         description: "Debes añadir al menos un producto al pedido.",
+      })
+      return false
+    }
+
+    // Validar que todos los productos estén seleccionados
+    const unselectedItems = orderItems.filter((item) => item.productId === 0)
+    if (unselectedItems.length > 0) {
+      toast.error("Error de validación", {
+        description: "Debes seleccionar un producto para todas las filas.",
       })
       return false
     }
@@ -477,18 +480,91 @@ export default function NewOrderPage() {
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-lg">Productos</CardTitle>
               <div className="flex items-center gap-2">
-                <div className="relative w-48 hidden sm:block">
+                <div className="relative w-full sm:w-64">
                   <Input
-                    placeholder="Buscar producto..."
+                    placeholder="Buscar y agregar productos..."
                     value={productSearch}
                     onChange={(e) => setProductSearch(e.target.value)}
                     className="w-full"
                   />
+                  {productSearch && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setProductSearch("")}
+                      className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                    >
+                      ×
+                    </Button>
+                  )}
+
+                  {/* Dropdown de resultados de búsqueda */}
+                  {productSearch.trim() !== "" && (
+                    <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-y-auto">
+                      {(() => {
+                        const searchResults = products
+                          .flatMap((product) =>
+                            product.productUnits.map((unit) => ({
+                              productId: product.id,
+                              productName: product.name,
+                              unitMeasurementId: unit.unitMeasurementId,
+                              unitMeasurementName: unit.unitMeasurement.name,
+                              price: product.price,
+                              displayText: `${product.name} - ${unit.unitMeasurement.name}`,
+                            })),
+                          )
+                          .filter((option) => option.displayText.toLowerCase().includes(productSearch.toLowerCase()))
+
+                        if (searchResults.length === 0) {
+                          return (
+                            <div className="p-3 text-center text-muted-foreground">
+                              No se encontraron productos con {productSearch}
+                            </div>
+                          )
+                        }
+
+                        // Cambiar esto:
+                        // return searchResults.map((result, idx) => (
+                        // Por esto:
+                        return searchResults.map((result) => (
+                          <button
+                            key={`${result.productId}-${result.unitMeasurementId}`}
+                            type="button"
+                            className="w-full text-left px-3 py-2 hover:bg-gray-100 border-b last:border-b-0"
+                            onClick={() => {
+                              // Agregar el producto automáticamente
+                              const newItem: OrderItem = {
+                                productId: result.productId,
+                                productName: result.productName,
+                                quantity: 0,
+                                price: result.price,
+                                total: 0,
+                                unitMeasurementId: result.unitMeasurementId,
+                                unitMeasurementName: result.unitMeasurementName,
+                              }
+
+                              const newIndex = orderItems.length
+                              setOrderItems([...orderItems, newItem])
+                              setQuantityInputs((prev) => ({
+                                ...prev,
+                                [newIndex]: "0",
+                              }))
+
+                              // Limpiar búsqueda
+                              setProductSearch("")
+                            }}
+                          >
+                            <div className="font-medium">{result.displayText}</div>
+                          </button>
+                        ))
+                      })()}
+                    </div>
+                  )}
                 </div>
                 <Button type="button" size="sm" onClick={handleAddProduct} className="gap-1">
                   <Plus className="h-4 w-4" />
-                  <span className="hidden sm:inline">Añadir producto</span>
-                  <span className="sm:hidden">Añadir</span>
+                  <span className="hidden sm:inline">Añadir vacío</span>
                 </Button>
               </div>
             </CardHeader>
@@ -506,48 +582,73 @@ export default function NewOrderPage() {
                     <table className="w-full">
                       <thead className="bg-muted/50">
                         <tr>
-                          <th className="px-4 py-3 text-left text-sm font-medium">Producto</th>
+                          <th className="px-4 py-3 text-left text-sm font-medium">Producto y Unidad</th>
                           <th className="px-4 py-3 text-center text-sm font-medium">Cantidad</th>
-                          <th className="px-4 py-3 text-center text-sm font-medium">Unidad</th>
-                          <th className="px-4 py-3 text-right text-sm font-medium">Precio</th>
-                          <th className="px-4 py-3 text-right text-sm font-medium">Total</th>
                           <th className="px-4 py-3 text-center text-sm font-medium w-10"></th>
                         </tr>
                       </thead>
                       <tbody>
                         {orderItems.map((item, index) => {
-                          const product = products.find((p) => p.id === item.productId)
-                          const availableUnits = product?.productUnits || []
+                          // Eliminar esta línea:
+                          // const currentOptionKey =
+                          //   item.productId && item.unitMeasurementId
+                          //     ? `${item.productId}-${item.unitMeasurementId}`
+                          //     : ""
 
                           return (
                             <tr key={index} className="border-t">
                               <td className="px-4 py-3">
-                                <Select
-                                  value={item.productId.toString()}
-                                  onValueChange={(value) => handleProductChange(index, Number(value))}
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Seleccionar producto" />
-                                  </SelectTrigger>
-                                  <SelectContent className="max-h-[200px]">
-                                    {filteredProducts.length > 0
-                                      ? filteredProducts.map((product) => (
-                                          <SelectItem key={product.id} value={product.id.toString()}>
-                                            {product.name}
+                                {item.productId === 0 ? (
+                                  <Select value="" onValueChange={(value) => handleProductUnitChange(index, value)}>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Seleccionar producto y unidad..." />
+                                    </SelectTrigger>
+                                    <SelectContent className="max-h-[300px]">
+                                      {products.flatMap((product) =>
+                                        product.productUnits.map((unit) => (
+                                          <SelectItem
+                                            key={`${product.id}-${unit.unitMeasurementId}`}
+                                            value={`${product.id}-${unit.unitMeasurementId}`}
+                                          >
+                                            {product.name} - {unit.unitMeasurement.name}
                                           </SelectItem>
-                                        ))
-                                      : products.map((product) => (
-                                          <SelectItem key={product.id} value={product.id.toString()}>
-                                            {product.name}
-                                          </SelectItem>
-                                        ))}
-                                  </SelectContent>
-                                </Select>
+                                        )),
+                                      )}
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-medium">
+                                      {item.productName} - {item.unitMeasurementName}
+                                    </span>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        const newItems = [...orderItems]
+                                        newItems[index] = {
+                                          productId: 0,
+                                          productName: "",
+                                          quantity: 0,
+                                          price: 0,
+                                          total: 0,
+                                          unitMeasurementId: 0,
+                                          unitMeasurementName: "",
+                                        }
+                                        setOrderItems(newItems)
+                                      }}
+                                      className="text-blue-600 hover:text-blue-800"
+                                    >
+                                      Cambiar
+                                    </Button>
+                                  </div>
+                                )}
                               </td>
                               <td className="px-4 py-3 text-center">
                                 <Input
-                                  type="text" // Cambiado a text para mejor manejo de "0."
-                                  inputMode="decimal" // Sugiere teclado decimal en móviles
+                                  type="text"
+                                  inputMode="decimal"
                                   value={
                                     quantityInputs[index] !== undefined
                                       ? quantityInputs[index]
@@ -556,31 +657,9 @@ export default function NewOrderPage() {
                                   onChange={(e) => handleQuantityInputChange(index, e.target.value)}
                                   className="w-20 mx-auto text-center"
                                   placeholder="0"
-                                  step="0.01" // Permite 4 decimales
+                                  step="0.01"
                                 />
                               </td>
-                              <td className="px-4 py-3 text-center">
-                                <Select
-                                  value={item.unitMeasurementId.toString()}
-                                  onValueChange={(value) => handleUnitChange(index, Number(value))}
-                                >
-                                  <SelectTrigger className="w-24 mx-auto">
-                                    <SelectValue placeholder="Unidad" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {availableUnits.map((unit) => (
-                                      <SelectItem
-                                        key={unit.unitMeasurementId}
-                                        value={unit.unitMeasurementId.toString()}
-                                      >
-                                        {unit.unitMeasurement.name}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </td>
-                              <td className="px-4 py-3 text-right">${item.price.toFixed(2)}</td>
-                              <td className="px-4 py-3 text-right font-medium">${item.total.toFixed(2)}</td>
                               <td className="px-4 py-3 text-center">
                                 <Button
                                   type="button"
@@ -598,11 +677,9 @@ export default function NewOrderPage() {
                       </tbody>
                       <tfoot className="bg-muted/30">
                         <tr className="border-t">
-                          <td colSpan={4} className="px-4 py-3 text-sm font-medium text-right">
-                            Total
+                          <td colSpan={3} className="px-4 py-3 text-sm font-medium text-right">
+                            Total productos: {orderItems.length}
                           </td>
-                          <td className="px-4 py-3 text-sm font-bold text-right">${calculateTotal().toFixed(2)}</td>
-                          <td></td>
                         </tr>
                       </tfoot>
                     </table>
