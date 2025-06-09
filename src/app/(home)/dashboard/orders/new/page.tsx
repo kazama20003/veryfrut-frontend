@@ -93,6 +93,10 @@ export default function NewOrderPage() {
   const [observation, setObservation] = useState("")
   const [status, setStatus] = useState<OrderStatus>(OrderStatus.CREATED)
 
+  const [areaBlocked, setAreaBlocked] = useState(false)
+  const [checkingArea, setCheckingArea] = useState(false)
+  const [areaBlockMessage, setAreaBlockMessage] = useState("")
+
   // Para manejar inputs de cantidad como strings para mejor UX
   const [quantityInputs, setQuantityInputs] = useState<Record<number, string>>({})
 
@@ -151,6 +155,47 @@ export default function NewOrderPage() {
       setSelectedAreaId("")
     }
   }, [selectedCustomerId, customers])
+
+  // Verificar si ya existe un pedido para el área seleccionada
+  useEffect(() => {
+    const checkAreaAvailability = async () => {
+      if (!selectedAreaId) {
+        setAreaBlocked(false)
+        setAreaBlockMessage("")
+        return
+      }
+
+      setCheckingArea(true)
+      setAreaBlocked(false)
+      setAreaBlockMessage("")
+
+      try {
+        // Obtener la fecha actual en formato YYYY-MM-DD
+        const today = new Date().toISOString().split("T")[0]
+
+        const response = await api.get(`/orders/check?areaId=${selectedAreaId}&date=${today}`)
+
+        if (response.data.exists) {
+          setAreaBlocked(true)
+          setAreaBlockMessage(
+            "⚠️ BLOQUEADO: Ya existe un pedido para esta área en la fecha actual (hoy). No se puede crear otro pedido para el mismo día.",
+          )
+        } else {
+          setAreaBlocked(false)
+          setAreaBlockMessage("")
+        }
+      } catch (err) {
+        console.error("Error al verificar disponibilidad del área:", err)
+        // En caso de error, permitir continuar pero mostrar advertencia
+        setAreaBlocked(false)
+        setAreaBlockMessage("No se pudo verificar la disponibilidad del área. Procede con precaución.")
+      } finally {
+        setCheckingArea(false)
+      }
+    }
+
+    checkAreaAvailability()
+  }, [selectedAreaId])
 
   // Filtrar clientes por búsqueda
   const filteredCustomers = customers.filter((customer) => {
@@ -259,6 +304,15 @@ export default function NewOrderPage() {
       return false
     }
 
+    // VALIDACIÓN CRÍTICA: Bloquear si ya existe un pedido para esta área hoy
+    if (areaBlocked) {
+      toast.error("Pedido duplicado no permitido", {
+        description:
+          "Ya existe un pedido para esta área en la fecha actual. No se puede crear otro pedido para el mismo día.",
+      })
+      return false
+    }
+
     if (orderItems.length === 0) {
       toast.error("Error de validación", {
         description: "Debes añadir al menos un producto al pedido.",
@@ -291,11 +345,32 @@ export default function NewOrderPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    // VERIFICACIÓN ADICIONAL: Doble verificación antes de enviar
+    if (areaBlocked) {
+      toast.error("Operación bloqueada", {
+        description: "No se puede crear el pedido. Ya existe un pedido para esta área en la fecha actual.",
+      })
+      return
+    }
+
     if (!validateForm()) return
 
     setSubmitting(true)
 
     try {
+      // VERIFICACIÓN FINAL: Verificar una vez más antes de enviar al servidor
+      const today = new Date().toISOString().split("T")[0]
+      const checkResponse = await api.get(`/orders/check?areaId=${selectedAreaId}&date=${today}`)
+
+      if (checkResponse.data.exists) {
+        toast.error("Pedido duplicado detectado", {
+          description: "Se detectó un pedido existente para esta área. La operación ha sido cancelada.",
+        })
+        setAreaBlocked(true)
+        setAreaBlockMessage("Se detectó un pedido existente para esta área en la fecha actual.")
+        return
+      }
+
       const orderData: CreateOrderDto = {
         userId: Number(selectedCustomerId),
         areaId: Number(selectedAreaId),
@@ -428,9 +503,9 @@ export default function NewOrderPage() {
 
                   <div className="space-y-2">
                     <Label htmlFor="areaId">Área</Label>
-                    <Select value={selectedAreaId} onValueChange={setSelectedAreaId}>
+                    <Select value={selectedAreaId} onValueChange={setSelectedAreaId} disabled={checkingArea}>
                       <SelectTrigger id="areaId">
-                        <SelectValue placeholder="Seleccionar área" />
+                        <SelectValue placeholder={checkingArea ? "Verificando..." : "Seleccionar área"} />
                       </SelectTrigger>
                       <SelectContent>
                         {selectedCustomer.areas && selectedCustomer.areas.length > 0 ? (
@@ -444,6 +519,25 @@ export default function NewOrderPage() {
                         )}
                       </SelectContent>
                     </Select>
+
+                    {checkingArea && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Verificando disponibilidad del área...
+                      </div>
+                    )}
+
+                    {areaBlockMessage && (
+                      <div
+                        className={`text-sm p-2 rounded-md ${
+                          areaBlocked
+                            ? "bg-red-50 text-red-700 border border-red-200"
+                            : "bg-yellow-50 text-yellow-700 border border-yellow-200"
+                        }`}
+                      >
+                        {areaBlockMessage}
+                      </div>
+                    )}
                   </div>
                 </>
               )}
@@ -691,11 +785,22 @@ export default function NewOrderPage() {
               <Button type="button" variant="outline" asChild className="w-full sm:w-auto">
                 <Link href="/dashboard/orders">Cancelar</Link>
               </Button>
-              <Button type="submit" disabled={submitting} className="bg-green-600 hover:bg-green-700 w-full sm:w-auto">
+              <Button
+                type="submit"
+                disabled={submitting || areaBlocked || checkingArea}
+                className={`w-full sm:w-auto ${
+                  areaBlocked ? "bg-red-600 hover:bg-red-700 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"
+                } disabled:opacity-50`}
+              >
                 {submitting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Creando...
+                  </>
+                ) : areaBlocked ? (
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    Bloqueado - Pedido ya existe
                   </>
                 ) : (
                   <>

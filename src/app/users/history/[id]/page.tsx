@@ -17,6 +17,7 @@ import {
   PlusCircle,
 } from "lucide-react"
 import { toast } from "sonner"
+import { AxiosError } from "axios"
 
 import { api } from "@/lib/axiosInstance"
 import { Button } from "@/components/ui/button"
@@ -95,6 +96,13 @@ interface CartItem {
   selectedUnitId: number
   productUnits: ProductUnit[]
   cartItemId: string // ID único para cada item del carrito
+}
+
+// Interfaz para errores de API
+interface ApiErrorResponse {
+  message: string
+  statusCode?: number
+  error?: string
 }
 
 // Constantes para manejo de cantidades decimales - ACTUALIZADO A 2 DECIMALES
@@ -406,13 +414,16 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
 
       // Preparar los datos para la actualización
       const updateData = {
-        totalAmount: cart.reduce((total, item) => total + item.price * item.quantity, 0),
+        userId: Number(order.userId),
+        areaId: Number(order.areaId),
+        status: order.status,
+        totalAmount: Number(cart.reduce((total, item) => total + item.price * item.quantity, 0).toFixed(2)),
         ...(observation.trim() && { observation: observation.trim() }),
         orderItems: cart.map((item) => ({
-          productId: item.id,
-          quantity: item.quantity,
-          price: item.price,
-          unitMeasurementId: item.selectedUnitId,
+          productId: Number(item.id),
+          quantity: Number(item.quantity),
+          price: Number(item.price),
+          unitMeasurementId: Number(item.selectedUnitId),
         })),
       }
 
@@ -432,10 +443,19 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
       setTimeout(() => {
         router.push("/users/history")
       }, 1500)
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error al actualizar el pedido:", error)
+
+      // Manejar el error con tipado adecuado
+      let errorMessage = "No se pudo actualizar el pedido. Por favor, intenta nuevamente."
+
+      if (error instanceof AxiosError && error.response?.data) {
+        const apiError = error.response.data as ApiErrorResponse
+        errorMessage = apiError.message || errorMessage
+      }
+
       toast.error("Error al actualizar el pedido", {
-        description: "No se pudo actualizar el pedido. Por favor, intenta nuevamente.",
+        description: errorMessage,
       })
     } finally {
       setIsSubmitting(false)

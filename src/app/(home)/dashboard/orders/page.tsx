@@ -13,7 +13,6 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   AlertDialog,
@@ -42,8 +41,6 @@ import {
   Truck,
   FileText,
   AlertCircle,
-  CheckCircle2,
-  Clock,
   Loader2,
   Trash2,
   Edit,
@@ -53,7 +50,7 @@ import Link from "next/link"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { api } from "@/lib/axiosInstance"
-import { OrderStatus } from "@/types/order"
+import type { OrderStatus } from "@/types/order"
 import { toast } from "sonner"
 
 // Importar el componente ReportGenerator
@@ -93,33 +90,25 @@ interface OrderItem {
   total?: number
 }
 
-// Componente para mostrar el estado del pedido
-function OrderStatusBadge({ status }: { status: OrderStatus }) {
-  switch (status) {
-    case OrderStatus.CREATED:
-      return (
-        <Badge variant="outline" className="flex items-center gap-1">
-          <Clock className="h-3 w-3" />
-          <span>Pendiente</span>
-        </Badge>
-      )
-    case OrderStatus.PROCESS:
-      return (
-        <Badge variant="secondary" className="flex items-center gap-1 bg-blue-100 text-blue-800">
-          <Truck className="h-3 w-3" />
-          <span>En proceso</span>
-        </Badge>
-      )
-    case OrderStatus.DELIVERED:
-      return (
-        <Badge variant="default" className="flex items-center gap-1 bg-green-100 text-green-800">
-          <CheckCircle2 className="h-3 w-3" />
-          <span>Entregado</span>
-        </Badge>
-      )
-    default:
-      return <Badge>{status}</Badge>
+// Interfaz para las áreas
+interface Area {
+  id: number
+  name: string
+  companyId: number
+  company?: {
+    id: number
+    name: string
   }
+}
+
+// Variable global para almacenar las áreas
+let areasCache: Area[] = []
+
+// Función para obtener el nombre del área
+function getAreaName(areaId?: number) {
+  if (!areaId) return "N/A"
+  const area = areasCache.find((a) => a.id === areaId)
+  return area ? area.name : `Área #${areaId}`
 }
 
 // Fix the customer reference in the OrderCard component
@@ -147,8 +136,8 @@ function OrderCard({ order, onDelete }: { order: Order; onDelete: (id: number) =
           </p>
         </div>
         <div className="flex justify-between">
-          <p className="text-sm font-medium">Estado:</p>
-          <OrderStatusBadge status={order.status} />
+          <p className="text-sm font-medium">Área:</p>
+          <p className="text-sm">{order.areaId ? getAreaName(order.areaId) : "N/A"}</p>
         </div>
         <div className="flex justify-between">
           <p className="text-sm font-medium">Productos:</p>
@@ -213,6 +202,18 @@ export default function OrdersPage() {
   const ordersPerPage = 10
   const [totalItems, setTotalItems] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
+  const [, setAreas] = useState<Area[]>([])
+
+  const fetchAreas = async () => {
+    try {
+      const areasResponse = await api.get("/areas")
+      const areasData = areasResponse.data
+      setAreas(areasData)
+      areasCache = areasData // Actualizar la caché global
+    } catch (err) {
+      console.error("Error al cargar áreas:", err)
+    }
+  }
 
   // Fix the fetchData function to handle both userId and customerId
   const fetchOrders = async (page = 1, limit = 10) => {
@@ -260,6 +261,7 @@ export default function OrdersPage() {
 
   useEffect(() => {
     fetchOrders(currentPage, ordersPerPage)
+    fetchAreas()
   }, [currentPage])
 
   // Función para eliminar un pedido
@@ -426,9 +428,9 @@ export default function OrdersPage() {
                     <th className="px-4 py-3 text-left text-sm font-medium">ID</th>
                     <th className="px-4 py-3 text-left text-sm font-medium">Cliente</th>
                     <th className="px-4 py-3 text-left text-sm font-medium">Fecha</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium">Estado</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium">Área</th>
                     <th className="px-4 py-3 text-left text-sm font-medium">Productos</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium">Observaciones</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium">Info. Adicional</th>
                     <th className="px-4 py-3 text-right text-sm font-medium">Acciones</th>
                   </tr>
                 </thead>
@@ -452,20 +454,20 @@ export default function OrdersPage() {
                         <td className="px-4 py-3 text-sm">
                           {order.createdAt ? format(new Date(order.createdAt), "dd MMM yyyy", { locale: es }) : "N/A"}
                         </td>
-                        <td className="px-4 py-3 text-sm">
-                          <OrderStatusBadge status={order.status} />
-                        </td>
+                        <td className="px-4 py-3 text-sm">{order.areaId ? getAreaName(order.areaId) : "N/A"}</td>
                         <td className="px-4 py-3 text-sm">
                           {order.orderItems.length} {order.orderItems.length === 1 ? "producto" : "productos"}
                         </td>
                         <td className="px-4 py-3 text-sm max-w-[200px]">
-                          {order.observation ? (
-                            <div className="truncate" title={order.observation}>
-                              {order.observation}
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground text-xs">Sin observaciones</span>
-                          )}
+                          <div className="space-y-1">
+                            {order.observation ? (
+                              <div className="truncate text-xs bg-muted/50 px-2 py-1 rounded" title={order.observation}>
+                                {order.observation}
+                              </div>
+                            ) : !order.observation ? (
+                              <span className="text-muted-foreground text-xs">Sin información adicional</span>
+                            ) : null}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex justify-end gap-2">
