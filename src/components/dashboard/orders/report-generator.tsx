@@ -850,7 +850,7 @@ export function ReportGenerator() {
       })
 
       // Define category order: Verduras, Frutas, Hierbas, IGV, Otros
-      const categoryOrder = [1, 2, 5, 3, 4] // Verduras, Frutas, Hierbas, IGV, Otros
+      const categoryOrder = [1, 2, 5, 3, 4] // Verduras (1), Frutas (2), Hierbas (5), IGV (3), Otros (4)
       const orderedCategories: { [categoryId: number]: Product[] } = {}
 
       categoryOrder.forEach((categoryId) => {
