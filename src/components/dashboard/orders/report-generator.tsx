@@ -853,6 +853,7 @@ export function ReportGenerator() {
       const categoryOrder = [1, 2, 5, 3, 4] // Verduras (1), Frutas (2), Hierbas (5), IGV (3), Otros (4)
       const orderedCategories: { [categoryId: number]: Product[] } = {}
 
+      // Usar el orden personalizado en lugar del orden del servidor
       categoryOrder.forEach((categoryId) => {
         if (productsByCategory[categoryId] && productsByCategory[categoryId].length > 0) {
           orderedCategories[categoryId] = productsByCategory[categoryId]
@@ -875,10 +876,18 @@ export function ReportGenerator() {
         { id: 4, name: "Manzana", unitMeasurement: { name: "kg" }, categoryId: 2 },
         { id: 5, name: "Plátano", unitMeasurement: { name: "kg" }, categoryId: 2 },
       ],
+      5: [
+        // Hierbas - ordenados alfabéticamente
+        { id: 6, name: "Huatacay", unitMeasurement: { name: "kg-mz" }, categoryId: 5 },
+        { id: 7, name: "Oregano", unitMeasurement: { name: "kg-mz" }, categoryId: 5 },
+      ],
+      3: [
+        // IGV - ordenados alfabéticamente
+        { id: 8, name: "IGV Product", unitMeasurement: { name: "kg" }, categoryId: 3 },
+      ],
       4: [
         // Otros - ordenados alfabéticamente
-        { id: 6, name: "Huatacay", unitMeasurement: { name: "kg-mz" }, categoryId: 4 },
-        { id: 7, name: "Oregano", unitMeasurement: { name: "kg-mz" }, categoryId: 4 },
+        { id: 9, name: "Otros Product", unitMeasurement: { name: "kg-mz" }, categoryId: 4 },
       ],
     }
   }
