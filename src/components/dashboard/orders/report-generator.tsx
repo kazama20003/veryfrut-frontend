@@ -853,7 +853,7 @@ export function ReportGenerator() {
       const categoryOrder = [1, 2, 5, 3, 4]
       const orderedCategories: { [categoryId: number]: Product[] } = {}
 
-      // Aplicar el orden específico - SOLO agregar categorías que existen y tienen productos
+      // Aplicar el orden específico - FORZAR este orden exacto
       categoryOrder.forEach((categoryId) => {
         if (productsByCategory[categoryId] && productsByCategory[categoryId].length > 0) {
           orderedCategories[categoryId] = productsByCategory[categoryId]
@@ -868,36 +868,70 @@ export function ReportGenerator() {
         }
       })
 
+      console.log("Orden de categorías aplicado:", Object.keys(orderedCategories))
       return orderedCategories
     }
 
-    // Si no hay productos reales, usar datos de demostración con el orden correcto
-    return {
-      1: [
-        // Verduras - ordenados alfabéticamente
-        { id: 1, name: "Acelga", unitMeasurement: { name: "kg-mz" }, categoryId: 1 },
-        { id: 2, name: "Cebolla china", unitMeasurement: { name: "kg-mz" }, categoryId: 1 },
-        { id: 3, name: "Cilandro Macho", unitMeasurement: { name: "kg-mz" }, categoryId: 1 },
-      ],
-      2: [
-        // Frutas - ordenados alfabéticamente
-        { id: 4, name: "Manzana", unitMeasurement: { name: "kg" }, categoryId: 2 },
-        { id: 5, name: "Plátano", unitMeasurement: { name: "kg" }, categoryId: 2 },
-      ],
-      5: [
-        // Hierbas - ordenados alfabéticamente
-        { id: 6, name: "Huatacay", unitMeasurement: { name: "kg-mz" }, categoryId: 5 },
-        { id: 7, name: "Oregano", unitMeasurement: { name: "kg-mz" }, categoryId: 5 },
-      ],
-      3: [
-        // IGV - ordenados alfabéticamente
-        { id: 8, name: "IGV Product", unitMeasurement: { name: "kg" }, categoryId: 3 },
-      ],
-      4: [
-        // Otros - ordenados alfabéticamente
-        { id: 9, name: "Otros Product", unitMeasurement: { name: "kg-mz" }, categoryId: 4 },
-      ],
-    }
+    // Datos de demostración mínimos con el orden correcto y propiedades completas
+    const demoData: { [categoryId: number]: Product[] } = {}
+
+    // Agregar en el orden específico con todas las propiedades requeridas
+    demoData[1] = [
+      {
+        id: 1,
+        name: "Acelga",
+        price: 0,
+        unitMeasurementId: 1,
+        unitMeasurement: { id: 1, name: "kg-mz", abbreviation: "kg-mz" },
+        categoryId: 1,
+      },
+    ]
+
+    demoData[2] = [
+      {
+        id: 4,
+        name: "Manzana",
+        price: 0,
+        unitMeasurementId: 2,
+        unitMeasurement: { id: 2, name: "kg", abbreviation: "kg" },
+        categoryId: 2,
+      },
+    ]
+
+    demoData[5] = [
+      {
+        id: 6,
+        name: "Huatacay",
+        price: 0,
+        unitMeasurementId: 1,
+        unitMeasurement: { id: 1, name: "kg-mz", abbreviation: "kg-mz" },
+        categoryId: 5,
+      },
+    ]
+
+    demoData[3] = [
+      {
+        id: 8,
+        name: "IGV Product",
+        price: 0,
+        unitMeasurementId: 2,
+        unitMeasurement: { id: 2, name: "kg", abbreviation: "kg" },
+        categoryId: 3,
+      },
+    ]
+
+    demoData[4] = [
+      {
+        id: 9,
+        name: "Otros Product",
+        price: 0,
+        unitMeasurementId: 1,
+        unitMeasurement: { id: 1, name: "kg-mz", abbreviation: "kg-mz" },
+        categoryId: 4,
+      },
+    ]
+
+    return demoData
   }
 
   // Obtener cantidad de producto por área (con unidad)
