@@ -100,6 +100,7 @@ interface StyledCell {
     font?: {
       bold?: boolean
       color?: { rgb: string }
+      size?: number
     }
     fill?: {
       fgColor: { rgb: string }
@@ -264,10 +265,6 @@ export function ReportGenerator() {
     return defaultColors[index % defaultColors.length]
   }
 
-  // Eliminar la función getObservationsByArea ya que no se usa
-  // Buscar y eliminar esta función completa:
-  // Función para obtener observaciones agrupadas por área/compañía
-
   // Generar y descargar Excel
   const downloadExcel = async () => {
     try {
@@ -318,113 +315,7 @@ export function ReportGenerator() {
         return companyAreas.some((area: Area) => areasWithOrders.includes(area.id))
       })
 
-      // Preparar la fila de encabezados de compañías (solo una vez)
-      const companyRow: StyledCell[] = [
-        {
-          v: "PRODUCTOS",
-          t: "s",
-          s: {
-            font: { bold: true },
-            fill: { fgColor: { rgb: "F2F2F2" } },
-            border: {
-              top: { style: "thin" },
-              left: { style: "thin" },
-              bottom: { style: "thin" },
-              right: { style: "thin" },
-            },
-          },
-        },
-      ]
-
-      // Preparar la fila de áreas
-      const areaRow: StyledCell[] = [
-        {
-          v: "",
-          t: "s",
-          s: {
-            fill: { fgColor: { rgb: "F2F2F2" } },
-            border: {
-              top: { style: "thin" },
-              left: { style: "thin" },
-              bottom: { style: "thin" },
-              right: { style: "thin" },
-            },
-          },
-        },
-      ]
-
-      // Agregar compañías y áreas a las filas de encabezado
-      companiesWithOrders.forEach((company) => {
-        // Filtrar solo áreas con pedidos
-        const companyAreas =
-          getAreasByCompany()[company.id]?.filter((area: Area) => areasWithOrders.includes(area.id)) || []
-
-        if (companyAreas.length === 0) {
-          return // Saltar esta compañía si no tiene áreas con pedidos
-        }
-
-        const companyColor = getExcelColorFromTailwind(company.color)
-        const textColor = company.color && company.color.includes("text-white") ? "FFFFFF" : "000000"
-
-        // Agregar la compañía
-        companyRow.push({
-          v: company.name,
-          t: "s",
-          s: {
-            font: { bold: true, color: { rgb: textColor } },
-            fill: { fgColor: { rgb: companyColor } },
-            alignment: { horizontal: "center" },
-            border: {
-              top: { style: "thin" },
-              left: { style: "thin" },
-              bottom: { style: "thin" },
-              right: { style: "thin" },
-            },
-          },
-        })
-
-        // Agregar celdas vacías para el colspan
-        for (let i = 1; i < companyAreas.length; i++) {
-          companyRow.push({
-            v: "",
-            t: "s",
-            s: {
-              font: { bold: true, color: { rgb: textColor } },
-              fill: { fgColor: { rgb: companyColor } },
-              border: {
-                top: { style: "thin" },
-                left: { style: "thin" },
-                bottom: { style: "thin" },
-                right: { style: "thin" },
-              },
-            },
-          })
-        }
-
-        // Agregar las áreas
-        companyAreas.forEach((area) => {
-          areaRow.push({
-            v: area.name,
-            t: "s",
-            s: {
-              font: { bold: true, color: { rgb: textColor } },
-              fill: { fgColor: { rgb: companyColor } },
-              alignment: { horizontal: "center" },
-              border: {
-                top: { style: "thin" },
-                left: { style: "thin" },
-                bottom: { style: "thin" },
-                right: { style: "thin" },
-              },
-            },
-          })
-        })
-      })
-
-      excelData.push(companyRow)
-      excelData.push(areaRow)
-
-      // Agregar productos por categoría
+      // Procesar cada categoría por separado
       Object.entries(productsByCategory).forEach(([categoryIdStr, categoryProducts]) => {
         const categoryId = Number.parseInt(categoryIdStr)
         const categoryName = categories[categoryId]?.name || `Categoría ${categoryId}`
@@ -444,6 +335,113 @@ export function ReportGenerator() {
 
         // Si no hay productos con pedidos en esta categoría, omitir
         if (productsWithOrders.length === 0) return
+
+        // Preparar la fila de encabezados de compañías para esta categoría
+        const companyRow: StyledCell[] = [
+          {
+            v: "PRODUCTOS",
+            t: "s",
+            s: {
+              font: { bold: true },
+              fill: { fgColor: { rgb: "F2F2F2" } },
+              border: {
+                top: { style: "thin" },
+                left: { style: "thin" },
+                bottom: { style: "thin" },
+                right: { style: "thin" },
+              },
+            },
+          },
+        ]
+
+        // Preparar la fila de áreas para esta categoría
+        const areaRow: StyledCell[] = [
+          {
+            v: "",
+            t: "s",
+            s: {
+              fill: { fgColor: { rgb: "F2F2F2" } },
+              border: {
+                top: { style: "thin" },
+                left: { style: "thin" },
+                bottom: { style: "thin" },
+                right: { style: "thin" },
+              },
+            },
+          },
+        ]
+
+        // Agregar compañías y áreas a las filas de encabezado
+        companiesWithOrders.forEach((company) => {
+          // Filtrar solo áreas con pedidos
+          const companyAreas =
+            getAreasByCompany()[company.id]?.filter((area: Area) => areasWithOrders.includes(area.id)) || []
+
+          if (companyAreas.length === 0) {
+            return // Saltar esta compañía si no tiene áreas con pedidos
+          }
+
+          const companyColor = getExcelColorFromTailwind(company.color)
+          const textColor = company.color && company.color.includes("text-white") ? "FFFFFF" : "000000"
+
+          // Agregar la compañía
+          companyRow.push({
+            v: company.name,
+            t: "s",
+            s: {
+              font: { bold: true, color: { rgb: textColor } },
+              fill: { fgColor: { rgb: companyColor } },
+              alignment: { horizontal: "center" },
+              border: {
+                top: { style: "thin" },
+                left: { style: "thin" },
+                bottom: { style: "thin" },
+                right: { style: "thin" },
+              },
+            },
+          })
+
+          // Agregar celdas vacías para el colspan
+          for (let i = 1; i < companyAreas.length; i++) {
+            companyRow.push({
+              v: "",
+              t: "s",
+              s: {
+                font: { bold: true, color: { rgb: textColor } },
+                fill: { fgColor: { rgb: companyColor } },
+                border: {
+                  top: { style: "thin" },
+                  left: { style: "thin" },
+                  bottom: { style: "thin" },
+                  right: { style: "thin" },
+                },
+              },
+            })
+          }
+
+          // Agregar las áreas
+          companyAreas.forEach((area) => {
+            areaRow.push({
+              v: area.name,
+              t: "s",
+              s: {
+                font: { bold: true, color: { rgb: textColor } },
+                fill: { fgColor: { rgb: companyColor } },
+                alignment: { horizontal: "center" },
+                border: {
+                  top: { style: "thin" },
+                  left: { style: "thin" },
+                  bottom: { style: "thin" },
+                  right: { style: "thin" },
+                },
+              },
+            })
+          })
+        })
+
+        // Agregar filas de encabezado para esta categoría
+        excelData.push(companyRow)
+        excelData.push(areaRow)
 
         // Agregar encabezado de categoría
         const categoryHeaderRow: StyledCell[] = [
@@ -495,6 +493,7 @@ export function ReportGenerator() {
               s: {
                 font: { bold: false },
                 fill: { fgColor: { rgb: "FFFFFF" } },
+                alignment: { horizontal: "left" }, // Alineación a la izquierda
                 border: {
                   top: { style: "thin" },
                   left: { style: "thin" },
@@ -517,20 +516,45 @@ export function ReportGenerator() {
 
             companyAreas.forEach((area) => {
               // Get the quantity with potentially multiple units
-              const quantityDisplay = getProductQuantity(product.id, area.id)
+              const quantityDisplay = getProductQuantityForExcel(product.id, area.id)
+
+              // Y cambiar la celda para aplicar formato bold a las unidades:
+              const match = quantityDisplay.match(/^(\d+(?:\.\d+)?)(.*)$/)
+              let cellValue = quantityDisplay
+              let cellStyle: {
+                alignment: { horizontal: string }
+                border: {
+                  top: { style: string }
+                  left: { style: string }
+                  bottom: { style: string }
+                  right: { style: string }
+                }
+                font?: { bold: boolean; size: number }
+              } = {
+                alignment: { horizontal: "left" }, // Alineación a la izquierda
+                border: {
+                  top: { style: "thin" },
+                  left: { style: "thin" },
+                  bottom: { style: "thin" },
+                  right: { style: "thin" },
+                },
+              }
+
+              if (match) {
+                const [, number, unit] = match
+                cellValue = `${number}${unit}`
+                if (unit) {
+                  cellStyle = {
+                    ...cellStyle,
+                    font: { bold: true, size: 15 },
+                  }
+                }
+              }
 
               productRow.push({
-                v: quantityDisplay || "",
+                v: cellValue || "",
                 t: "s",
-                s: {
-                  alignment: { horizontal: "center" },
-                  border: {
-                    top: { style: "thin" },
-                    left: { style: "thin" },
-                    bottom: { style: "thin" },
-                    right: { style: "thin" },
-                  },
-                },
+                s: cellStyle,
               })
             })
           })
@@ -546,6 +570,7 @@ export function ReportGenerator() {
             s: {
               font: { bold: true },
               fill: { fgColor: { rgb: "F0F0F0" } },
+              alignment: { horizontal: "left" }, // Alineación a la izquierda
               border: {
                 top: { style: "thin" },
                 left: { style: "thin" },
@@ -574,7 +599,7 @@ export function ReportGenerator() {
               t: "s",
               s: {
                 font: { bold: true },
-                alignment: { horizontal: "center" },
+                alignment: { horizontal: "left" }, // Alineación a la izquierda
                 fill: { fgColor: { rgb: "F0F0F0" } },
                 border: {
                   top: { style: "thin" },
@@ -615,6 +640,7 @@ export function ReportGenerator() {
             s: {
               font: { bold: true },
               fill: { fgColor: { rgb: "FFFF00" } }, // Amarillo
+              alignment: { horizontal: "left" }, // Alineación a la izquierda
               border: {
                 top: { style: "thin" },
                 left: { style: "thin" },
@@ -678,27 +704,69 @@ export function ReportGenerator() {
 
       // Combinar celdas para los encabezados de compañías
       const merges: CellRange[] = []
-      let colIndex = 1 // Empezamos en la columna B (índice 1)
 
-      companiesWithOrders.forEach((company) => {
-        // Filtrar solo áreas con pedidos
-        const companyAreas =
-          getAreasByCompany()[company.id]?.filter((area: Area) => areasWithOrders.includes(area.id)) || []
+      // Ahora necesitamos calcular las combinaciones de celdas para cada sección de categoría
+      let rowIndex = 0
 
-        if (companyAreas.length === 0) {
-          return // Saltar esta compañía si no tiene áreas con pedidos
-        }
+      // Saltar la fila de fecha y la fila vacía
+      rowIndex += 2
 
-        if (companyAreas.length > 1) {
-          // Combinar celdas para el nombre de la compañía
-          merges.push({
-            s: { r: 2, c: colIndex },
-            e: { r: 2, c: colIndex + companyAreas.length - 1 },
-          })
-          colIndex += companyAreas.length
-        } else {
-          colIndex += 1
-        }
+      // Para cada categoría, necesitamos calcular las combinaciones
+      Object.entries(productsByCategory).forEach(([, categoryProducts]) => {
+        // Eliminar esta línea:
+        // const categoryId = Number.parseInt(categoryIdStr)
+
+        // Filtrar solo productos con pedidos
+        const productsWithOrders = categoryProducts.filter((product: Product) => {
+          for (const areaId in productQuantities) {
+            if (productQuantities[areaId][product.id]) {
+              return true
+            }
+          }
+          return false
+        })
+
+        // Si no hay productos con pedidos en esta categoría, omitir
+        if (productsWithOrders.length === 0) return
+
+        // Ahora estamos en la fila de compañías para esta categoría
+        let colIndex = 1 // Empezamos en la columna B (índice 1)
+
+        companiesWithOrders.forEach((company) => {
+          // Filtrar solo áreas con pedidos
+          const companyAreas =
+            getAreasByCompany()[company.id]?.filter((area: Area) => areasWithOrders.includes(area.id)) || []
+
+          if (companyAreas.length === 0) {
+            return // Saltar esta compañía si no tiene áreas con pedidos
+          }
+
+          if (companyAreas.length > 1) {
+            // Combinar celdas para el nombre de la compañía
+            merges.push({
+              s: { r: rowIndex, c: colIndex },
+              e: { r: rowIndex, c: colIndex + companyAreas.length - 1 },
+            })
+            colIndex += companyAreas.length
+          } else {
+            colIndex += 1
+          }
+        })
+
+        // Avanzar 2 filas para la fila de compañías y la fila de áreas
+        rowIndex += 2
+
+        // Avanzar 1 fila para el encabezado de categoría
+        rowIndex += 1
+
+        // Avanzar filas para los productos
+        rowIndex += productsWithOrders.length
+
+        // Avanzar 1 fila para la fila de totales
+        rowIndex += 1
+
+        // Avanzar 1 fila para la separación entre categorías
+        rowIndex += 1
       })
 
       ws["!merges"] = merges
@@ -781,7 +849,17 @@ export function ReportGenerator() {
         productsByCategory[Number(categoryId)].sort((a: Product, b: Product) => a.name.localeCompare(b.name))
       })
 
-      return productsByCategory
+      // Define category order: Verduras, Frutas, Hierbas, IGV, Otros
+      const categoryOrder = [1, 2, 5, 3, 4] // Verduras, Frutas, Hierbas, IGV, Otros
+      const orderedCategories: { [categoryId: number]: Product[] } = {}
+
+      categoryOrder.forEach((categoryId) => {
+        if (productsByCategory[categoryId] && productsByCategory[categoryId].length > 0) {
+          orderedCategories[categoryId] = productsByCategory[categoryId]
+        }
+      })
+
+      return orderedCategories
     }
 
     // Si no, usar lista estática agrupada por categoría (solo para demostración)
@@ -807,6 +885,47 @@ export function ReportGenerator() {
 
   // Obtener cantidad de producto por área (con unidad)
   const getProductQuantity = (productId: number, areaId: number) => {
+    if (!productQuantities[areaId] || !productQuantities[areaId][productId]) {
+      return ""
+    }
+
+    // Buscar todos los items de este producto en esta área
+    const quantities = []
+
+    // Buscar en las órdenes los items con este productId y areaId
+    for (const order of orders) {
+      if (order.areaId === areaId) {
+        for (const item of order.orderItems) {
+          if (item.productId === productId) {
+            const unit = item.unitMeasurement?.name || ""
+            quantities.push(`${item.quantity}${unit}`)
+          }
+        }
+      }
+    }
+
+    // Si no encontramos nada en las órdenes, usar la cantidad del estado
+    if (quantities.length === 0 && productQuantities[areaId][productId]) {
+      const product = products.find((p) => p.id === productId)
+      const unit = product?.unitMeasurement?.name || ""
+      quantities.push(`${productQuantities[areaId][productId]}${unit}`)
+    }
+
+    // Unir con + si hay múltiples cantidades y aplicar formato bold a las unidades
+    return quantities
+      .map((qty) => {
+        const match = qty.match(/^(\d+(?:\.\d+)?)(.*)$/)
+        if (match) {
+          const [, number, unit] = match
+          return `<span style="font-weight: bold; font-size: 15px;">${number}${unit}</span>`
+        }
+        return qty
+      })
+      .join(" + ")
+  }
+
+  // Obtener cantidad de producto por área para Excel (sin formato HTML)
+  const getProductQuantityForExcel = (productId: number, areaId: number) => {
     if (!productQuantities[areaId] || !productQuantities[areaId][productId]) {
       return ""
     }
@@ -913,7 +1032,7 @@ export function ReportGenerator() {
                 <tr>
                   <td className="px-4 py-2 border font-medium bg-yellow-50 sticky left-0 z-10">Detalle</td>
                   {allObservations.map((observation, index) => (
-                    <td key={index} className="px-4 py-2 border bg-yellow-50 min-w-[120px]">
+                    <td key={index} className="px-4 py-2 border bg-yellow-50 min-w-[120px] text-left">
                       {observation}
                     </td>
                   ))}
@@ -1157,7 +1276,7 @@ export function ReportGenerator() {
       const categoryName = categories[categoryId]?.name || `Categoría ${categoryId}`
 
       // Filtrar solo productos con pedidos
-      const productsWithOrders = categoryProducts
+      const productsWithOrders = (categoryProducts as Product[])
         .filter((product: Product) => {
           // Verificar si hay algún pedido para este producto en cualquier área
           for (const areaId in productQuantities) {
@@ -1188,7 +1307,14 @@ export function ReportGenerator() {
               <table className="w-full text-sm border-collapse">
                 <thead className="sticky top-0 z-10">
                   <tr>
-                    <th colSpan={companiesWithOrders.length + 1} className="px-4 py-2 text-left border bg-white">
+                    <th
+                      colSpan={companiesWithOrders.reduce((total, company) => {
+                        const companyAreas =
+                          areasByCompany[company.id]?.filter((area) => areasWithOrders.includes(area.id)) || []
+                        return total + companyAreas.length
+                      }, 1)}
+                      className="px-4 py-2 text-left border bg-white"
+                    >
                       fecha: {reportDate}
                     </th>
                   </tr>
@@ -1250,8 +1376,8 @@ export function ReportGenerator() {
                         }
 
                         return companyAreas.map((area: Area) => (
-                          <td key={`${product.id}-${area.id}`} className="px-4 py-2 text-center border">
-                            {getProductQuantity(product.id, area.id)}
+                          <td key={`${product.id}-${area.id}`} className="px-4 py-2 text-left border">
+                            <span dangerouslySetInnerHTML={{ __html: getProductQuantity(product.id, area.id) }} />
                           </td>
                         ))
                       })}
@@ -1269,7 +1395,7 @@ export function ReportGenerator() {
                       }
 
                       return companyAreas.map((area: Area) => (
-                        <td key={`total-${area.id}`} className="px-4 py-2 text-center border font-medium">
+                        <td key={`total-${area.id}`} className="px-4 py-2 text-left border font-medium">
                           {calculateAreaTotalByCategory(area.id, categoryId)}
                         </td>
                       ))
