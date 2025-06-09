@@ -849,13 +849,21 @@ export function ReportGenerator() {
         productsByCategory[Number(categoryId)].sort((a: Product, b: Product) => a.name.localeCompare(b.name))
       })
 
-      // Define category order: Verduras, Frutas, Hierbas, IGV, Otros
-      const categoryOrder = [1, 2, 5, 3, 4] // Verduras (1), Frutas (2), Hierbas (5), IGV (3), Otros (4)
+      // ORDEN ESPECÍFICO REQUERIDO: Verduras (1), Frutas (2), Hierbas (5), IGV (3), Otros (4)
+      const categoryOrder = [1, 2, 5, 3, 4]
       const orderedCategories: { [categoryId: number]: Product[] } = {}
 
-      // Usar el orden personalizado en lugar del orden del servidor
+      // Aplicar el orden específico - SOLO agregar categorías que existen y tienen productos
       categoryOrder.forEach((categoryId) => {
         if (productsByCategory[categoryId] && productsByCategory[categoryId].length > 0) {
+          orderedCategories[categoryId] = productsByCategory[categoryId]
+        }
+      })
+
+      // Agregar cualquier categoría que no esté en el orden específico al final
+      Object.keys(productsByCategory).forEach((categoryIdStr) => {
+        const categoryId = Number(categoryIdStr)
+        if (!categoryOrder.includes(categoryId) && productsByCategory[categoryId].length > 0) {
           orderedCategories[categoryId] = productsByCategory[categoryId]
         }
       })
@@ -863,7 +871,7 @@ export function ReportGenerator() {
       return orderedCategories
     }
 
-    // Si no, usar lista estática agrupada por categoría (solo para demostración)
+    // Si no hay productos reales, usar datos de demostración con el orden correcto
     return {
       1: [
         // Verduras - ordenados alfabéticamente
