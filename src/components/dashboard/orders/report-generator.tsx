@@ -316,7 +316,23 @@ export function ReportGenerator() {
       })
 
       // Procesar cada categoría por separado
+      // MANTENER EL ORDEN ESPECÍFICO
+      const categoryOrder = [1, 2, 5, 3, 4]
+
+      // Crear array ordenado de categorías que existen
+      const orderedCategoryEntries: Array<[string, Product[]]> = categoryOrder
+        .filter((categoryId) => productsByCategory[categoryId])
+        .map((categoryId) => [categoryId.toString(), productsByCategory[categoryId] as Product[]])
+
+      // Agregar cualquier categoría adicional que no esté en el orden específico
       Object.entries(productsByCategory).forEach(([categoryIdStr, categoryProducts]) => {
+        const categoryId = Number(categoryIdStr)
+        if (!categoryOrder.includes(categoryId)) {
+          orderedCategoryEntries.push([categoryIdStr, categoryProducts as Product[]])
+        }
+      })
+
+      orderedCategoryEntries.forEach(([categoryIdStr, categoryProducts]) => {
         const categoryId = Number.parseInt(categoryIdStr)
         const categoryName = categories[categoryId]?.name || `Categoría ${categoryId}`
 
@@ -849,7 +865,7 @@ export function ReportGenerator() {
         productsByCategory[Number(categoryId)].sort((a: Product, b: Product) => a.name.localeCompare(b.name))
       })
 
-      // ORDEN ESPECÍFICO REQUERIDO: Verduras (1), Frutas (2), Hierbas (5), IGV (3), Otros (4)
+      // ORDEN ESPECÍFICO REQUERIDO: 1=Verduras, 2=Frutas, 5=Hierbas, 3=IGV, 4=Otros
       const categoryOrder = [1, 2, 5, 3, 4]
       const orderedCategories: { [categoryId: number]: Product[] } = {}
 
@@ -868,14 +884,20 @@ export function ReportGenerator() {
         }
       })
 
-      console.log("Orden de categorías aplicado:", Object.keys(orderedCategories))
+      console.log(
+        "Orden de categorías aplicado:",
+        categoryOrder.filter((id) => orderedCategories[id]),
+      )
+      console.log("Categorías finales:", Object.keys(orderedCategories).map(Number))
       return orderedCategories
     }
 
     // Datos de demostración mínimos con el orden correcto y propiedades completas
     const demoData: { [categoryId: number]: Product[] } = {}
 
-    // Agregar en el orden específico con todas las propiedades requeridas
+    // IMPORTANTE: Crear el objeto en el orden específico requerido
+    // 1=Verduras, 2=Frutas, 5=Hierbas, 3=IGV, 4=Otros
+
     demoData[1] = [
       {
         id: 1,
@@ -1322,7 +1344,23 @@ export function ReportGenerator() {
     const areasByCompany = getAreasByCompany()
     const productsByCategory = getProductsForReport()
 
-    return Object.entries(productsByCategory).map(([categoryIdStr, categoryProducts]) => {
+    // ORDEN ESPECÍFICO: 1=Verduras, 2=Frutas, 5=Hierbas, 3=IGV, 4=Otros
+    const categoryOrder = [1, 2, 5, 3, 4]
+
+    // Crear array ordenado de categorías que existen
+    const orderedCategoryEntries: Array<[string, Product[]]> = categoryOrder
+      .filter((categoryId) => productsByCategory[categoryId])
+      .map((categoryId) => [categoryId.toString(), productsByCategory[categoryId] as Product[]])
+
+    // Agregar cualquier categoría adicional que no esté en el orden específico
+    Object.entries(productsByCategory).forEach(([categoryIdStr, categoryProducts]) => {
+      const categoryId = Number(categoryIdStr)
+      if (!categoryOrder.includes(categoryId)) {
+        orderedCategoryEntries.push([categoryIdStr, categoryProducts as Product[]])
+      }
+    })
+
+    return orderedCategoryEntries.map(([categoryIdStr, categoryProducts]) => {
       const categoryId = Number.parseInt(categoryIdStr)
       const categoryName = categories[categoryId]?.name || `Categoría ${categoryId}`
 
