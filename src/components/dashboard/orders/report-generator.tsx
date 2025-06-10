@@ -229,7 +229,7 @@ export function ReportGenerator() {
       PORONGOCHE: "bg-red-600 text-white",
       CALLETANO: "bg-yellow-600",
       MERCADERES: "bg-sky-200",
-      ADRIANA: "bg-yellow-300",
+      ADRIANA: "bg-yellow-300", // Mantener para ADRIANA si existe
       "AQP C": "bg-green-600 text-white",
       ECENTER: "bg-purple-700 text-white",
       SAGA: "bg-blue-600 text-white",
@@ -244,15 +244,12 @@ export function ReportGenerator() {
       }
     }
 
-    // Si no se encuentra, asignar color por índice
+    // Si no se encuentra, asignar color por índice (evitando amarillos)
     const defaultColors = [
       "bg-red-400",
       "bg-red-800 text-white",
-      "bg-yellow-400",
       "bg-red-600 text-white",
-      "bg-yellow-600",
       "bg-sky-200",
-      "bg-yellow-300",
       "bg-green-600 text-white",
       "bg-purple-700 text-white",
       "bg-blue-600 text-white",
@@ -261,6 +258,12 @@ export function ReportGenerator() {
       "bg-pink-200",
       "bg-indigo-200",
       "bg-orange-200",
+      "bg-slate-200",
+      "bg-gray-200",
+      "bg-emerald-200",
+      "bg-teal-200",
+      "bg-violet-200",
+      "bg-rose-200",
     ]
 
     return defaultColors[index % defaultColors.length]
@@ -739,7 +742,7 @@ export function ReportGenerator() {
       "bg-red-600": "FF0000", // PORONGOCHE
       "bg-yellow-600": "948A54", // CALLETANO
       "bg-sky-200": "B7DEE8", // MERCADERES
-      "bg-yellow-300": "FFFF00", // ADRIANA
+      "bg-yellow-300": "FFFF00", // ADRIANA (si existe)
       "bg-green-600": "00CC00", // AQP C
       "bg-purple-700": "7030A0", // ECENTER
       "bg-blue-600": "0070C0", // SAGA
@@ -748,6 +751,12 @@ export function ReportGenerator() {
       "bg-pink-200": "FFC0CB",
       "bg-indigo-200": "9370DB",
       "bg-orange-200": "FFA500",
+      "bg-slate-200": "CBD5E1",
+      "bg-gray-200": "E5E7EB",
+      "bg-emerald-200": "A7F3D0",
+      "bg-teal-200": "99F6E4",
+      "bg-violet-200": "DDD6FE",
+      "bg-rose-200": "FECDD3",
     }
 
     // Buscar la clase en el mapa
