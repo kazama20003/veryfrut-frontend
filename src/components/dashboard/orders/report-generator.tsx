@@ -100,7 +100,8 @@ interface StyledCell {
     font?: {
       bold?: boolean
       color?: { rgb: string }
-      size?: number
+      sz?: number // Cambiado de size a sz
+      name?: string // Añadido nombre de fuente
     }
     fill?: {
       fgColor: { rgb: string }
@@ -285,20 +286,26 @@ export function ReportGenerator() {
       // Crear datos para el Excel con estilos
       const excelData: StyledCell[][] = []
 
+      // Estilo base para todas las celdas
+      const baseStyle = {
+        font: { name: "Arial", sz: 15, bold: false },
+        border: {
+          top: { style: "thin" },
+          left: { style: "thin" },
+          bottom: { style: "thin" },
+          right: { style: "thin" },
+        },
+      }
+
       // Agregar encabezado con fecha
       excelData.push([
         {
           v: `fecha: ${reportDate}`,
           t: "s",
           s: {
-            font: { bold: true, size: 15 },
+            ...baseStyle,
+            font: { ...baseStyle.font, bold: true },
             fill: { fgColor: { rgb: "E2EFDA" } },
-            border: {
-              top: { style: "thin" },
-              left: { style: "thin" },
-              bottom: { style: "thin" },
-              right: { style: "thin" },
-            },
           },
         },
       ])
@@ -358,14 +365,9 @@ export function ReportGenerator() {
             v: "PRODUCTOS",
             t: "s",
             s: {
-              font: { bold: true, size: 15 },
+              ...baseStyle,
+              font: { ...baseStyle.font, bold: true },
               fill: { fgColor: { rgb: "F2F2F2" } },
-              border: {
-                top: { style: "thin" },
-                left: { style: "thin" },
-                bottom: { style: "thin" },
-                right: { style: "thin" },
-              },
             },
           },
         ]
@@ -376,14 +378,8 @@ export function ReportGenerator() {
             v: "",
             t: "s",
             s: {
-              font: { bold: false, size: 15 },
+              ...baseStyle,
               fill: { fgColor: { rgb: "F2F2F2" } },
-              border: {
-                top: { style: "thin" },
-                left: { style: "thin" },
-                bottom: { style: "thin" },
-                right: { style: "thin" },
-              },
             },
           },
         ]
@@ -406,15 +402,10 @@ export function ReportGenerator() {
             v: company.name,
             t: "s",
             s: {
-              font: { bold: true, color: { rgb: textColor }, size: 15 },
+              ...baseStyle,
+              font: { ...baseStyle.font, bold: true, color: { rgb: textColor } },
               fill: { fgColor: { rgb: companyColor } },
               alignment: { horizontal: "center" },
-              border: {
-                top: { style: "thin" },
-                left: { style: "thin" },
-                bottom: { style: "thin" },
-                right: { style: "thin" },
-              },
             },
           })
 
@@ -424,14 +415,9 @@ export function ReportGenerator() {
               v: "",
               t: "s",
               s: {
-                font: { bold: true, color: { rgb: textColor }, size: 15 },
+                ...baseStyle,
+                font: { ...baseStyle.font, bold: true, color: { rgb: textColor } },
                 fill: { fgColor: { rgb: companyColor } },
-                border: {
-                  top: { style: "thin" },
-                  left: { style: "thin" },
-                  bottom: { style: "thin" },
-                  right: { style: "thin" },
-                },
               },
             })
           }
@@ -442,15 +428,10 @@ export function ReportGenerator() {
               v: area.name,
               t: "s",
               s: {
-                font: { bold: true, color: { rgb: textColor }, size: 15 },
+                ...baseStyle,
+                font: { ...baseStyle.font, bold: true, color: { rgb: textColor } },
                 fill: { fgColor: { rgb: companyColor } },
                 alignment: { horizontal: "center" },
-                border: {
-                  top: { style: "thin" },
-                  left: { style: "thin" },
-                  bottom: { style: "thin" },
-                  right: { style: "thin" },
-                },
               },
             })
           })
@@ -466,14 +447,9 @@ export function ReportGenerator() {
             v: categoryName.toUpperCase(),
             t: "s",
             s: {
-              font: { bold: true, size: 15 },
+              ...baseStyle,
+              font: { ...baseStyle.font, bold: true },
               fill: { fgColor: { rgb: "E6E6FA" } },
-              border: {
-                top: { style: "thin" },
-                left: { style: "thin" },
-                bottom: { style: "thin" },
-                right: { style: "thin" },
-              },
             },
           },
         ]
@@ -487,14 +463,8 @@ export function ReportGenerator() {
               v: "",
               t: "s",
               s: {
-                font: { bold: false, size: 15 },
+                ...baseStyle,
                 fill: { fgColor: { rgb: "E6E6FA" } },
-                border: {
-                  top: { style: "thin" },
-                  left: { style: "thin" },
-                  bottom: { style: "thin" },
-                  right: { style: "thin" },
-                },
               },
             })
           })
@@ -509,15 +479,9 @@ export function ReportGenerator() {
               v: product.name,
               t: "s",
               s: {
-                font: { bold: false, size: 15 },
+                ...baseStyle,
                 fill: { fgColor: { rgb: "FFFFFF" } },
                 alignment: { horizontal: "left" }, // Alineación a la izquierda
-                border: {
-                  top: { style: "thin" },
-                  left: { style: "thin" },
-                  bottom: { style: "thin" },
-                  right: { style: "thin" },
-                },
               },
             },
           ]
@@ -539,34 +503,13 @@ export function ReportGenerator() {
               // Y cambiar la celda para aplicar formato bold a las unidades:
               const match = quantityDisplay.match(/^(\d+(?:\.\d+)?)(.*)$/)
               let cellValue = quantityDisplay
-              let cellStyle: {
-                alignment: { horizontal: string }
-                border: {
-                  top: { style: string }
-                  left: { style: string }
-                  bottom: { style: string }
-                  right: { style: string }
-                }
-                font?: { bold: boolean; size: number }
-              } = {
-                alignment: { horizontal: "left" },
-                border: {
-                  top: { style: "thin" },
-                  left: { style: "thin" },
-                  bottom: { style: "thin" },
-                  right: { style: "thin" },
-                },
-                font: { bold: false, size: 15 }, // Agregar esta línea
-              }
+              let isBold = false
 
               if (match) {
                 const [, number, unit] = match
                 cellValue = `${number}${unit}`
                 if (unit) {
-                  cellStyle = {
-                    ...cellStyle,
-                    font: { bold: true, size: 15 },
-                  }
+                  isBold = true
                 }
               }
 
@@ -574,8 +517,9 @@ export function ReportGenerator() {
                 v: cellValue || "",
                 t: "s",
                 s: {
-                  ...cellStyle,
-                  font: { bold: false, size: 15 }, // Agregar esta línea para celdas sin unidades
+                  ...baseStyle,
+                  font: { ...baseStyle.font, bold: isBold },
+                  alignment: { horizontal: "left" },
                 },
               })
             })
@@ -590,15 +534,10 @@ export function ReportGenerator() {
             v: `TOTAL ${categoryName.toUpperCase()}`,
             t: "s",
             s: {
-              font: { bold: true, size: 15 },
+              ...baseStyle,
+              font: { ...baseStyle.font, bold: true },
               fill: { fgColor: { rgb: "F0F0F0" } },
               alignment: { horizontal: "left" }, // Alineación a la izquierda
-              border: {
-                top: { style: "thin" },
-                left: { style: "thin" },
-                bottom: { style: "thin" },
-                right: { style: "thin" },
-              },
             },
           },
         ]
@@ -620,15 +559,10 @@ export function ReportGenerator() {
               v: total ? `${total}` : "0",
               t: "s",
               s: {
-                font: { bold: true, size: 15 },
+                ...baseStyle,
+                font: { ...baseStyle.font, bold: true },
                 alignment: { horizontal: "left" }, // Alineación a la izquierda
                 fill: { fgColor: { rgb: "F0F0F0" } },
-                border: {
-                  top: { style: "thin" },
-                  left: { style: "thin" },
-                  bottom: { style: "thin" },
-                  right: { style: "thin" },
-                },
               },
             })
           })
@@ -660,15 +594,10 @@ export function ReportGenerator() {
             v: "OBSERVACION",
             t: "s",
             s: {
-              font: { bold: true, size: 15 },
+              ...baseStyle,
+              font: { ...baseStyle.font, bold: true },
               fill: { fgColor: { rgb: "FFFF00" } }, // Amarillo
               alignment: { horizontal: "left" }, // Alineación a la izquierda
-              border: {
-                top: { style: "thin" },
-                left: { style: "thin" },
-                bottom: { style: "thin" },
-                right: { style: "thin" },
-              },
             },
           },
         ]
@@ -679,15 +608,9 @@ export function ReportGenerator() {
             v: observation,
             t: "s",
             s: {
-              font: { bold: false, size: 15 },
+              ...baseStyle,
               fill: { fgColor: { rgb: "FFFF99" } }, // Amarillo claro
               alignment: { horizontal: "left", wrapText: true },
-              border: {
-                top: { style: "thin" },
-                left: { style: "thin" },
-                bottom: { style: "thin" },
-                right: { style: "thin" },
-              },
             },
           })
         })
@@ -1677,7 +1600,7 @@ export function ReportGenerator() {
                   {companies.map((company) => {
                     // Filtrar solo áreas con pedidos
                     const companyAreas =
-                      getAreasByCompany()[company.id]?.filter((area: Area) => areasWithOrders.includes(area.id)) || []
+                      getAreasByCompany()[company.id]?.filter((area) => areasWithOrders.includes(area.id)) || []
 
                     if (companyAreas.length === 0) {
                       return null // No mostrar esta compañía si no tiene áreas con pedidos
