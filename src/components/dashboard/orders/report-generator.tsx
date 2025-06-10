@@ -222,17 +222,17 @@ export function ReportGenerator() {
   // Función para asignar colores a las compañías
   const getCompanyColor = (id: number, name: string, index: number): string => {
     const colorMap: { [key: string]: string } = {
-      PACHAMAMA: "bg-red-200",
-      MONTONERO: "bg-red-900 text-white",
-      EAVENTURA: "bg-yellow-200",
-      PORONGOCHE: "bg-red-500 text-white",
-      CALLETANO: "bg-amber-200",
-      MERCADERES: "bg-blue-200",
+      PACHAMAMA: "bg-red-400",
+      MONTONERO: "bg-red-800 text-white",
+      EAVENTURA: "bg-yellow-400",
+      PORONGOCHE: "bg-red-600 text-white",
+      CALLETANO: "bg-yellow-600",
+      MERCADERES: "bg-sky-200",
       ADRIANA: "bg-yellow-300",
-      "AQP C": "bg-green-500 text-white",
-      ECENTER: "bg-purple-300",
-      SAGA: "bg-blue-500 text-white",
-      BON: "bg-sky-300",
+      "AQP C": "bg-green-600 text-white",
+      ECENTER: "bg-purple-700 text-white",
+      SAGA: "bg-blue-600 text-white",
+      BON: "bg-cyan-400",
     }
 
     // Intentar encontrar el color por nombre
@@ -245,17 +245,17 @@ export function ReportGenerator() {
 
     // Si no se encuentra, asignar color por índice
     const defaultColors = [
-      "bg-red-200",
-      "bg-red-900 text-white",
-      "bg-yellow-200",
-      "bg-red-500 text-white",
-      "bg-amber-200",
-      "bg-blue-200",
+      "bg-red-400",
+      "bg-red-800 text-white",
+      "bg-yellow-400",
+      "bg-red-600 text-white",
+      "bg-yellow-600",
+      "bg-sky-200",
       "bg-yellow-300",
-      "bg-green-500 text-white",
-      "bg-purple-300",
-      "bg-blue-500 text-white",
-      "bg-sky-300",
+      "bg-green-600 text-white",
+      "bg-purple-700 text-white",
+      "bg-blue-600 text-white",
+      "bg-cyan-400",
       "bg-green-200",
       "bg-pink-200",
       "bg-indigo-200",
@@ -727,11 +727,8 @@ export function ReportGenerator() {
       // Saltar la fila de fecha y la fila vacía
       rowIndex += 2
 
-      // Para cada categoría, necesitamos calcular las combinaciones
-      Object.entries(productsByCategory).forEach(([, categoryProducts]) => {
-        // Eliminar esta línea:
-        // const categoryId = Number.parseInt(categoryIdStr)
-
+      // Para cada categoría, necesitamos calcular las combinaciones usando el orden correcto
+      orderedCategoryEntries.forEach(([, categoryProducts]) => {
         // Filtrar solo productos con pedidos
         const productsWithOrders = categoryProducts.filter((product: Product) => {
           for (const areaId in productQuantities) {
@@ -763,10 +760,8 @@ export function ReportGenerator() {
               s: { r: rowIndex, c: colIndex },
               e: { r: rowIndex, c: colIndex + companyAreas.length - 1 },
             })
-            colIndex += companyAreas.length
-          } else {
-            colIndex += 1
           }
+          colIndex += companyAreas.length
         })
 
         // Avanzar 2 filas para la fila de compañías y la fila de áreas
@@ -808,17 +803,17 @@ export function ReportGenerator() {
   const getExcelColorFromTailwind = (tailwindClass: string | undefined): string => {
     // Mapeo de clases Tailwind a colores hexadecimales para Excel
     const colorMap: { [key: string]: string } = {
-      "bg-red-200": "FFCCCB",
-      "bg-red-900": "8B0000",
-      "bg-yellow-200": "FFFF99",
-      "bg-red-500": "FF5733",
-      "bg-amber-200": "FFD700",
-      "bg-blue-200": "ADD8E6",
-      "bg-yellow-300": "FFFF00",
-      "bg-green-500": "008000",
-      "bg-purple-300": "D8BFD8",
-      "bg-blue-500": "0000FF",
-      "bg-sky-300": "87CEEB",
+      "bg-red-400": "FF5050", // PACHAMAMA
+      "bg-red-800": "963634", // MONTONERO
+      "bg-yellow-400": "FFC000", // EAVENTURA
+      "bg-red-600": "FF0000", // PORONGOCHE
+      "bg-yellow-600": "948A54", // CALLETANO
+      "bg-sky-200": "B7DEE8", // MERCADERES
+      "bg-yellow-300": "FFFF00", // ADRIANA
+      "bg-green-600": "00CC00", // AQP C
+      "bg-purple-700": "7030A0", // ECENTER
+      "bg-blue-600": "0070C0", // SAGA
+      "bg-cyan-400": "00FFFF", // BON
       "bg-green-200": "90EE90",
       "bg-pink-200": "FFC0CB",
       "bg-indigo-200": "9370DB",
