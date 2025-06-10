@@ -376,7 +376,7 @@ export function ReportGenerator() {
             v: "",
             t: "s",
             s: {
-              font: { size: 15 },
+              font: { bold: false, size: 15 },
               fill: { fgColor: { rgb: "F2F2F2" } },
               border: {
                 top: { style: "thin" },
@@ -487,7 +487,7 @@ export function ReportGenerator() {
               v: "",
               t: "s",
               s: {
-                font: { size: 15 },
+                font: { bold: false, size: 15 },
                 fill: { fgColor: { rgb: "E6E6FA" } },
                 border: {
                   top: { style: "thin" },
@@ -549,13 +549,14 @@ export function ReportGenerator() {
                 }
                 font?: { bold: boolean; size: number }
               } = {
-                alignment: { horizontal: "left" }, // Alineación a la izquierda
+                alignment: { horizontal: "left" },
                 border: {
                   top: { style: "thin" },
                   left: { style: "thin" },
                   bottom: { style: "thin" },
                   right: { style: "thin" },
                 },
+                font: { bold: false, size: 15 }, // Agregar esta línea
               }
 
               if (match) {
@@ -572,7 +573,10 @@ export function ReportGenerator() {
               productRow.push({
                 v: cellValue || "",
                 t: "s",
-                s: cellStyle,
+                s: {
+                  ...cellStyle,
+                  font: { bold: false, size: 15 }, // Agregar esta línea para celdas sin unidades
+                },
               })
             })
           })
@@ -675,7 +679,7 @@ export function ReportGenerator() {
             v: observation,
             t: "s",
             s: {
-              font: { size: 15 },
+              font: { bold: false, size: 15 },
               fill: { fgColor: { rgb: "FFFF99" } }, // Amarillo claro
               alignment: { horizontal: "left", wrapText: true },
               border: {
