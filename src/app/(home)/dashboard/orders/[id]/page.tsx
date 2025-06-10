@@ -35,6 +35,8 @@ import {
 } from "@/types/order"
 import { useParams } from "next/navigation"
 import type { AxiosError } from "axios"
+import jsPDF from "jspdf"
+import "jspdf-autotable"
 
 // Interfaces para las respuestas de la API
 interface UnitMeasurement {
@@ -82,6 +84,35 @@ interface UpdateOrderDto {
     price: number
     unitMeasurementId: number
   }[]
+}
+
+// Extended Order interface to include observation property
+interface OrderWithObservation extends Order {
+  observation?: string
+}
+
+// Type for jsPDF with autoTable plugin
+interface JsPDFWithAutoTable extends jsPDF {
+  autoTable: (options: {
+    head: string[][]
+    body: string[][]
+    startY: number
+    theme: string
+    headStyles: { fillColor: number[]; textColor: number[] }
+    styles: { fontSize: number }
+    columnStyles: {
+      [key: number]: {
+        cellWidth?: number
+        halign?: "left" | "center" | "right"
+      }
+    }
+  }) => void
+  lastAutoTable: { finalY: number }
+}
+
+// Type for Axios error response
+interface AxiosErrorResponse {
+  message?: string
 }
 
 // Componente para mostrar el estado del pedido
@@ -330,7 +361,7 @@ export default function OrderDetailPage() {
       console.error("Error al actualizar el pedido:", err)
       const axiosError = err as AxiosError
       const errorMessage =
-        (axiosError.response?.data as { message?: string })?.message || "No se pudo actualizar el estado del pedido."
+        (axiosError.response?.data as AxiosErrorResponse)?.message || "No se pudo actualizar el estado del pedido."
       toast.error("Error al actualizar", {
         description: errorMessage,
       })
@@ -455,7 +486,7 @@ export default function OrderDetailPage() {
       console.error("Error al actualizar los productos:", err)
       const axiosError = err as AxiosError
       const errorMessage =
-        (axiosError.response?.data as { message?: string })?.message ||
+        (axiosError.response?.data as AxiosErrorResponse)?.message ||
         "No se pudieron actualizar los productos del pedido."
       toast.error("Error al actualizar", {
         description: errorMessage,
@@ -465,15 +496,332 @@ export default function OrderDetailPage() {
     }
   }
 
-  // Simular impresión del pedido
+  // Función para imprimir el pedido con estilos específicos
   const handlePrint = () => {
+    if (!order) {
+      toast.error("Error", {
+        description: "No se puede imprimir. Pedido no encontrado.",
+      })
+      return
+    }
+
+    // Create print-specific styles
+    const printStyles = `
+      <style>
+        @media print {
+          body * { visibility: hidden; }
+          .print-section, .print-section * { visibility: visible; }
+          .print-section { 
+            position: absolute; 
+            left: 0; 
+            top: 0; 
+            width: 100%; 
+            background: white;
+            padding: 20px;
+          }
+          .no-print { display: none !important; }
+          .print-header { 
+            text-align: center; 
+            margin-bottom: 30px; 
+            border-bottom: 2px solid #000;
+            padding-bottom: 20px;
+          }
+          .print-info { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 30px; 
+            margin-bottom: 30px; 
+          }
+          .print-table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-bottom: 20px;
+          }
+          .print-table th, .print-table td { 
+            border: 1px solid #000; 
+            padding: 8px; 
+            text-align: left; 
+          }
+          .print-table th { 
+            background-color: #f0f0f0; 
+            font-weight: bold; 
+          }
+          .print-total { 
+            text-align: right; 
+            font-size: 18px; 
+            font-weight: bold; 
+            margin-top: 20px; 
+          }
+        }
+      </style>
+    `
+
+    // Fix OrderStatus comparisons by using enum values
+    const getStatusText = (status: OrderStatus) => {
+      switch (status) {
+        case OrderStatus.CREATED:
+          return "Pendiente"
+        case OrderStatus.PROCESS:
+          return "En proceso"
+        case OrderStatus.DELIVERED:
+          return "Entregado"
+        default:
+          return status
+      }
+    }
+
+    // Create HTML content for printing with null safety
+    const printContent = `
+      ${printStyles}
+      <div class="print-section">
+        <div class="print-header">
+          <h1>PEDIDO #${order.id}</h1>
+          <p>Estado: ${getStatusText(order.status)}</p>
+          <p>Fecha: ${order.createdAt ? format(new Date(order.createdAt), "dd 'de' MMMM 'de' yyyy", { locale: es }) : "Fecha no disponible"}</p>
+        </div>
+        
+        <div class="print-info">
+          <div>
+            <h3>INFORMACIÓN DEL CLIENTE</h3>
+            <p><strong>Cliente:</strong> ${order.customer ? `${order.customer.firstName} ${order.customer.lastName}` : `Cliente #${order.userId}`}</p>
+          ${order.customer?.email ? `<p><strong>Email:</strong> ${order.customer.email}</p>` : ""}
+          ${order.customer?.phone ? `<p><strong>Teléfono:</strong> ${order.customer.phone}</p>` : ""}
+          ${order.area ? `<p><strong>Área:</strong> ${order.area.name}</p>` : ""}
+        </div>
+        
+        <div>
+          <h3>DETALLES DE ENTREGA</h3>
+          ${order.shippingAddress ? `<p><strong>Dirección:</strong> ${order.shippingAddress}</p>` : ""}
+          ${order.deliveryDate ? `<p><strong>Fecha de entrega:</strong> ${format(new Date(order.deliveryDate), "dd 'de' MMMM 'de' yyyy", { locale: es })}</p>` : ""}
+          ${(order as OrderWithObservation).observation ? `<p><strong>Observaciones:</strong> ${(order as OrderWithObservation).observation}</p>` : ""}
+        </div>
+      </div>
+      
+      <h3>PRODUCTOS</h3>
+      <table class="print-table">
+        <thead>
+          <tr>
+            <th>Producto</th>
+            <th>Cantidad</th>
+            <th>Unidad</th>
+            <th>Precio Unit.</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${orderItems
+            .map(
+              (item) => `
+            <tr>
+              <td>${item.product?.name || `Producto #${item.productId}`}</td>
+              <td>${formatQuantity(item.quantity)}</td>
+              <td>${item.unitMeasurement?.name || ""}</td>
+              <td>$${item.price.toFixed(2)}</td>
+              <td>$${(item.quantity * item.price).toFixed(2)}</td>
+            </tr>
+          `,
+            )
+            .join("")}
+        </tbody>
+      </table>
+      
+      <div class="print-total">
+        <p>TOTAL: $${calculateTotal().toFixed(2)}</p>
+      </div>
+    </div>
+  `
+
+    // Create print window
+    const printWindow = window.open("", "_blank")
+    if (printWindow) {
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Pedido #${order.id}</title>
+            <meta charset="utf-8">
+          </head>
+          <body>
+            ${printContent}
+          </body>
+        </html>
+      `)
+      printWindow.document.close()
+
+      // Wait for load and then print
+      printWindow.onload = () => {
+        setTimeout(() => {
+          printWindow.print()
+          printWindow.close()
+        }, 250)
+      }
+    }
+
+    toast.success("Preparando impresión", {
+      description: "El documento se está preparando para imprimir.",
+    })
+  }
+
+  // Función para descargar el pedido como PDF
+  const handleDownload = () => {
+    if (!order) {
+      toast.error("Error", {
+        description: "No se puede descargar. Pedido no encontrado.",
+      })
+      return
+    }
+
+    try {
+      // Create new PDF document
+      const doc = new jsPDF()
+
+      // Configure font
+      doc.setFont("helvetica")
+
+      // Title
+      doc.setFontSize(20)
+      doc.setFont("helvetica", "bold")
+      doc.text(`PEDIDO #${order.id}`, 105, 20, { align: "center" })
+
+      // Basic information
+      doc.setFontSize(12)
+      doc.setFont("helvetica", "normal")
+
+      // Fix OrderStatus comparison
+      const getStatusText = (status: OrderStatus) => {
+        switch (status) {
+          case OrderStatus.CREATED:
+            return "Pendiente"
+          case OrderStatus.PROCESS:
+            return "En proceso"
+          case OrderStatus.DELIVERED:
+            return "Entregado"
+          default:
+            return status
+        }
+      }
+
+      const statusText = getStatusText(order.status)
+      doc.text(`Estado: ${statusText}`, 20, 35)
+
+      const dateText = order.createdAt
+        ? format(new Date(order.createdAt), "dd 'de' MMMM 'de' yyyy", { locale: es })
+        : "Fecha no disponible"
+      doc.text(`Fecha: ${dateText}`, 20, 45)
+
+      // Customer information
+      doc.setFont("helvetica", "bold")
+      doc.text("INFORMACIÓN DEL CLIENTE", 20, 65)
+      doc.setFont("helvetica", "normal")
+
+      let yPos = 75
+      const customerName = order.customer
+        ? `${order.customer.firstName} ${order.customer.lastName}`
+        : `Cliente #${order.userId}`
+      doc.text(`Cliente: ${customerName}`, 20, yPos)
+      yPos += 10
+
+      if (order.customer?.email) {
+        doc.text(`Email: ${order.customer.email}`, 20, yPos)
+        yPos += 10
+      }
+
+      if (order.customer?.phone) {
+        doc.text(`Teléfono: ${order.customer.phone}`, 20, yPos)
+        yPos += 10
+      }
+
+      if (order.area) {
+        doc.text(`Área: ${order.area.name}`, 20, yPos)
+        yPos += 10
+      }
+
+      if (order.shippingAddress) {
+        doc.text(`Dirección: ${order.shippingAddress}`, 20, yPos)
+        yPos += 10
+      }
+
+      if (order.deliveryDate) {
+        const deliveryText = format(new Date(order.deliveryDate), "dd 'de' MMMM 'de' yyyy", { locale: es })
+        doc.text(`Fecha de entrega: ${deliveryText}`, 20, yPos)
+        yPos += 10
+      }
+
+      // Products
+      yPos += 10
+      doc.setFont("helvetica", "bold")
+      doc.text("PRODUCTOS", 20, yPos)
+      yPos += 10
+
+      // Create products table
+      const tableData = orderItems.map((item) => [
+        item.product?.name || `Producto #${item.productId}`,
+        formatQuantity(item.quantity),
+        item.unitMeasurement?.name || "",
+        `$${item.price.toFixed(2)}`,
+        `$${(item.quantity * item.price).toFixed(2)}`,
+      ])
+
+      // Use autoTable to create the table - fix any type
+      const docWithAutoTable = doc as JsPDFWithAutoTable
+      docWithAutoTable.autoTable({
+        head: [["Producto", "Cantidad", "Unidad", "Precio Unit.", "Total"]],
+        body: tableData,
+        startY: yPos,
+        theme: "grid",
+        headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0] },
+        styles: { fontSize: 10 },
+        columnStyles: {
+          0: { cellWidth: 60 },
+          1: { cellWidth: 25, halign: "center" },
+          2: { cellWidth: 25, halign: "center" },
+          3: { cellWidth: 30, halign: "right" },
+          4: { cellWidth: 30, halign: "right" },
+        },
+      })
+
+      // Total
+      const finalY = docWithAutoTable.lastAutoTable.finalY + 20
+      doc.setFont("helvetica", "bold")
+      doc.setFontSize(14)
+      doc.text(`TOTAL: $${calculateTotal().toFixed(2)}`, 190, finalY, { align: "right" })
+
+      // Observations if they exist - use type assertion for observation
+      const orderWithObservation = order as OrderWithObservation
+      if (orderWithObservation.observation) {
+        doc.setFont("helvetica", "bold")
+        doc.setFontSize(12)
+        doc.text("OBSERVACIONES:", 20, finalY + 20)
+        doc.setFont("helvetica", "normal")
+
+        // Split long text into multiple lines
+        const splitText = doc.splitTextToSize(orderWithObservation.observation, 170)
+        doc.text(splitText, 20, finalY + 30)
+      }
+
+      // Download the PDF
+      doc.save(`pedido-${order.id}.pdf`)
+
+      toast.success("Descarga iniciada", {
+        description: "El archivo PDF se ha descargado correctamente.",
+      })
+    } catch (error) {
+      console.error("Error al generar PDF:", error)
+      toast.error("Error al descargar", {
+        description: "No se pudo generar el archivo PDF. Intenta de nuevo.",
+      })
+    }
+  }
+
+  // Simular impresión del pedido
+  /*const handlePrint = () => {
     toast.success("Preparando impresión", {
       description: "El documento se está preparando para imprimir.",
     })
     setTimeout(() => {
       window.print()
     }, 500)
-  }
+  }*/
 
   const handleRemoveProduct = (index: number) => {
     const newItems = [...orderItems]
@@ -530,7 +878,7 @@ export default function OrderDetailPage() {
             <Printer className="h-4 w-4" />
             <span className="hidden sm:inline">Imprimir</span>
           </Button>
-          <Button variant="outline" size="sm" className="gap-1">
+          <Button variant="outline" size="sm" onClick={handleDownload} className="gap-1">
             <Download className="h-4 w-4" />
             <span className="hidden sm:inline">Descargar</span>
           </Button>
