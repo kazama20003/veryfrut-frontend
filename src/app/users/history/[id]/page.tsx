@@ -15,9 +15,14 @@ import {
   ShoppingCart,
   Trash2,
   PlusCircle,
+  Download,
+  Printer,
 } from "lucide-react"
 import { toast } from "sonner"
 import { AxiosError } from "axios"
+import { format } from "date-fns"
+import { es } from "date-fns/locale"
+import jsPDF from "jspdf"
 
 import { api } from "@/lib/axiosInstance"
 import { Button } from "@/components/ui/button"
@@ -467,6 +472,283 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
     router.push("/users/history")
   }
 
+  // Función para imprimir el pedido con estilos específicos
+  const handlePrint = () => {
+    if (!order) {
+      toast.error("Error", {
+        description: "No se puede imprimir. Pedido no encontrado.",
+      })
+      return
+    }
+
+    // Create print-specific styles
+    const printStyles = `
+      <style>
+        @media print {
+          body * { visibility: hidden; }
+          .print-section, .print-section * { visibility: visible; }
+          .print-section { 
+            position: absolute; 
+            left: 0; 
+            top: 0; 
+            width: 100%; 
+            background: white;
+            padding: 20px;
+          }
+          .no-print { display: none !important; }
+          .print-header { 
+            text-align: center; 
+            margin-bottom: 30px; 
+            border-bottom: 2px solid #000;
+            padding-bottom: 20px;
+          }
+          .print-info { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 30px; 
+            margin-bottom: 30px; 
+          }
+          .print-table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-bottom: 20px;
+          }
+          .print-table th, .print-table td { 
+            border: 1px solid #000; 
+            padding: 8px; 
+            text-align: left; 
+          }
+          .print-table th { 
+            background-color: #f0f0f0; 
+            font-weight: bold; 
+          }
+          .print-total { 
+            text-align: right; 
+            font-size: 18px; 
+            font-weight: bold; 
+            margin-top: 20px; 
+          }
+        }
+      </style>
+    `
+
+    // Create HTML content for printing with null safety
+    const printContent = `
+      ${printStyles}
+      <div class="print-section">
+        <div class="print-header">
+          <h1>PEDIDO #${order.id}</h1>
+          <p>Estado: ${order.status}</p>
+          <p>Fecha: ${order.createdAt ? format(new Date(order.createdAt), "dd 'de' MMMM 'de' yyyy", { locale: es }) : "Fecha no disponible"}</p>
+        </div>
+        
+        <div class="print-info">
+          <div>
+            <h3>INFORMACIÓN DEL ÁREA</h3>
+            <p><strong>Área:</strong> ${order.area ? order.area.name : `Área #${order.areaId}`}</p>
+          </div>
+          
+          <div>
+            <h3>DETALLES DEL PEDIDO</h3>
+            ${observation ? `<p><strong>Observaciones:</strong> ${observation}</p>` : ""}
+          </div>
+        </div>
+        
+        <h3>PRODUCTOS</h3>
+        <table class="print-table">
+          <thead>
+            <tr>
+              <th>Producto</th>
+              <th>Cantidad</th>
+              <th>Unidad</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${cart
+              .map(
+                (item) => `
+              <tr>
+                <td>${item.name}</td>
+                <td>${formatQuantity(item.quantity)}</td>
+                <td>${getUnitName(item)}</td>
+              </tr>
+            `,
+              )
+              .join("")}
+          </tbody>
+        </table>
+      </div>
+    `
+
+    // Create print window
+    const printWindow = window.open("", "_blank")
+    if (printWindow) {
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Pedido #${order.id}</title>
+            <meta charset="utf-8">
+          </head>
+          <body>
+            ${printContent}
+          </body>
+        </html>
+      `)
+      printWindow.document.close()
+
+      // Wait for load and then print
+      printWindow.onload = () => {
+        setTimeout(() => {
+          printWindow.print()
+          printWindow.close()
+        }, 250)
+      }
+    }
+
+    toast.success("Preparando impresión", {
+      description: "El documento se está preparando para imprimir.",
+    })
+  }
+
+  // Función para descargar el pedido como PDF
+  const handleDownload = () => {
+    if (!order) {
+      toast.error("Error", {
+        description: "No se puede descargar. Pedido no encontrado.",
+      })
+      return
+    }
+
+    try {
+      // Create new PDF document
+      const doc = new jsPDF()
+
+      // Configure font
+      doc.setFont("helvetica")
+
+      // Title
+      doc.setFontSize(20)
+      doc.setFont("helvetica", "bold")
+      doc.text(`PEDIDO #${order.id}`, 105, 20, { align: "center" })
+
+      // Basic information
+      doc.setFontSize(12)
+      doc.setFont("helvetica", "normal")
+
+      doc.text(`Estado: ${order.status}`, 20, 35)
+
+      const dateText = order.createdAt
+        ? format(new Date(order.createdAt), "dd 'de' MMMM 'de' yyyy", { locale: es })
+        : "Fecha no disponible"
+      doc.text(`Fecha: ${dateText}`, 20, 45)
+
+      // Area information
+      doc.setFont("helvetica", "bold")
+      doc.text("INFORMACIÓN DEL ÁREA", 20, 65)
+      doc.setFont("helvetica", "normal")
+
+      let yPos = 75
+      const areaName = order.area ? order.area.name : `Área #${order.areaId}`
+      doc.text(`Área: ${areaName}`, 20, yPos)
+      yPos += 15
+
+      // Observations if they exist
+      if (observation) {
+        doc.setFont("helvetica", "bold")
+        doc.text("OBSERVACIONES:", 20, yPos)
+        doc.setFont("helvetica", "normal")
+        yPos += 10
+
+        // Split long text into multiple lines
+        const splitText = doc.splitTextToSize(observation, 170)
+        doc.text(splitText, 20, yPos)
+        yPos += splitText.length * 7 + 10
+      }
+
+      // Products section
+      doc.setFont("helvetica", "bold")
+      doc.text("PRODUCTOS", 20, yPos)
+      yPos += 10
+
+      // Create table manually
+      const tableStartY = yPos
+      const rowHeight = 10
+
+      // Table header
+      doc.setFont("helvetica", "bold")
+      doc.setFillColor(240, 240, 240)
+      doc.rect(20, tableStartY, 160, rowHeight, "F")
+
+      // Header borders
+      doc.setDrawColor(0, 0, 0)
+      doc.setLineWidth(0.5)
+      doc.rect(20, tableStartY, 160, rowHeight)
+
+      // Vertical lines for header
+      doc.line(120, tableStartY, 120, tableStartY + rowHeight)
+      doc.line(150, tableStartY, 150, tableStartY + rowHeight)
+
+      // Header text
+      doc.text("Producto", 22, tableStartY + 7)
+      doc.text("Cantidad", 122, tableStartY + 7)
+      doc.text("Unidad", 152, tableStartY + 7)
+
+      // Table rows
+      doc.setFont("helvetica", "normal")
+      let currentY = tableStartY + rowHeight
+
+      cart.forEach((item, index) => {
+        // Row background (alternating)
+        if (index % 2 === 1) {
+          doc.setFillColor(250, 250, 250)
+          doc.rect(20, currentY, 160, rowHeight, "F")
+        }
+
+        // Row borders
+        doc.setDrawColor(0, 0, 0)
+        doc.rect(20, currentY, 160, rowHeight)
+
+        // Vertical lines
+        doc.line(120, currentY, 120, currentY + rowHeight)
+        doc.line(150, currentY, 150, currentY + rowHeight)
+
+        // Row data
+        const productName = item.name
+        const quantity = formatQuantity(item.quantity)
+        const unit = getUnitName(item)
+
+        // Truncate long product names
+        const maxProductNameLength = 35
+        const truncatedProductName =
+          productName.length > maxProductNameLength
+            ? productName.substring(0, maxProductNameLength) + "..."
+            : productName
+
+        doc.text(truncatedProductName, 22, currentY + 7)
+        doc.text(quantity, 122, currentY + 7)
+        doc.text(unit, 152, currentY + 7)
+
+        currentY += rowHeight
+      })
+
+      // Final border for table
+      doc.rect(20, tableStartY, 160, currentY - tableStartY)
+
+      // Download the PDF
+      doc.save(`pedido-${order.id}.pdf`)
+
+      toast.success("Descarga iniciada", {
+        description: "El archivo PDF se ha descargado correctamente.",
+      })
+    } catch (error) {
+      console.error("Error al generar PDF:", error)
+      toast.error("Error al descargar", {
+        description: "No se pudo generar el archivo PDF. Intenta de nuevo.",
+      })
+    }
+  }
+
   // Agrupar productos por tipo y unidad para mostrar contadores
   const getProductCounts = useCallback(() => {
     const counts: Record<string, number> = {}
@@ -534,7 +816,19 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
         <Button variant="ghost" size="icon" className="mr-2" onClick={handleCancel}>
           <ChevronLeft className="h-5 w-5" />
         </Button>
-        <h1 className="text-lg font-semibold md:text-xl">Editar Pedido #{order.id}</h1>
+        <div className="flex flex-1 items-center justify-between">
+          <h1 className="text-lg font-semibold md:text-xl">Editar Pedido #{order.id}</h1>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={handlePrint} className="gap-1">
+              <Printer className="h-4 w-4" />
+              <span className="hidden sm:inline">Imprimir</span>
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleDownload} className="gap-1">
+              <Download className="h-4 w-4" />
+              <span className="hidden sm:inline">Descargar</span>
+            </Button>
+          </div>
+        </div>
       </header>
 
       <main className="flex-1 p-4 md:p-6">

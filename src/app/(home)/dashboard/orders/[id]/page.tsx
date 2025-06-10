@@ -36,7 +36,8 @@ import {
 import { useParams } from "next/navigation"
 import type { AxiosError } from "axios"
 import jsPDF from "jspdf"
-import "jspdf-autotable"
+// Import autotable correctly
+// import "jspdf-autotable"
 
 // Interfaces para las respuestas de la API
 interface UnitMeasurement {
@@ -89,25 +90,6 @@ interface UpdateOrderDto {
 // Extended Order interface to include observation property
 interface OrderWithObservation extends Order {
   observation?: string
-}
-
-// Type for jsPDF with autoTable plugin
-interface JsPDFWithAutoTable extends jsPDF {
-  autoTable: (options: {
-    head: string[][]
-    body: string[][]
-    startY: number
-    theme: string
-    headStyles: { fillColor: number[]; textColor: number[] }
-    styles: { fontSize: number }
-    columnStyles: {
-      [key: number]: {
-        cellWidth?: number
-        halign?: "left" | "center" | "right"
-      }
-    }
-  }) => void
-  lastAutoTable: { finalY: number }
 }
 
 // Type for Axios error response
@@ -604,8 +586,6 @@ export default function OrderDetailPage() {
             <th>Producto</th>
             <th>Cantidad</th>
             <th>Unidad</th>
-            <th>Precio Unit.</th>
-            <th>Total</th>
           </tr>
         </thead>
         <tbody>
@@ -616,18 +596,12 @@ export default function OrderDetailPage() {
               <td>${item.product?.name || `Producto #${item.productId}`}</td>
               <td>${formatQuantity(item.quantity)}</td>
               <td>${item.unitMeasurement?.name || ""}</td>
-              <td>$${item.price.toFixed(2)}</td>
-              <td>$${(item.quantity * item.price).toFixed(2)}</td>
             </tr>
           `,
             )
             .join("")}
         </tbody>
       </table>
-      
-      <div class="print-total">
-        <p>TOTAL: $${calculateTotal().toFixed(2)}</p>
-      </div>
     </div>
   `
 
@@ -747,56 +721,89 @@ export default function OrderDetailPage() {
         yPos += 10
       }
 
-      // Products
-      yPos += 10
+      // Products section
+      yPos += 15
       doc.setFont("helvetica", "bold")
       doc.text("PRODUCTOS", 20, yPos)
       yPos += 10
 
-      // Create products table
-      const tableData = orderItems.map((item) => [
-        item.product?.name || `Producto #${item.productId}`,
-        formatQuantity(item.quantity),
-        item.unitMeasurement?.name || "",
-        `$${item.price.toFixed(2)}`,
-        `$${(item.quantity * item.price).toFixed(2)}`,
-      ])
+      // Create table manually
+      const tableStartY = yPos
+      const rowHeight = 10
 
-      // Use autoTable to create the table - fix any type
-      const docWithAutoTable = doc as JsPDFWithAutoTable
-      docWithAutoTable.autoTable({
-        head: [["Producto", "Cantidad", "Unidad", "Precio Unit.", "Total"]],
-        body: tableData,
-        startY: yPos,
-        theme: "grid",
-        headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0] },
-        styles: { fontSize: 10 },
-        columnStyles: {
-          0: { cellWidth: 60 },
-          1: { cellWidth: 25, halign: "center" },
-          2: { cellWidth: 25, halign: "center" },
-          3: { cellWidth: 30, halign: "right" },
-          4: { cellWidth: 30, halign: "right" },
-        },
+      // Table header
+      doc.setFont("helvetica", "bold")
+      doc.setFillColor(240, 240, 240)
+      doc.rect(20, tableStartY, 160, rowHeight, "F")
+
+      // Header borders
+      doc.setDrawColor(0, 0, 0)
+      doc.setLineWidth(0.5)
+      doc.rect(20, tableStartY, 160, rowHeight)
+
+      // Vertical lines for header
+      doc.line(120, tableStartY, 120, tableStartY + rowHeight)
+      doc.line(150, tableStartY, 150, tableStartY + rowHeight)
+
+      // Header text
+      doc.text("Producto", 22, tableStartY + 7)
+      doc.text("Cantidad", 122, tableStartY + 7)
+      doc.text("Unidad", 152, tableStartY + 7)
+
+      // Table rows
+      doc.setFont("helvetica", "normal")
+      let currentY = tableStartY + rowHeight
+
+      orderItems.forEach((item, index) => {
+        // Row background (alternating)
+        if (index % 2 === 1) {
+          doc.setFillColor(250, 250, 250)
+          doc.rect(20, currentY, 160, rowHeight, "F")
+        }
+
+        // Row borders
+        doc.setDrawColor(0, 0, 0)
+        doc.rect(20, currentY, 160, rowHeight)
+
+        // Vertical lines
+        doc.line(120, currentY, 120, currentY + rowHeight)
+        doc.line(150, currentY, 150, currentY + rowHeight)
+
+        // Row data
+        const productName = item.product?.name || `Producto #${item.productId}`
+        const quantity = formatQuantity(item.quantity)
+        const unit = item.unitMeasurement?.name || ""
+
+        // Truncate long product names
+        const maxProductNameLength = 35
+        const truncatedProductName =
+          productName.length > maxProductNameLength
+            ? productName.substring(0, maxProductNameLength) + "..."
+            : productName
+
+        doc.text(truncatedProductName, 22, currentY + 7)
+        doc.text(quantity, 122, currentY + 7)
+        doc.text(unit, 152, currentY + 7)
+
+        currentY += rowHeight
       })
 
-      // Total
-      const finalY = docWithAutoTable.lastAutoTable.finalY + 20
-      doc.setFont("helvetica", "bold")
-      doc.setFontSize(14)
-      doc.text(`TOTAL: $${calculateTotal().toFixed(2)}`, 190, finalY, { align: "right" })
+      // Final border for table
+      doc.rect(20, tableStartY, 160, currentY - tableStartY)
 
-      // Observations if they exist - use type assertion for observation
+      // Observations if they exist
       const orderWithObservation = order as OrderWithObservation
+      const finalY = currentY + 20
+
       if (orderWithObservation.observation) {
         doc.setFont("helvetica", "bold")
         doc.setFontSize(12)
-        doc.text("OBSERVACIONES:", 20, finalY + 20)
+        doc.text("OBSERVACIONES:", 20, finalY)
         doc.setFont("helvetica", "normal")
 
         // Split long text into multiple lines
         const splitText = doc.splitTextToSize(orderWithObservation.observation, 170)
-        doc.text(splitText, 20, finalY + 30)
+        doc.text(splitText, 20, finalY + 10)
       }
 
       // Download the PDF
@@ -812,16 +819,6 @@ export default function OrderDetailPage() {
       })
     }
   }
-
-  // Simular impresión del pedido
-  /*const handlePrint = () => {
-    toast.success("Preparando impresión", {
-      description: "El documento se está preparando para imprimir.",
-    })
-    setTimeout(() => {
-      window.print()
-    }, 500)
-  }*/
 
   const handleRemoveProduct = (index: number) => {
     const newItems = [...orderItems]
