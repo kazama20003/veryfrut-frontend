@@ -291,7 +291,7 @@ export function ReportGenerator() {
           v: `fecha: ${reportDate}`,
           t: "s",
           s: {
-            font: { bold: true },
+            font: { bold: true, size: 15 },
             fill: { fgColor: { rgb: "E2EFDA" } },
             border: {
               top: { style: "thin" },
@@ -358,7 +358,7 @@ export function ReportGenerator() {
             v: "PRODUCTOS",
             t: "s",
             s: {
-              font: { bold: true },
+              font: { bold: true, size: 15 },
               fill: { fgColor: { rgb: "F2F2F2" } },
               border: {
                 top: { style: "thin" },
@@ -376,6 +376,7 @@ export function ReportGenerator() {
             v: "",
             t: "s",
             s: {
+              font: { size: 15 },
               fill: { fgColor: { rgb: "F2F2F2" } },
               border: {
                 top: { style: "thin" },
@@ -405,7 +406,7 @@ export function ReportGenerator() {
             v: company.name,
             t: "s",
             s: {
-              font: { bold: true, color: { rgb: textColor } },
+              font: { bold: true, color: { rgb: textColor }, size: 15 },
               fill: { fgColor: { rgb: companyColor } },
               alignment: { horizontal: "center" },
               border: {
@@ -423,7 +424,7 @@ export function ReportGenerator() {
               v: "",
               t: "s",
               s: {
-                font: { bold: true, color: { rgb: textColor } },
+                font: { bold: true, color: { rgb: textColor }, size: 15 },
                 fill: { fgColor: { rgb: companyColor } },
                 border: {
                   top: { style: "thin" },
@@ -441,7 +442,7 @@ export function ReportGenerator() {
               v: area.name,
               t: "s",
               s: {
-                font: { bold: true, color: { rgb: textColor } },
+                font: { bold: true, color: { rgb: textColor }, size: 15 },
                 fill: { fgColor: { rgb: companyColor } },
                 alignment: { horizontal: "center" },
                 border: {
@@ -465,7 +466,7 @@ export function ReportGenerator() {
             v: categoryName.toUpperCase(),
             t: "s",
             s: {
-              font: { bold: true },
+              font: { bold: true, size: 15 },
               fill: { fgColor: { rgb: "E6E6FA" } },
               border: {
                 top: { style: "thin" },
@@ -486,6 +487,7 @@ export function ReportGenerator() {
               v: "",
               t: "s",
               s: {
+                font: { size: 15 },
                 fill: { fgColor: { rgb: "E6E6FA" } },
                 border: {
                   top: { style: "thin" },
@@ -507,7 +509,7 @@ export function ReportGenerator() {
               v: product.name,
               t: "s",
               s: {
-                font: { bold: false },
+                font: { bold: false, size: 15 },
                 fill: { fgColor: { rgb: "FFFFFF" } },
                 alignment: { horizontal: "left" }, // Alineación a la izquierda
                 border: {
@@ -584,7 +586,7 @@ export function ReportGenerator() {
             v: `TOTAL ${categoryName.toUpperCase()}`,
             t: "s",
             s: {
-              font: { bold: true },
+              font: { bold: true, size: 15 },
               fill: { fgColor: { rgb: "F0F0F0" } },
               alignment: { horizontal: "left" }, // Alineación a la izquierda
               border: {
@@ -614,7 +616,7 @@ export function ReportGenerator() {
               v: total ? `${total}` : "0",
               t: "s",
               s: {
-                font: { bold: true },
+                font: { bold: true, size: 15 },
                 alignment: { horizontal: "left" }, // Alineación a la izquierda
                 fill: { fgColor: { rgb: "F0F0F0" } },
                 border: {
@@ -654,7 +656,7 @@ export function ReportGenerator() {
             v: "OBSERVACION",
             t: "s",
             s: {
-              font: { bold: true },
+              font: { bold: true, size: 15 },
               fill: { fgColor: { rgb: "FFFF00" } }, // Amarillo
               alignment: { horizontal: "left" }, // Alineación a la izquierda
               border: {
@@ -673,6 +675,7 @@ export function ReportGenerator() {
             v: observation,
             t: "s",
             s: {
+              font: { size: 15 },
               fill: { fgColor: { rgb: "FFFF99" } }, // Amarillo claro
               alignment: { horizontal: "left", wrapText: true },
               border: {
@@ -693,7 +696,7 @@ export function ReportGenerator() {
 
       // Definir anchos de columna
       const wscols = [
-        { wch: 25 }, // Nombre del producto/categoría
+        { wch: 40 }, // Nombre del producto/categoría - aumentado de 25 a 40
       ]
 
       // Agregar anchos para las columnas de áreas
@@ -707,13 +710,13 @@ export function ReportGenerator() {
         }
 
         companyAreas.forEach(() => {
-          wscols.push({ wch: 12 })
+          wscols.push({ wch: 20 }) // Aumentado de 12 a 20
         })
       })
 
       // Agregar anchos para las columnas de observaciones
       allObservations.forEach(() => {
-        wscols.push({ wch: 20 })
+        wscols.push({ wch: 30 }) // Aumentado de 20 a 30
       })
 
       ws["!cols"] = wscols
