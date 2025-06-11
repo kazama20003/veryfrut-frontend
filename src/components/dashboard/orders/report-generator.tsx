@@ -298,8 +298,7 @@ export function ReportGenerator() {
           bottom: { style: "thin" },
           right: { style: "thin" },
         },
-      };
-
+      }
 
       // Agregar encabezado con fecha
       excelData.push([
