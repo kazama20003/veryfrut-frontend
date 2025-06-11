@@ -291,7 +291,7 @@ export function ReportGenerator() {
 
       // Estilo base para todas las celdas
       const baseStyle = {
-        font: { name: "Calibri", sz: 15, bold: false },
+        font: { name: "Calibri", sz: 16, bold: false },
         border: {
           top: { style: "thin" },
           left: { style: "thin" },
