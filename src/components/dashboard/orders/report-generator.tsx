@@ -291,14 +291,15 @@ export function ReportGenerator() {
 
       // Estilo base para todas las celdas
       const baseStyle = {
-        font: { name: "Arial", sz: 15, bold: false },
+        font: { name: "Calibri", sz: 15, bold: false },
         border: {
           top: { style: "thin" },
           left: { style: "thin" },
           bottom: { style: "thin" },
           right: { style: "thin" },
         },
-      }
+      };
+
 
       // Agregar encabezado con fecha
       excelData.push([
