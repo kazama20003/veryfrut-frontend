@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -47,7 +47,7 @@ import {
   MessageSquare,
 } from "lucide-react"
 import Link from "next/link"
-import { format } from "date-fns"
+import { format, isSameDay, parseISO } from "date-fns"
 import { es } from "date-fns/locale"
 import { api } from "@/lib/axiosInstance"
 import type { OrderStatus } from "@/types/order"
@@ -111,14 +111,55 @@ function getAreaName(areaId?: number) {
   return area ? area.name : `Área #${areaId}`
 }
 
+// Función para generar el número de orden diario
+function generateDailyOrderNumber(order: Order, allOrders: Order[]): string {
+  if (!order.createdAt) return `#${order.id}`
+
+  try {
+    const orderDate = parseISO(order.createdAt)
+
+    // Filtrar órdenes del mismo día y ordenarlas por fecha de creación
+    const ordersFromSameDay = allOrders
+      .filter((o) => o.createdAt && isSameDay(parseISO(o.createdAt), orderDate))
+      .sort((a, b) => {
+        if (!a.createdAt || !b.createdAt) return 0
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      })
+
+    // Encontrar la posición de la orden actual en el día
+    const orderIndex = ordersFromSameDay.findIndex((o) => o.id === order.id)
+    const dailyNumber = orderIndex + 1
+
+    // Formatear el número con el día
+    const dayName = format(orderDate, "EEEE", { locale: es })
+    const dayNumber = format(orderDate, "dd/MM")
+
+    return `#${dailyNumber} (${dayName} ${dayNumber})`
+  } catch (error) {
+    console.error("Error generating daily order number:", error)
+    return `#${order.id}`
+  }
+}
+
 // Fix the customer reference in the OrderCard component
-function OrderCard({ order, onDelete }: { order: Order; onDelete: (id: number) => void }) {
+function OrderCard({
+  order,
+  onDelete,
+  dailyOrderNumber,
+}: {
+  order: Order
+  onDelete: (id: number) => void
+  dailyOrderNumber: string
+}) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Pedido #{order.id}</CardTitle>
+        <CardTitle className="flex items-center justify-between">
+          <span>Pedido {dailyOrderNumber}</span>
+          <span className="text-xs text-muted-foreground font-normal">ID: {order.id}</span>
+        </CardTitle>
       </CardHeader>
       <CardContent className="grid gap-4">
         <div className="flex justify-between">
@@ -132,7 +173,7 @@ function OrderCard({ order, onDelete }: { order: Order; onDelete: (id: number) =
         <div className="flex justify-between">
           <p className="text-sm font-medium">Fecha:</p>
           <p className="text-sm">
-            {order.createdAt ? format(new Date(order.createdAt), "dd MMM yyyy", { locale: es }) : "N/A"}
+            {order.createdAt ? format(new Date(order.createdAt), "dd MMM yyyy HH:mm", { locale: es }) : "N/A"}
           </p>
         </div>
         <div className="flex justify-between">
@@ -173,7 +214,8 @@ function OrderCard({ order, onDelete }: { order: Order; onDelete: (id: number) =
           <AlertDialogHeader>
             <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acción eliminará permanentemente el pedido #{order.id} y no se puede deshacer.
+              Esta acción eliminará permanentemente el pedido {dailyOrderNumber} (ID: {order.id}) y no se puede
+              deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -190,6 +232,7 @@ function OrderCard({ order, onDelete }: { order: Order; onDelete: (id: number) =
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
+  const [allOrders, setAllOrders] = useState<Order[]>([]) // Para calcular números diarios
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
@@ -212,6 +255,39 @@ export default function OrdersPage() {
       areasCache = areasData // Actualizar la caché global
     } catch (err) {
       console.error("Error al cargar áreas:", err)
+    }
+  }
+
+  // Función para obtener todas las órdenes (para calcular números diarios)
+  const fetchAllOrders = async () => {
+    try {
+      // Obtener todas las órdenes sin paginación para calcular números diarios
+      const allOrdersResponse = await api.get("/orders?limit=1000") // Ajustar según necesidades
+      const allOrdersData = allOrdersResponse.data
+      const ordersData = allOrdersData.data || allOrdersData || []
+
+      const ordersWithUsers = ordersData.map(
+        (order: {
+          id: number
+          userId: number
+          areaId?: number
+          totalAmount: number
+          status: OrderStatus
+          observation?: string
+          createdAt?: string
+          updatedAt?: string
+          orderItems: OrderItem[]
+          User?: User
+          customer?: User
+        }) => ({
+          ...order,
+          customer: order.User || order.customer || null,
+        }),
+      )
+
+      setAllOrders(ordersWithUsers)
+    } catch (err) {
+      console.error("Error al cargar todas las órdenes:", err)
     }
   }
 
@@ -261,8 +337,17 @@ export default function OrdersPage() {
 
   useEffect(() => {
     fetchOrders(currentPage, ordersPerPage)
+    fetchAllOrders() // Obtener todas las órdenes para calcular números diarios
     fetchAreas()
   }, [currentPage])
+
+  // Memoizar los números de orden diarios para evitar recálculos innecesarios
+  const ordersWithDailyNumbers = useMemo(() => {
+    return orders.map((order) => ({
+      ...order,
+      dailyOrderNumber: generateDailyOrderNumber(order, allOrders),
+    }))
+  }, [orders, allOrders])
 
   // Función para eliminar un pedido
   const handleDeleteOrder = async (id: number) => {
@@ -270,8 +355,13 @@ export default function OrdersPage() {
     try {
       await api.delete(`/orders/${id}`)
       setOrders(orders.filter((order) => order.id !== id))
+      setAllOrders(allOrders.filter((order) => order.id !== id)) // También actualizar allOrders
+
+      const deletedOrder = orders.find((order) => order.id === id)
+      const dailyNumber = deletedOrder ? generateDailyOrderNumber(deletedOrder, allOrders) : `#${id}`
+
       toast.success("Pedido eliminado", {
-        description: `El pedido #${id} ha sido eliminado correctamente.`,
+        description: `El pedido ${dailyNumber} ha sido eliminado correctamente.`,
       })
       setOrderToDelete(null)
       setIsDeleteDialogOpen(false)
@@ -293,7 +383,7 @@ export default function OrdersPage() {
 
   // Filtrar pedidos por búsqueda y estado
   // Since we're using server-side pagination, we work directly with the orders from the API
-  const displayOrders = orders
+  const displayOrders = ordersWithDailyNumbers
 
   const handleSearch = (searchValue: string) => {
     setSearchTerm(searchValue)
@@ -407,7 +497,14 @@ export default function OrdersPage() {
         {/* Vista móvil: Tarjetas */}
         <div className="md:hidden space-y-3">
           {displayOrders.length > 0 ? (
-            displayOrders.map((order) => <OrderCard key={order.id} order={order} onDelete={handleDeleteOrder} />)
+            displayOrders.map((order) => (
+              <OrderCard
+                key={order.id}
+                order={order}
+                onDelete={handleDeleteOrder}
+                dailyOrderNumber={order.dailyOrderNumber}
+              />
+            ))
           ) : (
             <div className="py-8 text-center">
               <p className="text-muted-foreground">No se encontraron pedidos</p>
@@ -425,9 +522,9 @@ export default function OrdersPage() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b">
-                    <th className="px-4 py-3 text-left text-sm font-medium">ID</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium">Número de Pedido</th>
                     <th className="px-4 py-3 text-left text-sm font-medium">Cliente</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium">Fecha</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium">Fecha y Hora</th>
                     <th className="px-4 py-3 text-left text-sm font-medium">Área</th>
                     <th className="px-4 py-3 text-left text-sm font-medium">Productos</th>
                     <th className="px-4 py-3 text-left text-sm font-medium">Info. Adicional</th>
@@ -438,7 +535,12 @@ export default function OrdersPage() {
                   {displayOrders.length > 0 ? (
                     displayOrders.map((order) => (
                       <tr key={order.id} className="border-b">
-                        <td className="px-4 py-3 text-sm">#{order.id}</td>
+                        <td className="px-4 py-3 text-sm">
+                          <div className="flex flex-col">
+                            <span className="font-medium">{order.dailyOrderNumber}</span>
+                            <span className="text-xs text-muted-foreground">ID: {order.id}</span>
+                          </div>
+                        </td>
                         <td className="px-4 py-3 text-sm">
                           <div>
                             <p className="font-medium">
@@ -452,7 +554,9 @@ export default function OrdersPage() {
                           </div>
                         </td>
                         <td className="px-4 py-3 text-sm">
-                          {order.createdAt ? format(new Date(order.createdAt), "dd MMM yyyy", { locale: es }) : "N/A"}
+                          {order.createdAt
+                            ? format(new Date(order.createdAt), "dd MMM yyyy HH:mm", { locale: es })
+                            : "N/A"}
                         </td>
                         <td className="px-4 py-3 text-sm">{order.areaId ? getAreaName(order.areaId) : "N/A"}</td>
                         <td className="px-4 py-3 text-sm">
@@ -598,7 +702,11 @@ export default function OrdersPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acción eliminará permanentemente el pedido #{orderToDelete} y no se puede deshacer.
+              Esta acción eliminará permanentemente el pedido{" "}
+              {orderToDelete && orders.find((o) => o.id === orderToDelete)
+                ? generateDailyOrderNumber(orders.find((o) => o.id === orderToDelete)!, allOrders)
+                : `#${orderToDelete}`}{" "}
+              y no se puede deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

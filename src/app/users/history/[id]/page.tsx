@@ -481,120 +481,137 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
       return
     }
 
-    // Create print-specific styles
+    // Create print-specific styles with proper page break handling
     const printStyles = `
-      <style>
-        @media print {
-          body * { visibility: hidden; }
-          .print-section, .print-section * { visibility: visible; }
-          .print-section { 
-            position: absolute; 
-            left: 0; 
-            top: 0; 
-            width: 100%; 
-            background: white;
-            padding: 20px;
-          }
-          .no-print { display: none !important; }
-          .print-header { 
-            text-align: center; 
-            margin-bottom: 30px; 
-            border-bottom: 2px solid #000;
-            padding-bottom: 20px;
-          }
-          .print-info { 
-            display: grid; 
-            grid-template-columns: 1fr 1fr; 
-            gap: 30px; 
-            margin-bottom: 30px; 
-          }
-          .print-table { 
-            width: 100%; 
-            border-collapse: collapse; 
-            margin-bottom: 20px;
-          }
-          .print-table th, .print-table td { 
-            border: 1px solid #000; 
-            padding: 8px; 
-            text-align: left; 
-          }
-          .print-table th { 
-            background-color: #f0f0f0; 
-            font-weight: bold; 
-          }
-          .print-total { 
-            text-align: right; 
-            font-size: 18px; 
-            font-weight: bold; 
-            margin-top: 20px; 
-          }
+    <style>
+      @media print {
+        body * { visibility: hidden; }
+        .print-section, .print-section * { visibility: visible; }
+        .print-section { 
+          position: absolute; 
+          left: 0; 
+          top: 0; 
+          width: 100%; 
+          background: white;
+          padding: 20px;
         }
-      </style>
-    `
+        .no-print { display: none !important; }
+        .print-header { 
+          text-align: center; 
+          margin-bottom: 30px; 
+          border-bottom: 2px solid #000;
+          padding-bottom: 20px;
+        }
+        .print-info { 
+          display: grid; 
+          grid-template-columns: 1fr 1fr; 
+          gap: 30px; 
+          margin-bottom: 30px; 
+        }
+        .print-table { 
+          width: 100%; 
+          border-collapse: collapse; 
+          margin-bottom: 20px;
+        }
+        .print-table th, .print-table td { 
+          border: 1px solid #000; 
+          padding: 8px; 
+          text-align: left; 
+        }
+        .print-table th { 
+          background-color: #f0f0f0; 
+          font-weight: bold; 
+        }
+        .print-table tbody tr {
+          page-break-inside: avoid;
+        }
+        .print-table thead {
+          display: table-header-group;
+        }
+        .print-total { 
+          text-align: right; 
+          font-size: 18px; 
+          font-weight: bold; 
+          margin-top: 20px; 
+        }
+        /* Ensure proper page breaks */
+        @page {
+          margin: 1in;
+          size: A4;
+        }
+        .page-break {
+          page-break-before: always;
+        }
+        .avoid-break {
+          page-break-inside: avoid;
+        }
+      }
+    </style>
+  `
 
-    // Create HTML content for printing with null safety
+    // Create HTML content for printing with null safety and proper page handling
     const printContent = `
-      ${printStyles}
-      <div class="print-section">
-        <div class="print-header">
-          <h1>PEDIDO #${order.id}</h1>
-          <p>Estado: ${order.status}</p>
-          <p>Fecha: ${order.createdAt ? format(new Date(order.createdAt), "dd 'de' MMMM 'de' yyyy", { locale: es }) : "Fecha no disponible"}</p>
-        </div>
-        
-        <div class="print-info">
-          <div>
-            <h3>INFORMACIÓN DEL ÁREA</h3>
-            <p><strong>Área:</strong> ${order.area ? order.area.name : `Área #${order.areaId}`}</p>
-          </div>
-          
-          <div>
-            <h3>DETALLES DEL PEDIDO</h3>
-            ${observation ? `<p><strong>Observaciones:</strong> ${observation}</p>` : ""}
-          </div>
-        </div>
-        
-        <h3>PRODUCTOS</h3>
-        <table class="print-table">
-          <thead>
-            <tr>
-              <th>Producto</th>
-              <th>Cantidad</th>
-              <th>Unidad</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${cart
-              .map(
-                (item) => `
-              <tr>
-                <td>${item.name}</td>
-                <td>${formatQuantity(item.quantity)}</td>
-                <td>${getUnitName(item)}</td>
-              </tr>
-            `,
-              )
-              .join("")}
-          </tbody>
-        </table>
+    ${printStyles}
+    <div class="print-section">
+      <div class="print-header avoid-break">
+        <h1>PEDIDO #${order.id}</h1>
+        <p>Estado: ${order.status}</p>
+        <p>Fecha: ${order.createdAt ? format(new Date(order.createdAt), "dd 'de' MMMM 'de' yyyy", { locale: es }) : "Fecha no disponible"}</p>
       </div>
-    `
+      
+      <div class="print-info avoid-break">
+        <div>
+          <h3>INFORMACIÓN DEL ÁREA</h3>
+          <p><strong>Área:</strong> ${order.area ? order.area.name : `Área #${order.areaId}`}</p>
+        </div>
+        
+        <div>
+          <h3>DETALLES DEL PEDIDO</h3>
+          ${observation ? `<p><strong>Observaciones:</strong> ${observation}</p>` : ""}
+        </div>
+      </div>
+      
+      <h3>PRODUCTOS</h3>
+      <table class="print-table">
+        <thead>
+          <tr>
+            <th>Producto</th>
+            <th>Cantidad</th>
+            <th>Unidad</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${cart
+            .map(
+              (item) => `
+            <tr>
+              <td>${item.name}</td>
+              <td>${formatQuantity(item.quantity)}</td>
+              <td>${getUnitName(item)}</td>
+            </tr>
+          `,
+            )
+            .join("")}
+        </tbody>
+      </table>
+    </div>
+  `
 
     // Create print window
     const printWindow = window.open("", "_blank")
     if (printWindow) {
       printWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Pedido #${order.id}</title>
-            <meta charset="utf-8">
-          </head>
-          <body>
-            ${printContent}
-          </body>
-        </html>
-      `)
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Pedido #${order.id}</title>
+          <meta charset="utf-8">
+        </head>
+        <body>
+          ${printContent}
+        </body>
+      </html>
+    `)
       printWindow.document.close()
 
       // Wait for load and then print
@@ -623,117 +640,168 @@ export default function EditOrderPage({ params }: { params: Promise<{ id: string
     try {
       // Create new PDF document
       const doc = new jsPDF()
+      const pageHeight = doc.internal.pageSize.height
+      const pageWidth = doc.internal.pageSize.width
+      const margin = 20
+      const usableWidth = pageWidth - 2 * margin
 
       // Configure font
       doc.setFont("helvetica")
 
+      let yPos = margin
+
       // Title
       doc.setFontSize(20)
       doc.setFont("helvetica", "bold")
-      doc.text(`PEDIDO #${order.id}`, 105, 20, { align: "center" })
+      doc.text(`PEDIDO #${order.id}`, pageWidth / 2, yPos, { align: "center" })
+      yPos += 20
 
       // Basic information
       doc.setFontSize(12)
       doc.setFont("helvetica", "normal")
 
-      doc.text(`Estado: ${order.status}`, 20, 35)
+      doc.text(`Estado: ${order.status}`, margin, yPos)
+      yPos += 10
 
       const dateText = order.createdAt
         ? format(new Date(order.createdAt), "dd 'de' MMMM 'de' yyyy", { locale: es })
         : "Fecha no disponible"
-      doc.text(`Fecha: ${dateText}`, 20, 45)
+      doc.text(`Fecha: ${dateText}`, margin, yPos)
+      yPos += 20
 
       // Area information
       doc.setFont("helvetica", "bold")
-      doc.text("INFORMACIÓN DEL ÁREA", 20, 65)
+      doc.text("INFORMACIÓN DEL ÁREA", margin, yPos)
       doc.setFont("helvetica", "normal")
+      yPos += 10
 
-      let yPos = 75
       const areaName = order.area ? order.area.name : `Área #${order.areaId}`
-      doc.text(`Área: ${areaName}`, 20, yPos)
+      doc.text(`Área: ${areaName}`, margin, yPos)
       yPos += 15
 
       // Observations if they exist
       if (observation) {
+        // Check if we need a new page
+        if (yPos + 30 > pageHeight - margin) {
+          doc.addPage()
+          yPos = margin
+        }
+
         doc.setFont("helvetica", "bold")
-        doc.text("OBSERVACIONES:", 20, yPos)
+        doc.text("OBSERVACIONES:", margin, yPos)
         doc.setFont("helvetica", "normal")
         yPos += 10
 
         // Split long text into multiple lines
-        const splitText = doc.splitTextToSize(observation, 170)
-        doc.text(splitText, 20, yPos)
-        yPos += splitText.length * 7 + 10
+        const splitText = doc.splitTextToSize(observation, usableWidth)
+        const textHeight = splitText.length * 7
+
+        // Check if observation fits on current page
+        if (yPos + textHeight > pageHeight - margin) {
+          doc.addPage()
+          yPos = margin
+        }
+
+        doc.text(splitText, margin, yPos)
+        yPos += textHeight + 10
       }
 
       // Products section
+      // Check if we need a new page for the products section
+      if (yPos + 40 > pageHeight - margin) {
+        doc.addPage()
+        yPos = margin
+      }
+
       doc.setFont("helvetica", "bold")
-      doc.text("PRODUCTOS", 20, yPos)
-      yPos += 10
+      doc.text("PRODUCTOS", margin, yPos)
+      yPos += 15
 
-      // Create table manually
-      const tableStartY = yPos
-      const rowHeight = 10
+      // Table setup
+      const rowHeight = 12
+      const headerHeight = 15
+      const colWidths = [100, 30, 30] // Product, Quantity, Unit
+      const colPositions = [margin, margin + colWidths[0], margin + colWidths[0] + colWidths[1]]
 
-      // Table header
-      doc.setFont("helvetica", "bold")
-      doc.setFillColor(240, 240, 240)
-      doc.rect(20, tableStartY, 160, rowHeight, "F")
+      // Function to draw table header
+      const drawTableHeader = (startY: number) => {
+        // Header background
+        doc.setFillColor(240, 240, 240)
+        doc.rect(margin, startY, usableWidth, headerHeight, "F")
 
-      // Header borders
-      doc.setDrawColor(0, 0, 0)
-      doc.setLineWidth(0.5)
-      doc.rect(20, tableStartY, 160, rowHeight)
+        // Header borders
+        doc.setDrawColor(0, 0, 0)
+        doc.setLineWidth(0.5)
+        doc.rect(margin, startY, usableWidth, headerHeight)
 
-      // Vertical lines for header
-      doc.line(120, tableStartY, 120, tableStartY + rowHeight)
-      doc.line(150, tableStartY, 150, tableStartY + rowHeight)
+        // Vertical lines for header
+        doc.line(colPositions[1], startY, colPositions[1], startY + headerHeight)
+        doc.line(colPositions[2], startY, colPositions[2], startY + headerHeight)
 
-      // Header text
-      doc.text("Producto", 22, tableStartY + 7)
-      doc.text("Cantidad", 122, tableStartY + 7)
-      doc.text("Unidad", 152, tableStartY + 7)
+        // Header text
+        doc.setFont("helvetica", "bold")
+        doc.text("Producto", colPositions[0] + 2, startY + 10)
+        doc.text("Cantidad", colPositions[1] + 2, startY + 10)
+        doc.text("Unidad", colPositions[2] + 2, startY + 10)
+
+        return startY + headerHeight
+      }
+
+      // Draw initial table header
+      yPos = drawTableHeader(yPos)
 
       // Table rows
       doc.setFont("helvetica", "normal")
-      let currentY = tableStartY + rowHeight
 
       cart.forEach((item, index) => {
+        // Check if we need a new page
+        if (yPos + rowHeight > pageHeight - margin) {
+          doc.addPage()
+          yPos = margin
+          // Redraw header on new page
+          yPos = drawTableHeader(yPos)
+        }
+
         // Row background (alternating)
         if (index % 2 === 1) {
           doc.setFillColor(250, 250, 250)
-          doc.rect(20, currentY, 160, rowHeight, "F")
+          doc.rect(margin, yPos, usableWidth, rowHeight, "F")
         }
 
         // Row borders
         doc.setDrawColor(0, 0, 0)
-        doc.rect(20, currentY, 160, rowHeight)
+        doc.rect(margin, yPos, usableWidth, rowHeight)
 
         // Vertical lines
-        doc.line(120, currentY, 120, currentY + rowHeight)
-        doc.line(150, currentY, 150, currentY + rowHeight)
+        doc.line(colPositions[1], yPos, colPositions[1], yPos + rowHeight)
+        doc.line(colPositions[2], yPos, colPositions[2], yPos + rowHeight)
 
         // Row data
         const productName = item.name
         const quantity = formatQuantity(item.quantity)
         const unit = getUnitName(item)
 
-        // Truncate long product names
-        const maxProductNameLength = 35
+        // Truncate long product names to fit in column
+        const maxProductNameLength = 40
         const truncatedProductName =
           productName.length > maxProductNameLength
             ? productName.substring(0, maxProductNameLength) + "..."
             : productName
 
-        doc.text(truncatedProductName, 22, currentY + 7)
-        doc.text(quantity, 122, currentY + 7)
-        doc.text(unit, 152, currentY + 7)
+        doc.text(truncatedProductName, colPositions[0] + 2, yPos + 8)
+        doc.text(quantity, colPositions[1] + 2, yPos + 8)
+        doc.text(unit, colPositions[2] + 2, yPos + 8)
 
-        currentY += rowHeight
+        yPos += rowHeight
       })
 
       // Final border for table
-      doc.rect(20, tableStartY, 160, currentY - tableStartY)
+      doc.rect(
+        margin,
+        yPos - cart.length * rowHeight - headerHeight,
+        usableWidth,
+        cart.length * rowHeight + headerHeight,
+      )
 
       // Download the PDF
       doc.save(`pedido-${order.id}.pdf`)
