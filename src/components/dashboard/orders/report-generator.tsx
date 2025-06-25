@@ -25,7 +25,7 @@ interface Area {
   id: number
   name: string
   companyId?: number
-  color?: string
+  color: string // Now required hexadecimal color
 }
 
 interface Company {
@@ -173,25 +173,17 @@ export function ReportGenerator() {
         })
         setCategories(categoriesMap)
 
-        // Procesar compañías y asignar colores
-        const processedCompanies = Array.isArray(companiesData)
-          ? companiesData.map((company: Company, index: number) => ({
-              ...company,
-              color: getCompanyColor(company.id, company.name, index),
-            }))
-          : [{ ...companiesData, color: getCompanyColor(companiesData.id, companiesData.name, 0) }]
+        // Procesar compañías - ya no necesitamos asignar colores aquí
+        const processedCompanies = Array.isArray(companiesData) ? companiesData : [companiesData]
 
         setCompanies(processedCompanies)
 
-        // Extraer todas las áreas de las compañías
+        // Extraer todas las áreas de las compañías - ahora usan el color hexadecimal del área
         const allAreas: Area[] = []
         processedCompanies.forEach((company: Company) => {
           if (company.areas && Array.isArray(company.areas)) {
-            const areasWithColors = company.areas.map((area) => ({
-              ...area,
-              color: company.color,
-            }))
-            allAreas.push(...areasWithColors)
+            // Las áreas ya vienen con su color hexadecimal
+            allAreas.push(...company.areas)
           }
         })
         setAreas(allAreas)
@@ -220,53 +212,49 @@ export function ReportGenerator() {
     loadInitialData()
   }, [])
 
-  // Función para asignar colores a las compañías
-  const getCompanyColor = (id: number, name: string, index: number): string => {
-    const colorMap: { [key: string]: string } = {
-      PACHAMAMA: "bg-red-400",
-      MONTONERO: "bg-red-800 text-white",
-      EAVENTURA: "bg-yellow-400",
-      PORONGOCHE: "bg-red-600 text-white",
-      CALLETANO: "bg-yellow-600",
-      MERCADERES: "bg-sky-200",
-      ADRIANA: "bg-yellow-300", // Mantener para ADRIANA si existe
-      "AQP C": "bg-green-600 text-white",
-      ECENTER: "bg-purple-700 text-white",
-      SAGA: "bg-blue-600 text-white",
-      BON: "bg-cyan-400",
-    }
+  // Función para convertir color hexadecimal a RGB para Excel
+  const hexToRgb = (hex: string): string => {
+    // Remover el # si está presente
+    const cleanHex = hex.replace("#", "")
 
-    // Intentar encontrar el color por nombre
-    const upperName = name.toUpperCase()
-    for (const key in colorMap) {
-      if (upperName.includes(key) || key.includes(upperName)) {
-        return colorMap[key]
+    // Si es un color de 3 caracteres, expandirlo a 6
+    const fullHex =
+      cleanHex.length === 3
+        ? cleanHex
+            .split("")
+            .map((char) => char + char)
+            .join("")
+        : cleanHex
+
+    return fullHex.toUpperCase()
+  }
+
+  // Función para determinar si el texto debe ser blanco o negro basado en el color de fondo
+  const getTextColor = (): string => {
+    // Siempre usar texto negro
+    return "000000"
+  }
+
+  // Función para obtener observaciones por área
+  const getObservationsByArea = () => {
+    const observationsByArea: { [areaId: number]: string[] } = {}
+
+    orders.forEach((order) => {
+      if (order.observation && order.observation.trim()) {
+        const areaId = order.areaId || order.area?.id
+        if (areaId) {
+          if (!observationsByArea[areaId]) {
+            observationsByArea[areaId] = []
+          }
+          // Evitar duplicados en la misma área
+          if (!observationsByArea[areaId].includes(order.observation)) {
+            observationsByArea[areaId].push(order.observation)
+          }
+        }
       }
-    }
+    })
 
-    // Si no se encuentra, asignar color por índice (evitando amarillos)
-    const defaultColors = [
-      "bg-red-400",
-      "bg-red-800 text-white",
-      "bg-red-600 text-white",
-      "bg-sky-200",
-      "bg-green-600 text-white",
-      "bg-purple-700 text-white",
-      "bg-blue-600 text-white",
-      "bg-cyan-400",
-      "bg-green-200",
-      "bg-pink-200",
-      "bg-indigo-200",
-      "bg-orange-200",
-      "bg-slate-200",
-      "bg-gray-200",
-      "bg-emerald-200",
-      "bg-teal-200",
-      "bg-violet-200",
-      "bg-rose-200",
-    ]
-
-    return defaultColors[index % defaultColors.length]
+    return observationsByArea
   }
 
   // Generar y descargar Excel
@@ -397,8 +385,9 @@ export function ReportGenerator() {
             return // Saltar esta compañía si no tiene áreas con pedidos
           }
 
-          const companyColor = getExcelColorFromTailwind(company.color)
-          const textColor = company.color && company.color.includes("text-white") ? "FFFFFF" : "000000"
+          // Usar el color de la primera área de la compañía para la compañía
+          const firstAreaColor = companyAreas[0]?.color || "#CCCCCC"
+          const companyColor = hexToRgb(firstAreaColor)
 
           // Agregar la compañía
           companyRow.push({
@@ -406,7 +395,7 @@ export function ReportGenerator() {
             t: "s",
             s: {
               ...baseStyle,
-              font: { ...baseStyle.font, bold: true, color: { rgb: textColor } },
+              font: { ...baseStyle.font, bold: true, color: { rgb: "000000" } }, // Forzar negro
               fill: { fgColor: { rgb: companyColor } },
               alignment: { horizontal: "center" },
             },
@@ -419,21 +408,23 @@ export function ReportGenerator() {
               t: "s",
               s: {
                 ...baseStyle,
-                font: { ...baseStyle.font, bold: true, color: { rgb: textColor } },
+                font: { ...baseStyle.font, bold: true, color: { rgb: "000000" } }, // Forzar negro
                 fill: { fgColor: { rgb: companyColor } },
               },
             })
           }
 
-          // Agregar las áreas
+          // Agregar las áreas con sus colores específicos
           companyAreas.forEach((area) => {
+            const areaColor = hexToRgb(area.color)
+
             areaRow.push({
               v: area.name,
               t: "s",
               s: {
                 ...baseStyle,
-                font: { ...baseStyle.font, bold: true, color: { rgb: textColor } },
-                fill: { fgColor: { rgb: companyColor } },
+                font: { ...baseStyle.font, bold: true, color: { rgb: "000000" } }, // Forzar negro
+                fill: { fgColor: { rgb: areaColor } },
                 alignment: { horizontal: "center" },
               },
             })
@@ -577,17 +568,11 @@ export function ReportGenerator() {
         excelData.push([])
       })
 
-      // Agregar sección de observaciones al final (una sola vez)
-      const allObservations: string[] = []
-      orders.forEach((order) => {
-        if (order.observation && order.observation.trim()) {
-          if (!allObservations.includes(order.observation)) {
-            allObservations.push(order.observation)
-          }
-        }
-      })
+      // Agregar sección de observaciones al final (una sola vez) - MEJORADA
+      const observationsByArea = getObservationsByArea()
+      const hasObservations = Object.keys(observationsByArea).length > 0
 
-      if (allObservations.length > 0) {
+      if (hasObservations) {
         // Fila vacía para separación
         excelData.push([])
 
@@ -605,16 +590,24 @@ export function ReportGenerator() {
           },
         ]
 
-        // Agregar cada observación como una columna
-        allObservations.forEach((observation) => {
-          observationRow.push({
-            v: observation,
-            t: "s",
-            s: {
-              ...baseStyle,
-              fill: { fgColor: { rgb: "FFFF99" } }, // Amarillo claro
-              alignment: { horizontal: "left", wrapText: true },
-            },
+        // Agregar observaciones por área específica
+        companiesWithOrders.forEach((company) => {
+          const companyAreas =
+            getAreasByCompany()[company.id]?.filter((area: Area) => areasWithOrders.includes(area.id)) || []
+
+          companyAreas.forEach((area) => {
+            const areaObservations = observationsByArea[area.id] || []
+            const observationText = areaObservations.join("; ") // Unir múltiples observaciones con ;
+
+            observationRow.push({
+              v: observationText,
+              t: "s",
+              s: {
+                ...baseStyle,
+                fill: { fgColor: { rgb: "FFFF99" } }, // Amarillo claro
+                alignment: { horizontal: "left", wrapText: true },
+              },
+            })
           })
         })
 
@@ -642,11 +635,6 @@ export function ReportGenerator() {
         companyAreas.forEach(() => {
           wscols.push({ wch: 20 }) // Aumentado de 12 a 20
         })
-      })
-
-      // Agregar anchos para las columnas de observaciones
-      allObservations.forEach(() => {
-        wscols.push({ wch: 30 }) // Aumentado de 20 a 30
       })
 
       ws["!cols"] = wscols
@@ -730,46 +718,6 @@ export function ReportGenerator() {
         description: "No se pudo generar el archivo Excel.",
       })
     }
-  }
-
-  // Función auxiliar para convertir colores de Tailwind a colores de Excel
-  const getExcelColorFromTailwind = (tailwindClass: string | undefined): string => {
-    // Mapeo de clases Tailwind a colores hexadecimales para Excel
-    const colorMap: { [key: string]: string } = {
-      "bg-red-400": "FF5050", // PACHAMAMA
-      "bg-red-800": "963634", // MONTONERO
-      "bg-yellow-400": "FFC000", // EAVENTURA
-      "bg-red-600": "FF0000", // PORONGOCHE
-      "bg-yellow-600": "948A54", // CALLETANO
-      "bg-sky-200": "B7DEE8", // MERCADERES
-      "bg-yellow-300": "FFFF00", // ADRIANA (si existe)
-      "bg-green-600": "00CC00", // AQP C
-      "bg-purple-700": "7030A0", // ECENTER
-      "bg-blue-600": "0070C0", // SAGA
-      "bg-cyan-400": "00FFFF", // BON
-      "bg-green-200": "90EE90",
-      "bg-pink-200": "FFC0CB",
-      "bg-indigo-200": "9370DB",
-      "bg-orange-200": "FFA500",
-      "bg-slate-200": "CBD5E1",
-      "bg-gray-200": "E5E7EB",
-      "bg-emerald-200": "A7F3D0",
-      "bg-teal-200": "99F6E4",
-      "bg-violet-200": "DDD6FE",
-      "bg-rose-200": "FECDD3",
-    }
-
-    // Buscar la clase en el mapa
-    if (tailwindClass) {
-      for (const key in colorMap) {
-        if (tailwindClass.includes(key)) {
-          return colorMap[key]
-        }
-      }
-    }
-
-    // Color por defecto si no se encuentra
-    return "FFFFFF" // Blanco
   }
 
   // Simular descarga de PDF
@@ -1001,21 +949,21 @@ export function ReportGenerator() {
 
   // Función para renderizar la tabla de observaciones
   const renderObservationsTable = () => {
-    // Obtener todas las observaciones únicas
-    const allObservations: string[] = []
+    const observationsByArea = getObservationsByArea()
+    const hasObservations = Object.keys(observationsByArea).length > 0
 
-    orders.forEach((order) => {
-      if (order.observation && order.observation.trim()) {
-        // Evitar duplicados
-        if (!allObservations.includes(order.observation)) {
-          allObservations.push(order.observation)
-        }
-      }
-    })
-
-    if (allObservations.length === 0) {
+    if (!hasObservations) {
       return null
     }
+
+    // Obtener áreas por compañía
+    const areasByCompany = getAreasByCompany()
+
+    // Filtrar compañías que tienen áreas con pedidos
+    const companiesWithOrders = companies.filter((company) => {
+      const companyAreas = areasByCompany[company.id] || []
+      return companyAreas.some((area) => areasWithOrders.includes(area.id))
+    })
 
     return (
       <div className="mb-8">
@@ -1024,25 +972,92 @@ export function ReportGenerator() {
           <div className="max-h-[200px] overflow-auto">
             <table className="w-full text-sm border-collapse">
               <thead className="sticky top-0 z-10">
-                <tr>
-                  <th className="px-4 py-2 text-left border font-medium bg-yellow-200 sticky left-0 z-10">
+                {/* Fila de compañías */}
+                <tr className="bg-white">
+                  <th className="px-4 py-2 text-left border bg-yellow-200 sticky left-0 z-20" rowSpan={2}>
                     OBSERVACION
                   </th>
-                  {allObservations.map((_, index) => (
-                    <th key={index} className="px-4 py-2 text-center border bg-yellow-100 min-w-[120px]">
-                      {index + 1}
-                    </th>
-                  ))}
+                  {companiesWithOrders.map((company) => {
+                    // Filtrar solo áreas con pedidos
+                    const companyAreas =
+                      areasByCompany[company.id]?.filter((area) => areasWithOrders.includes(area.id)) || []
+
+                    if (companyAreas.length === 0) {
+                      return null // No mostrar esta compañía si no tiene áreas con pedidos
+                    }
+
+                    // Usar el color de la primera área para la compañía
+                    const firstAreaColor = companyAreas[0]?.color || "#CCCCCC"
+                    const textColor = getTextColor()
+
+                    return (
+                      <th
+                        key={company.id}
+                        className="px-4 py-2 text-center border uppercase"
+                        style={{
+                          backgroundColor: firstAreaColor,
+                          color: textColor,
+                        }}
+                        colSpan={companyAreas.length}
+                      >
+                        {company.name}
+                      </th>
+                    )
+                  })}
+                </tr>
+                {/* Fila de áreas */}
+                <tr className="bg-white">
+                  {companiesWithOrders.map((company) => {
+                    // Filtrar solo áreas con pedidos
+                    const companyAreas =
+                      areasByCompany[company.id]?.filter((area) => areasWithOrders.includes(area.id)) || []
+
+                    if (companyAreas.length === 0) {
+                      return null // No mostrar esta compañía si no tiene áreas con pedidos
+                    }
+
+                    return companyAreas.map((area: Area) => {
+                      const textColor = getTextColor()
+
+                      return (
+                        <th
+                          key={area.id}
+                          className="px-4 py-2 text-center border"
+                          style={{
+                            backgroundColor: area.color,
+                            color: textColor,
+                          }}
+                        >
+                          {area.name}
+                        </th>
+                      )
+                    })
+                  })}
                 </tr>
               </thead>
               <tbody>
                 <tr>
                   <td className="px-4 py-2 border font-medium bg-yellow-50 sticky left-0 z-10">Detalle</td>
-                  {allObservations.map((observation, index) => (
-                    <td key={index} className="px-4 py-2 border bg-yellow-50 min-w-[120px] text-left">
-                      {observation}
-                    </td>
-                  ))}
+                  {companiesWithOrders.map((company) => {
+                    // Filtrar solo áreas con pedidos
+                    const companyAreas =
+                      areasByCompany[company.id]?.filter((area) => areasWithOrders.includes(area.id)) || []
+
+                    if (companyAreas.length === 0) {
+                      return null // No mostrar esta compañía si no tiene áreas con pedidos
+                    }
+
+                    return companyAreas.map((area: Area) => {
+                      const areaObservations = observationsByArea[area.id] || []
+                      const observationText = areaObservations.join("; ") // Unir múltiples observaciones con ;
+
+                      return (
+                        <td key={area.id} className="px-4 py-2 border bg-yellow-50 min-w-[120px] text-left">
+                          {observationText}
+                        </td>
+                      )
+                    })
+                  })}
                 </tr>
               </tbody>
             </table>
@@ -1272,7 +1287,7 @@ export function ReportGenerator() {
     }
   }
 
-  // Modificar la vista previa para mostrar tablas por categoría
+  // Modificar la vista previa para mostrar tablas por categoría usando colores hexadecimales
   const renderCategoryTables = () => {
     // Obtener áreas por compañía
     const areasByCompany = getAreasByCompany()
@@ -1355,10 +1370,18 @@ export function ReportGenerator() {
                         return null // No mostrar esta compañía si no tiene áreas con pedidos
                       }
 
+                      // Usar el color de la primera área para la compañía
+                      const firstAreaColor = companyAreas[0]?.color || "#CCCCCC"
+                      const textColor = getTextColor()
+
                       return (
                         <th
                           key={company.id}
-                          className={`px-4 py-2 text-center border uppercase ${company.color || ""}`}
+                          className="px-4 py-2 text-center border uppercase"
+                          style={{
+                            backgroundColor: firstAreaColor,
+                            color: textColor,
+                          }}
                           colSpan={companyAreas.length}
                         >
                           {company.name}
@@ -1377,11 +1400,22 @@ export function ReportGenerator() {
                         return null // No mostrar esta compañía si no tiene áreas con pedidos
                       }
 
-                      return companyAreas.map((area: Area) => (
-                        <th key={area.id} className={`px-4 py-2 text-center border ${company.color || ""}`}>
-                          {area.name}
-                        </th>
-                      ))
+                      return companyAreas.map((area: Area) => {
+                        const textColor = getTextColor()
+
+                        return (
+                          <th
+                            key={area.id}
+                            className="px-4 py-2 text-center border"
+                            style={{
+                              backgroundColor: area.color,
+                              color: textColor,
+                            }}
+                          >
+                            {area.name}
+                          </th>
+                        )
+                      })
                     })}
                   </tr>
                 </thead>
@@ -1615,10 +1649,22 @@ export function ReportGenerator() {
                       return null // No mostrar esta compañía si no tiene áreas con pedidos
                     }
 
+                    // Usar el color de la primera área para mostrar la compañía
+                    const firstAreaColor = companyAreas[0]?.color || "#CCCCCC"
+                    const textColor = getTextColor()
+
                     return (
                       <div key={company.id} className="text-xs">
-                        <span className={`inline-block px-2 py-1 rounded ${company.color || ""}`}>{company.name}</span>:
-                        <span className="ml-1">{companyAreas.map((area) => area.name).join(", ")}</span>
+                        <span
+                          className="inline-block px-2 py-1 rounded"
+                          style={{
+                            backgroundColor: firstAreaColor,
+                            color: textColor,
+                          }}
+                        >
+                          {company.name}
+                        </span>
+                        :<span className="ml-1">{companyAreas.map((area) => area.name).join(", ")}</span>
                       </div>
                     )
                   })}
