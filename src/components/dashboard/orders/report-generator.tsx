@@ -1,4 +1,5 @@
 "use client"
+
 import type React from "react"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
@@ -243,7 +244,7 @@ export function ReportGenerator() {
     return observationsByArea
   }
 
-  // Generar y descargar Excel
+  // Generar y descargar Excel - CORREGIDO para replicar exactamente el preview
   const downloadExcel = async () => {
     try {
       // Verificar si hay datos para generar el Excel
@@ -265,7 +266,7 @@ export function ReportGenerator() {
 
       // Estilo base para todas las celdas
       const baseStyle = {
-        font: { name: "Calibri", sz: 16, bold: false },
+        font: { name: "Calibri", sz: 11, bold: false },
         border: {
           top: { style: "thin" },
           left: { style: "thin" },
@@ -274,33 +275,16 @@ export function ReportGenerator() {
         },
       }
 
-      // Agregar encabezado con fecha
-      excelData.push([
-        {
-          v: `fecha: ${reportDate}`,
-          t: "s",
-          s: {
-            ...baseStyle,
-            font: { ...baseStyle.font, bold: true },
-            fill: { fgColor: { rgb: "E2EFDA" } },
-          },
-        },
-      ])
-
-      // Fila vacía para separación
-      excelData.push([])
-
-      // Obtener productos agrupados por categoría
+      // Obtener productos agrupados por categoría (igual que el preview)
       const productsByCategory = getProductsForReport()
 
-      // Filtrar compañías que tienen áreas con pedidos
+      // Filtrar compañías que tienen áreas con pedidos (igual que el preview)
       const companiesWithOrders = companies.filter((company) => {
         const companyAreas = getAreasByCompany()[company.id] || []
         return companyAreas.some((area: Area) => areasWithOrders.includes(area.id))
       })
 
-      // Procesar cada categoría por separado
-      // MANTENER EL ORDEN ESPECÍFICO
+      // MANTENER EL ORDEN ESPECÍFICO (igual que el preview)
       const categoryOrder = [1, 2, 5, 3, 4]
 
       // Crear array ordenado de categorías que existen
@@ -316,11 +300,12 @@ export function ReportGenerator() {
         }
       })
 
+      // Procesar cada categoría (replicando exactamente el preview)
       orderedCategoryEntries.forEach(([categoryIdStr, categoryProducts]) => {
         const categoryId = Number.parseInt(categoryIdStr)
         const categoryName = categories[categoryId]?.name || `Categoría ${categoryId}`
 
-        // Filtrar solo productos con pedidos
+        // Filtrar solo productos con pedidos (igual que el preview)
         const productsWithOrders = categoryProducts
           .filter((product: Product) => {
             // Verificar si hay algún pedido para este producto en cualquier área
@@ -336,10 +321,35 @@ export function ReportGenerator() {
         // Si no hay productos con pedidos en esta categoría, omitir
         if (productsWithOrders.length === 0) return
 
-        // Preparar la fila de encabezados de compañías para esta categoría
+        // Agregar fila de fecha (igual que el preview)
+        const dateRow: StyledCell[] = [
+          {
+            v: `fecha: ${reportDate}`,
+            t: "s",
+            s: {
+              ...baseStyle,
+              font: { ...baseStyle.font, bold: true },
+              fill: { fgColor: { rgb: "FFFFFF" } },
+            },
+          },
+        ]
+        // Rellenar el resto de columnas para la fecha
+        companiesWithOrders.forEach(() => {
+          dateRow.push({
+            v: "",
+            t: "s",
+            s: {
+              ...baseStyle,
+              fill: { fgColor: { rgb: "FFFFFF" } },
+            },
+          })
+        })
+        excelData.push(dateRow)
+
+        // Preparar la fila de encabezados de compañías (igual que el preview)
         const companyRow: StyledCell[] = [
           {
-            v: "PRODUCTOS",
+            v: categoryName.toUpperCase(),
             t: "s",
             s: {
               ...baseStyle,
@@ -349,7 +359,7 @@ export function ReportGenerator() {
           },
         ]
 
-        // Agregar compañías a la fila de encabezado
+        // Agregar compañías a la fila de encabezado (igual que el preview)
         companiesWithOrders.forEach((company) => {
           // Filtrar solo áreas con pedidos para verificar si la empresa tiene pedidos
           const companyAreas =
@@ -363,7 +373,7 @@ export function ReportGenerator() {
 
           // Agregar la compañía
           companyRow.push({
-            v: company.name,
+            v: company.name.toUpperCase(),
             t: "s",
             s: {
               ...baseStyle,
@@ -374,41 +384,9 @@ export function ReportGenerator() {
           })
         })
 
-        // Agregar filas de encabezado para esta categoría
         excelData.push(companyRow)
 
-        // Agregar encabezado de categoría
-        const categoryHeaderRow: StyledCell[] = [
-          {
-            v: categoryName.toUpperCase(),
-            t: "s",
-            s: {
-              ...baseStyle,
-              font: { ...baseStyle.font, bold: true },
-              fill: { fgColor: { rgb: "E6E6FA" } },
-            },
-          },
-        ]
-
-        // Agregar celdas vacías para el resto de columnas
-        companiesWithOrders.forEach((company) => {
-          const companyAreas =
-            getAreasByCompany()[company.id]?.filter((area: Area) => areasWithOrders.includes(area.id)) || []
-          if (companyAreas.length > 0) {
-            categoryHeaderRow.push({
-              v: "",
-              t: "s",
-              s: {
-                ...baseStyle,
-                fill: { fgColor: { rgb: "E6E6FA" } },
-              },
-            })
-          }
-        })
-
-        excelData.push(categoryHeaderRow)
-
-        // Agregar productos de esta categoría
+        // Agregar productos de esta categoría (igual que el preview)
         productsWithOrders.forEach((product: Product) => {
           const productRow: StyledCell[] = [
             {
@@ -422,7 +400,7 @@ export function ReportGenerator() {
             },
           ]
 
-          // Agregar cantidades por empresa (combinando todas las áreas)
+          // Agregar cantidades por empresa (igual que el preview)
           companiesWithOrders.forEach((company) => {
             const companyAreas =
               getAreasByCompany()[company.id]?.filter((area: Area) => areasWithOrders.includes(area.id)) || []
@@ -432,7 +410,6 @@ export function ReportGenerator() {
 
             // Obtener todas las cantidades de las áreas de esta empresa para este producto
             const quantityDisplay = getProductQuantityForExcel(product.id, company.id)
-
             productRow.push({
               v: quantityDisplay || "",
               t: "s",
@@ -446,15 +423,15 @@ export function ReportGenerator() {
           excelData.push(productRow)
         })
 
-        // Agregar fila de totales para esta categoría
+        // Agregar fila de totales para esta categoría (igual que el preview)
         const totalRow: StyledCell[] = [
           {
-            v: `TOTAL ${categoryName.toUpperCase()}`,
+            v: "TOTAL",
             t: "s",
             s: {
               ...baseStyle,
               font: { ...baseStyle.font, bold: true },
-              fill: { fgColor: { rgb: "F0F0F0" } },
+              fill: { fgColor: { rgb: "FFFFFF" } },
               alignment: { horizontal: "left" },
             },
           },
@@ -476,7 +453,7 @@ export function ReportGenerator() {
               ...baseStyle,
               font: { ...baseStyle.font, bold: true },
               alignment: { horizontal: "left" },
-              fill: { fgColor: { rgb: "F0F0F0" } },
+              fill: { fgColor: { rgb: "FFFFFF" } },
             },
           })
         })
@@ -487,14 +464,11 @@ export function ReportGenerator() {
         excelData.push([])
       })
 
-      // Agregar sección de observaciones al final
+      // Agregar sección de observaciones al final (igual que el preview)
       const observationsByArea = getObservationsByArea()
       const hasObservations = Object.keys(observationsByArea).length > 0
 
       if (hasObservations) {
-        // Fila vacía para separación
-        excelData.push([])
-
         // Fila de observaciones
         const observationRow: StyledCell[] = [
           {
@@ -509,7 +483,7 @@ export function ReportGenerator() {
           },
         ]
 
-        // Agregar observaciones por empresa (combinando todas las áreas)
+        // Agregar observaciones por empresa (igual que el preview)
         companiesWithOrders.forEach((company) => {
           const companyAreas =
             getAreasByCompany()[company.id]?.filter((area: Area) => areasWithOrders.includes(area.id)) || []
@@ -683,7 +657,6 @@ export function ReportGenerator() {
   // NUEVA FUNCIÓN: Obtener cantidad de producto por empresa (combinando todas las áreas) con colores
   const getProductQuantityByCompany = (productId: number, companyId: number) => {
     const companyAreas = getAreasByCompany()[companyId]?.filter((area: Area) => areasWithOrders.includes(area.id)) || []
-
     if (companyAreas.length === 0) {
       return ""
     }
@@ -733,7 +706,6 @@ export function ReportGenerator() {
   // NUEVA FUNCIÓN: Obtener cantidad de producto por empresa para Excel (sin formato HTML)
   const getProductQuantityForExcel = (productId: number, companyId: number) => {
     const companyAreas = getAreasByCompany()[companyId]?.filter((area: Area) => areasWithOrders.includes(area.id)) || []
-
     if (companyAreas.length === 0) {
       return ""
     }
@@ -771,7 +743,6 @@ export function ReportGenerator() {
   // NUEVA FUNCIÓN: Calcular totales por categoría para toda la empresa
   const calculateCompanyTotalByCategory = (companyId: number, categoryId: number) => {
     const companyAreas = getAreasByCompany()[companyId]?.filter((area: Area) => areasWithOrders.includes(area.id)) || []
-
     if (companyAreas.length === 0) return 0
 
     let productCount = 0
@@ -902,10 +873,12 @@ export function ReportGenerator() {
     setIsLoading(true)
     setHasData(false)
     setShowReport(false)
+
     try {
       // Establecer la fecha del reporte según el tipo seleccionado
       let orders: Order[] = []
       let apiUrl = ""
+
       if (reportType === "day" && selectedDate) {
         // Para reportes de un solo día, necesitamos el inicio y fin del día
         const startOfDay = new Date(selectedDate)
@@ -988,6 +961,7 @@ export function ReportGenerator() {
                   if (!product && item.productId) {
                     const productResponse = await api.get(`/products/${item.productId}`)
                     product = productResponse.data
+
                     // Obtener unidad de medida si no está incluida
                     if (product && product.unitMeasurementId && !product.unitMeasurement) {
                       try {
