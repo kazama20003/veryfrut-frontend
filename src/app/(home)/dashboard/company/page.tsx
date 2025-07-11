@@ -1,7 +1,5 @@
 "use client"
-
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -44,6 +42,7 @@ interface Area {
 interface Company {
   id: number
   name: string
+  color?: string // Agregado el campo color para empresas
   areas?: Area[]
 }
 
@@ -188,7 +187,6 @@ function ColorSelector({
   return (
     <div className="space-y-3">
       <Label>{label}</Label>
-
       {/* Color seleccionado actual */}
       <div className="flex items-center gap-3 p-3 border rounded-lg bg-gray-50">
         <div
@@ -221,7 +219,7 @@ function ColorSelector({
             <button
               key={`${color}-${index}`}
               type="button"
-              className="relative w-10 h-10 rounded-lg border-2 border-gray-200 hover:border-gray-400 transition-all hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="relative w-10 h-10 rounded-lg border-2 border-gray-200 hover:border-gray-400 transition-all hover:scale-105 focus:outline-none focus:ring-blue-500"
               style={{ backgroundColor: color }}
               onClick={() => onChange(color)}
               title={`Seleccionar ${color}`}
@@ -235,7 +233,7 @@ function ColorSelector({
   )
 }
 
-// Componente para el formulario de empresa (SIN color)
+// Componente para el formulario de empresa (AHORA CON color)
 function CompanyForm({
   company,
   onSubmit,
@@ -243,27 +241,29 @@ function CompanyForm({
   onOpenChange,
 }: {
   company: Company | null
-  onSubmit: (data: { name: string }) => void
+  onSubmit: (data: { name: string; color: string }) => void
   isOpen: boolean
   onOpenChange: (open: boolean) => void
 }) {
   const [name, setName] = useState("")
+  const [color, setColor] = useState("#4FC3F7")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     if (company) {
       setName(company.name)
+      setColor(company.color || "#4FC3F7")
     } else {
       setName("")
+      setColor("#4FC3F7")
     }
   }, [company, isOpen])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
-
     try {
-      await onSubmit({ name })
+      await onSubmit({ name, color })
       onOpenChange(false)
     } catch (error) {
       console.error("Error al guardar empresa:", error)
@@ -274,7 +274,7 @@ function CompanyForm({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{company ? "Editar empresa" : "Nueva empresa"}</DialogTitle>
           <DialogDescription>
@@ -283,7 +283,6 @@ function CompanyForm({
               : "Completa el formulario para crear una nueva empresa."}
           </DialogDescription>
         </DialogHeader>
-
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name">Nombre de la empresa *</Label>
@@ -295,6 +294,8 @@ function CompanyForm({
               required
             />
           </div>
+
+          <ColorSelector value={color} onChange={setColor} label="Color identificativo de la empresa" />
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
@@ -350,7 +351,6 @@ function AreaForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
-
     try {
       await onSubmit({ name, companyId, color })
       onOpenChange(false)
@@ -370,7 +370,6 @@ function AreaForm({
             {area ? "Actualiza los datos del área existente." : "Completa el formulario para crear una nueva área."}
           </DialogDescription>
         </DialogHeader>
-
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name">Nombre del área *</Label>
@@ -383,7 +382,7 @@ function AreaForm({
             />
           </div>
 
-          <ColorSelector value={color} onChange={setColor} label="Selecciona el color del área" />
+          <ColorSelector value={color} onChange={setColor} label="Color identificativo del área" />
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
@@ -433,10 +432,14 @@ function AreaCard({
     <>
       <div className="flex items-center justify-between p-3 border rounded-md bg-card">
         <div className="flex items-center gap-3">
-          <div
-            className="w-5 h-5 rounded-full border-2 border-gray-300 shadow-sm"
-            style={{ backgroundColor: area.color || "#4FC3F7" }}
-          />
+          {/* Indicador de color del área más prominente */}
+          <div className="flex items-center gap-2 px-2 py-1 bg-blue-50 rounded-md border border-blue-200">
+            <div
+              className="w-5 h-5 rounded-full border-2 border-gray-300 shadow-sm"
+              style={{ backgroundColor: area.color || "#4FC3F7" }}
+            />
+            <span className="text-xs text-blue-700 font-medium">Área</span>
+          </div>
           <Layers className="h-4 w-4 text-muted-foreground" />
           <span className="font-medium text-sm">{area.name}</span>
         </div>
@@ -475,7 +478,7 @@ function AreaCard({
   )
 }
 
-// Componente para la tarjeta de empresa (SIN indicador de color)
+// Componente para la tarjeta de empresa (AHORA CON indicador de color)
 function CompanyCard({
   company,
   onEdit,
@@ -509,7 +512,15 @@ function CompanyCard({
         <CardHeader className="pb-3">
           <div className="flex justify-between items-start">
             <div className="space-y-1">
-              <CardTitle className="text-lg flex items-center gap-2">
+              <CardTitle className="text-lg flex items-center gap-3">
+                {/* Indicador de color de la empresa más prominente */}
+                <div className="flex items-center gap-2 px-2 py-1 bg-gray-50 rounded-md border">
+                  <div
+                    className="w-6 h-6 rounded-full border-2 border-gray-300 shadow-sm"
+                    style={{ backgroundColor: company.color || "#4FC3F7" }}
+                  />
+                  <span className="text-xs text-gray-600 font-medium">Empresa</span>
+                </div>
                 <Building className="h-5 w-5 text-muted-foreground" />
                 {company.name}
               </CardTitle>
@@ -555,7 +566,12 @@ function CompanyCard({
                   ) : (
                     <p className="text-sm text-muted-foreground py-2">No hay áreas definidas</p>
                   )}
-                  <Button variant="outline" size="sm" className="w-full mt-2" onClick={() => onAddArea(company.id)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full mt-2 bg-transparent"
+                    onClick={() => onAddArea(company.id)}
+                  >
                     <Plus className="mr-2 h-3.5 w-3.5" />
                     Añadir área
                   </Button>
@@ -628,8 +644,8 @@ export default function CompaniesPage() {
     fetchCompanies()
   }, [])
 
-  // Crear nueva empresa (SIN color)
-  const handleCreateCompany = async (data: { name: string }) => {
+  // Crear nueva empresa (AHORA CON color)
+  const handleCreateCompany = async (data: { name: string; color: string }) => {
     try {
       const response = await api.post("/company", data)
       // Si la API devuelve la empresa con sus áreas
@@ -643,8 +659,8 @@ export default function CompaniesPage() {
     }
   }
 
-  // Actualizar empresa existente (SIN color)
-  const handleUpdateCompany = async (data: { name: string }) => {
+  // Actualizar empresa existente (AHORA CON color)
+  const handleUpdateCompany = async (data: { name: string; color: string }) => {
     if (!currentCompany) return
 
     try {
@@ -681,7 +697,6 @@ export default function CompaniesPage() {
     try {
       const response = await api.post("/areas", data)
       const newArea = response.data
-
       setCompanies(
         companies.map((company) => {
           if (company.id === data.companyId) {
@@ -708,7 +723,6 @@ export default function CompaniesPage() {
     try {
       const response = await api.patch(`/areas/${currentArea.id}`, data)
       const updatedArea = response.data
-
       setCompanies(
         companies.map((company) => {
           if (company.id === data.companyId) {
@@ -734,7 +748,6 @@ export default function CompaniesPage() {
   const handleDeleteArea = async (id: number) => {
     try {
       await api.delete(`/areas/${id}`)
-
       setCompanies(
         companies.map((company) => ({
           ...company,
@@ -775,7 +788,7 @@ export default function CompaniesPage() {
   }
 
   // Manejar envío del formulario de empresa
-  const handleCompanyFormSubmit = async (data: { name: string }) => {
+  const handleCompanyFormSubmit = async (data: { name: string; color: string }) => {
     if (currentCompany) {
       await handleUpdateCompany(data)
     } else {
@@ -820,6 +833,20 @@ export default function CompaniesPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Empresas y Áreas</h1>
+        {/* Leyenda de colores */}
+        <div className="flex items-center gap-6 p-4 bg-gray-50 rounded-lg border">
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-gray-400 rounded-full border"></div>
+            <span className="text-sm font-medium text-gray-700">Color de Empresa</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-blue-400 rounded-full border"></div>
+            <span className="text-sm font-medium text-gray-700">Color de Área</span>
+          </div>
+          <div className="text-xs text-gray-500">
+            Cada empresa y sus áreas pueden tener colores diferentes para mejor organización
+          </div>
+        </div>
         <Button className="w-full sm:w-auto" onClick={handleCreateCompanyClick}>
           <Plus className="mr-2 h-4 w-4" />
           Nueva Empresa
@@ -831,6 +858,7 @@ export default function CompaniesPage() {
           <TabsTrigger value="companies">Empresas</TabsTrigger>
           <TabsTrigger value="areas">Áreas</TabsTrigger>
         </TabsList>
+
         <TabsContent value="companies" className="space-y-4 mt-4">
           <div className="flex items-center gap-2">
             <div className="relative flex-grow">
@@ -900,7 +928,15 @@ export default function CompaniesPage() {
                 return (
                   <div key={company.id} className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-semibold flex items-center gap-2">
+                      <h3 className="text-lg font-semibold flex items-center gap-3">
+                        {/* Color de empresa más prominente en vista de áreas */}
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-lg border">
+                          <div
+                            className="w-6 h-6 rounded-full border-2 border-gray-400 shadow-sm"
+                            style={{ backgroundColor: company.color || "#4FC3F7" }}
+                          />
+                          <span className="text-xs text-gray-700 font-semibold uppercase tracking-wide">Empresa</span>
+                        </div>
                         <Building className="h-5 w-5 text-muted-foreground" />
                         {company.name}
                       </h3>

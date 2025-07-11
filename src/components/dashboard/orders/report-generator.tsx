@@ -1,7 +1,5 @@
 "use client"
-
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { format, addDays } from "date-fns"
@@ -32,7 +30,7 @@ interface Company {
   id: number
   name: string
   areas?: Area[]
-  color?: string
+  color?: string // Color de la empresa
 }
 
 interface User {
@@ -120,12 +118,6 @@ interface StyledCell {
   }
 }
 
-// Interfaz para el rango de celdas combinadas
-interface CellRange {
-  s: { r: number; c: number } // celda inicial
-  e: { r: number; c: number } // celda final
-}
-
 // Replace the existing ReportGenerator component with this updated version
 export function ReportGenerator() {
   const [reportType, setReportType] = useState<"day" | "range">("day")
@@ -175,7 +167,6 @@ export function ReportGenerator() {
 
         // Procesar compañías - ya no necesitamos asignar colores aquí
         const processedCompanies = Array.isArray(companiesData) ? companiesData : [companiesData]
-
         setCompanies(processedCompanies)
 
         // Extraer todas las áreas de las compañías - ahora usan el color hexadecimal del área
@@ -199,7 +190,6 @@ export function ReportGenerator() {
             category: categoriesMap[product.categoryId || 0],
           }
         })
-
         setProducts(productsWithUnits)
       } catch (error) {
         console.error("Error al cargar datos iniciales:", error)
@@ -216,7 +206,6 @@ export function ReportGenerator() {
   const hexToRgb = (hex: string): string => {
     // Remover el # si está presente
     const cleanHex = hex.replace("#", "")
-
     // Si es un color de 3 caracteres, expandirlo a 6
     const fullHex =
       cleanHex.length === 3
@@ -225,7 +214,6 @@ export function ReportGenerator() {
             .map((char) => char + char)
             .join("")
         : cleanHex
-
     return fullHex.toUpperCase()
   }
 
@@ -238,7 +226,6 @@ export function ReportGenerator() {
   // Función para obtener observaciones por área
   const getObservationsByArea = () => {
     const observationsByArea: { [areaId: number]: string[] } = {}
-
     orders.forEach((order) => {
       if (order.observation && order.observation.trim()) {
         const areaId = order.areaId || order.area?.id
@@ -253,7 +240,6 @@ export function ReportGenerator() {
         }
       }
     })
-
     return observationsByArea
   }
 
@@ -324,7 +310,7 @@ export function ReportGenerator() {
 
       // Agregar cualquier categoría adicional que no esté en el orden específico
       Object.entries(productsByCategory).forEach(([categoryIdStr, categoryProducts]) => {
-        const categoryId = Number(categoryIdStr)
+        const categoryId = Number.parseInt(categoryIdStr)
         if (!categoryOrder.includes(categoryId)) {
           orderedCategoryEntries.push([categoryIdStr, categoryProducts as Product[]])
         }
@@ -363,31 +349,17 @@ export function ReportGenerator() {
           },
         ]
 
-        // Preparar la fila de áreas para esta categoría
-        const areaRow: StyledCell[] = [
-          {
-            v: "",
-            t: "s",
-            s: {
-              ...baseStyle,
-              fill: { fgColor: { rgb: "F2F2F2" } },
-            },
-          },
-        ]
-
-        // Agregar compañías y áreas a las filas de encabezado
+        // Agregar compañías a la fila de encabezado
         companiesWithOrders.forEach((company) => {
-          // Filtrar solo áreas con pedidos
+          // Filtrar solo áreas con pedidos para verificar si la empresa tiene pedidos
           const companyAreas =
             getAreasByCompany()[company.id]?.filter((area: Area) => areasWithOrders.includes(area.id)) || []
-
           if (companyAreas.length === 0) {
             return // Saltar esta compañía si no tiene áreas con pedidos
           }
 
-          // Usar el color de la primera área de la compañía para la compañía
-          const firstAreaColor = companyAreas[0]?.color || "#CCCCCC"
-          const companyColor = hexToRgb(firstAreaColor)
+          // Usar el color de la empresa si está disponible, sino el color de la primera área
+          const companyColor = company.color ? hexToRgb(company.color) : hexToRgb(companyAreas[0]?.color || "#CCCCCC")
 
           // Agregar la compañía
           companyRow.push({
@@ -395,45 +367,15 @@ export function ReportGenerator() {
             t: "s",
             s: {
               ...baseStyle,
-              font: { ...baseStyle.font, bold: true, color: { rgb: "000000" } }, // Forzar negro
+              font: { ...baseStyle.font, bold: true, color: { rgb: "000000" } },
               fill: { fgColor: { rgb: companyColor } },
               alignment: { horizontal: "center" },
             },
-          })
-
-          // Agregar celdas vacías para el colspan
-          for (let i = 1; i < companyAreas.length; i++) {
-            companyRow.push({
-              v: "",
-              t: "s",
-              s: {
-                ...baseStyle,
-                font: { ...baseStyle.font, bold: true, color: { rgb: "000000" } }, // Forzar negro
-                fill: { fgColor: { rgb: companyColor } },
-              },
-            })
-          }
-
-          // Agregar las áreas con sus colores específicos
-          companyAreas.forEach((area) => {
-            const areaColor = hexToRgb(area.color)
-
-            areaRow.push({
-              v: area.name,
-              t: "s",
-              s: {
-                ...baseStyle,
-                font: { ...baseStyle.font, bold: true, color: { rgb: "000000" } }, // Forzar negro
-                fill: { fgColor: { rgb: areaColor } },
-                alignment: { horizontal: "center" },
-              },
-            })
           })
         })
 
         // Agregar filas de encabezado para esta categoría
         excelData.push(companyRow)
-        excelData.push(areaRow)
 
         // Agregar encabezado de categoría
         const categoryHeaderRow: StyledCell[] = [
@@ -452,7 +394,7 @@ export function ReportGenerator() {
         companiesWithOrders.forEach((company) => {
           const companyAreas =
             getAreasByCompany()[company.id]?.filter((area: Area) => areasWithOrders.includes(area.id)) || []
-          companyAreas.forEach(() => {
+          if (companyAreas.length > 0) {
             categoryHeaderRow.push({
               v: "",
               t: "s",
@@ -461,7 +403,7 @@ export function ReportGenerator() {
                 fill: { fgColor: { rgb: "E6E6FA" } },
               },
             })
-          })
+          }
         })
 
         excelData.push(categoryHeaderRow)
@@ -475,47 +417,29 @@ export function ReportGenerator() {
               s: {
                 ...baseStyle,
                 fill: { fgColor: { rgb: "FFFFFF" } },
-                alignment: { horizontal: "left" }, // Alineación a la izquierda
+                alignment: { horizontal: "left" },
               },
             },
           ]
 
-          // Agregar cantidades por área
+          // Agregar cantidades por empresa (combinando todas las áreas)
           companiesWithOrders.forEach((company) => {
-            // Filtrar solo áreas con pedidos
             const companyAreas =
               getAreasByCompany()[company.id]?.filter((area: Area) => areasWithOrders.includes(area.id)) || []
-
             if (companyAreas.length === 0) {
               return // Saltar esta compañía si no tiene áreas con pedidos
             }
 
-            companyAreas.forEach((area) => {
-              // Get the quantity with potentially multiple units
-              const quantityDisplay = getProductQuantityForExcel(product.id, area.id)
+            // Obtener todas las cantidades de las áreas de esta empresa para este producto
+            const quantityDisplay = getProductQuantityForExcel(product.id, company.id)
 
-              // Y cambiar la celda para aplicar formato bold a las unidades:
-              const match = quantityDisplay.match(/^(\d+(?:\.\d+)?)(.*)$/)
-              let cellValue = quantityDisplay
-              let isBold = false
-
-              if (match) {
-                const [, number, unit] = match
-                cellValue = `${number}${unit}`
-                if (unit) {
-                  isBold = true
-                }
-              }
-
-              productRow.push({
-                v: cellValue || "",
-                t: "s",
-                s: {
-                  ...baseStyle,
-                  font: { ...baseStyle.font, bold: isBold },
-                  alignment: { horizontal: "left" },
-                },
-              })
+            productRow.push({
+              v: quantityDisplay || "",
+              t: "s",
+              s: {
+                ...baseStyle,
+                alignment: { horizontal: "left" },
+              },
             })
           })
 
@@ -531,34 +455,29 @@ export function ReportGenerator() {
               ...baseStyle,
               font: { ...baseStyle.font, bold: true },
               fill: { fgColor: { rgb: "F0F0F0" } },
-              alignment: { horizontal: "left" }, // Alineación a la izquierda
+              alignment: { horizontal: "left" },
             },
           },
         ]
 
         companiesWithOrders.forEach((company) => {
-          // Filtrar solo áreas con pedidos
           const companyAreas =
             getAreasByCompany()[company.id]?.filter((area: Area) => areasWithOrders.includes(area.id)) || []
-
           if (companyAreas.length === 0) {
             return // Saltar esta compañía si no tiene áreas con pedidos
           }
 
-          companyAreas.forEach((area) => {
-            // Calcular total contando productos únicos para esta categoría
-            const total = calculateAreaTotalByCategory(area.id, categoryId)
-
-            totalRow.push({
-              v: total ? `${total}` : "0",
-              t: "s",
-              s: {
-                ...baseStyle,
-                font: { ...baseStyle.font, bold: true },
-                alignment: { horizontal: "left" }, // Alineación a la izquierda
-                fill: { fgColor: { rgb: "F0F0F0" } },
-              },
-            })
+          // Calcular total contando productos únicos para esta categoría en toda la empresa
+          const total = calculateCompanyTotalByCategory(company.id, categoryId)
+          totalRow.push({
+            v: total ? `${total}` : "0",
+            t: "s",
+            s: {
+              ...baseStyle,
+              font: { ...baseStyle.font, bold: true },
+              alignment: { horizontal: "left" },
+              fill: { fgColor: { rgb: "F0F0F0" } },
+            },
           })
         })
 
@@ -568,7 +487,7 @@ export function ReportGenerator() {
         excelData.push([])
       })
 
-      // Agregar sección de observaciones al final (una sola vez) - MEJORADA
+      // Agregar sección de observaciones al final
       const observationsByArea = getObservationsByArea()
       const hasObservations = Object.keys(observationsByArea).length > 0
 
@@ -585,29 +504,38 @@ export function ReportGenerator() {
               ...baseStyle,
               font: { ...baseStyle.font, bold: true },
               fill: { fgColor: { rgb: "FFFF00" } }, // Amarillo
-              alignment: { horizontal: "left" }, // Alineación a la izquierda
+              alignment: { horizontal: "left" },
             },
           },
         ]
 
-        // Agregar observaciones por área específica
+        // Agregar observaciones por empresa (combinando todas las áreas)
         companiesWithOrders.forEach((company) => {
           const companyAreas =
             getAreasByCompany()[company.id]?.filter((area: Area) => areasWithOrders.includes(area.id)) || []
+          if (companyAreas.length === 0) {
+            return
+          }
 
+          // Combinar observaciones de todas las áreas de la empresa
+          const allObservations: string[] = []
           companyAreas.forEach((area) => {
             const areaObservations = observationsByArea[area.id] || []
-            const observationText = areaObservations.join("; ") // Unir múltiples observaciones con ;
+            allObservations.push(...areaObservations)
+          })
 
-            observationRow.push({
-              v: observationText,
-              t: "s",
-              s: {
-                ...baseStyle,
-                fill: { fgColor: { rgb: "FFFF99" } }, // Amarillo claro
-                alignment: { horizontal: "left", wrapText: true },
-              },
-            })
+          // Eliminar duplicados y unir
+          const uniqueObservations = [...new Set(allObservations)]
+          const observationText = uniqueObservations.join("; ")
+
+          observationRow.push({
+            v: observationText,
+            t: "s",
+            s: {
+              ...baseStyle,
+              fill: { fgColor: { rgb: "FFFF99" } }, // Amarillo claro
+              alignment: { horizontal: "left", wrapText: true },
+            },
           })
         })
 
@@ -619,89 +547,15 @@ export function ReportGenerator() {
 
       // Definir anchos de columna
       const wscols = [
-        { wch: 40 }, // Nombre del producto/categoría - aumentado de 25 a 40
+        { wch: 40 }, // Nombre del producto/categoría
       ]
 
-      // Agregar anchos para las columnas de áreas
-      companiesWithOrders.forEach((company) => {
-        // Filtrar solo áreas con pedidos
-        const companyAreas =
-          getAreasByCompany()[company.id]?.filter((area: Area) => areasWithOrders.includes(area.id)) || []
-
-        if (companyAreas.length === 0) {
-          return // Saltar esta compañía si no tiene áreas con pedidos
-        }
-
-        companyAreas.forEach(() => {
-          wscols.push({ wch: 20 }) // Aumentado de 12 a 20
-        })
+      // Agregar anchos para las columnas de empresas
+      companiesWithOrders.forEach(() => {
+        wscols.push({ wch: 25 }) // Ancho para empresa
       })
 
       ws["!cols"] = wscols
-
-      // Combinar celdas para los encabezados de compañías
-      const merges: CellRange[] = []
-
-      // Ahora necesitamos calcular las combinaciones de celdas para cada sección de categoría
-      let rowIndex = 0
-
-      // Saltar la fila de fecha y la fila vacía
-      rowIndex += 2
-
-      // Para cada categoría, necesitamos calcular las combinaciones usando el orden correcto
-      orderedCategoryEntries.forEach(([, categoryProducts]) => {
-        // Filtrar solo productos con pedidos
-        const productsWithOrders = categoryProducts.filter((product: Product) => {
-          for (const areaId in productQuantities) {
-            if (productQuantities[areaId][product.id]) {
-              return true
-            }
-          }
-          return false
-        })
-
-        // Si no hay productos con pedidos en esta categoría, omitir
-        if (productsWithOrders.length === 0) return
-
-        // Ahora estamos en la fila de compañías para esta categoría
-        let colIndex = 1 // Empezamos en la columna B (índice 1)
-
-        companiesWithOrders.forEach((company) => {
-          // Filtrar solo áreas con pedidos
-          const companyAreas =
-            getAreasByCompany()[company.id]?.filter((area: Area) => areasWithOrders.includes(area.id)) || []
-
-          if (companyAreas.length === 0) {
-            return // Saltar esta compañía si no tiene áreas con pedidos
-          }
-
-          if (companyAreas.length > 1) {
-            // Combinar celdas para el nombre de la compañía
-            merges.push({
-              s: { r: rowIndex, c: colIndex },
-              e: { r: rowIndex, c: colIndex + companyAreas.length - 1 },
-            })
-          }
-          colIndex += companyAreas.length
-        })
-
-        // Avanzar 2 filas para la fila de compañías y la fila de áreas
-        rowIndex += 2
-
-        // Avanzar 1 fila para el encabezado de categoría
-        rowIndex += 1
-
-        // Avanzar filas para los productos
-        rowIndex += productsWithOrders.length
-
-        // Avanzar 1 fila para la fila de totales
-        rowIndex += 1
-
-        // Avanzar 1 fila para la separación entre categorías
-        rowIndex += 1
-      })
-
-      ws["!merges"] = merges
 
       // Agregar hoja al libro con nombre único
       XLSX_STYLE.utils.book_append_sheet(wb, ws, "Reporte de Productos")
@@ -733,7 +587,6 @@ export function ReportGenerator() {
     if (products.length > 0) {
       // Agrupar productos por categoría
       const productsByCategory: { [categoryId: number]: Product[] } = {}
-
       products.forEach((product) => {
         const categoryId = product.categoryId || 0
         if (!productsByCategory[categoryId]) {
@@ -766,20 +619,13 @@ export function ReportGenerator() {
         }
       })
 
-      console.log(
-        "Orden de categorías aplicado:",
-        categoryOrder.filter((id) => orderedCategories[id]),
-      )
-      console.log("Categorías finales:", Object.keys(orderedCategories).map(Number))
       return orderedCategories
     }
 
     // Datos de demostración mínimos con el orden correcto y propiedades completas
     const demoData: { [categoryId: number]: Product[] } = {}
-
     // IMPORTANTE: Crear el objeto en el orden específico requerido
     // 1=Verduras, 2=Frutas, 5=Hierbas, 3=IGV, 4=Otros
-
     demoData[1] = [
       {
         id: 1,
@@ -790,7 +636,6 @@ export function ReportGenerator() {
         categoryId: 1,
       },
     ]
-
     demoData[2] = [
       {
         id: 4,
@@ -801,7 +646,6 @@ export function ReportGenerator() {
         categoryId: 2,
       },
     ]
-
     demoData[5] = [
       {
         id: 6,
@@ -812,7 +656,6 @@ export function ReportGenerator() {
         categoryId: 5,
       },
     ]
-
     demoData[3] = [
       {
         id: 8,
@@ -823,7 +666,6 @@ export function ReportGenerator() {
         categoryId: 3,
       },
     ]
-
     demoData[4] = [
       {
         id: 9,
@@ -838,92 +680,117 @@ export function ReportGenerator() {
     return demoData
   }
 
-  // Obtener cantidad de producto por área (con unidad)
-  const getProductQuantity = (productId: number, areaId: number) => {
-    if (!productQuantities[areaId] || !productQuantities[areaId][productId]) {
+  // NUEVA FUNCIÓN: Obtener cantidad de producto por empresa (combinando todas las áreas) con colores
+  const getProductQuantityByCompany = (productId: number, companyId: number) => {
+    const companyAreas = getAreasByCompany()[companyId]?.filter((area: Area) => areasWithOrders.includes(area.id)) || []
+
+    if (companyAreas.length === 0) {
       return ""
     }
 
-    // Buscar todos los items de este producto en esta área
-    const quantities = []
+    const quantities: Array<{ quantity: string; color: string; areaName: string }> = []
 
-    // Buscar en las órdenes los items con este productId y areaId
-    for (const order of orders) {
-      if (order.areaId === areaId) {
-        for (const item of order.orderItems) {
-          if (item.productId === productId) {
-            const unit = item.unitMeasurement?.name || ""
-            quantities.push(`${item.quantity}${unit}`)
+    // Buscar cantidades en cada área de la empresa
+    companyAreas.forEach((area) => {
+      if (productQuantities[area.id] && productQuantities[area.id][productId]) {
+        // Buscar en las órdenes los items con este productId y areaId
+        for (const order of orders) {
+          if (order.areaId === area.id) {
+            for (const item of order.orderItems) {
+              if (item.productId === productId) {
+                const unit = item.unitMeasurement?.name || ""
+                quantities.push({
+                  quantity: `${item.quantity}${unit}`,
+                  color: area.color,
+                  areaName: area.name,
+                })
+              }
+            }
           }
         }
-      }
-    }
 
-    // Si no encontramos nada en las órdenes, usar la cantidad del estado
-    if (quantities.length === 0 && productQuantities[areaId][productId]) {
-      const product = products.find((p) => p.id === productId)
-      const unit = product?.unitMeasurement?.name || ""
-      quantities.push(`${productQuantities[areaId][productId]}${unit}`)
-    }
-
-    // Unir con + si hay múltiples cantidades y aplicar formato bold a las unidades
-    return quantities
-      .map((qty) => {
-        const match = qty.match(/^(\d+(?:\.\d+)?)(.*)$/)
-        if (match) {
-          const [, number, unit] = match
-          return `<span style="font-weight: bold; font-size: 15px;">${number}${unit}</span>`
+        // Si no encontramos nada en las órdenes, usar la cantidad del estado
+        if (quantities.filter((q) => q.areaName === area.name).length === 0 && productQuantities[area.id][productId]) {
+          const product = products.find((p) => p.id === productId)
+          const unit = product?.unitMeasurement?.name || ""
+          quantities.push({
+            quantity: `${productQuantities[area.id][productId]}${unit}`,
+            color: area.color,
+            areaName: area.name,
+          })
         }
-        return qty
+      }
+    })
+
+    // Crear HTML con colores para cada cantidad
+    return quantities
+      .map((item) => {
+        return `<span style="color: ${item.color}; font-weight: bold;">${item.quantity}</span>`
       })
       .join(" + ")
   }
 
-  // Obtener cantidad de producto por área para Excel (sin formato HTML)
-  const getProductQuantityForExcel = (productId: number, areaId: number) => {
-    if (!productQuantities[areaId] || !productQuantities[areaId][productId]) {
+  // NUEVA FUNCIÓN: Obtener cantidad de producto por empresa para Excel (sin formato HTML)
+  const getProductQuantityForExcel = (productId: number, companyId: number) => {
+    const companyAreas = getAreasByCompany()[companyId]?.filter((area: Area) => areasWithOrders.includes(area.id)) || []
+
+    if (companyAreas.length === 0) {
       return ""
     }
 
-    // Buscar todos los items de este producto en esta área
-    const quantities = []
+    const quantities: string[] = []
 
-    // Buscar en las órdenes los items con este productId y areaId
-    for (const order of orders) {
-      if (order.areaId === areaId) {
-        for (const item of order.orderItems) {
-          if (item.productId === productId) {
-            const unit = item.unitMeasurement?.name || ""
-            quantities.push(`${item.quantity}${unit}`)
+    // Buscar cantidades en cada área de la empresa
+    companyAreas.forEach((area) => {
+      if (productQuantities[area.id] && productQuantities[area.id][productId]) {
+        // Buscar en las órdenes los items con este productId y areaId
+        for (const order of orders) {
+          if (order.areaId === area.id) {
+            for (const item of order.orderItems) {
+              if (item.productId === productId) {
+                const unit = item.unitMeasurement?.name || ""
+                quantities.push(`${item.quantity}${unit}`)
+              }
+            }
           }
         }
-      }
-    }
 
-    // Si no encontramos nada en las órdenes, usar la cantidad del estado
-    if (quantities.length === 0 && productQuantities[areaId][productId]) {
-      const product = products.find((p) => p.id === productId)
-      const unit = product?.unitMeasurement?.name || ""
-      quantities.push(`${productQuantities[areaId][productId]}${unit}`)
-    }
+        // Si no encontramos nada en las órdenes, usar la cantidad del estado
+        if (quantities.length === 0 && productQuantities[area.id][productId]) {
+          const product = products.find((p) => p.id === productId)
+          const unit = product?.unitMeasurement?.name || ""
+          quantities.push(`${productQuantities[area.id][productId]}${unit}`)
+        }
+      }
+    })
 
     // Unir con + si hay múltiples cantidades
     return quantities.join(" + ")
   }
 
-  // Agregar función para calcular totales por categoría
-  const calculateAreaTotalByCategory = (areaId: number, categoryId: number) => {
-    if (!productQuantities[areaId]) return 0
+  // NUEVA FUNCIÓN: Calcular totales por categoría para toda la empresa
+  const calculateCompanyTotalByCategory = (companyId: number, categoryId: number) => {
+    const companyAreas = getAreasByCompany()[companyId]?.filter((area: Area) => areasWithOrders.includes(area.id)) || []
+
+    if (companyAreas.length === 0) return 0
 
     let productCount = 0
-
-    // Obtener productos de esta categoría
     const categoryProducts = products.filter((p) => p.categoryId === categoryId)
 
-    // Contar productos que tienen pedidos (sin importar la cantidad)
+    // Contar productos únicos que tienen pedidos en cualquier área de la empresa
     categoryProducts.forEach((product) => {
-      if (productQuantities[areaId][product.id] && productQuantities[areaId][product.id] > 0) {
-        productCount += 1 // Contar como 1 producto independientemente de la cantidad
+      let hasOrderInCompany = false
+      companyAreas.forEach((area) => {
+        if (
+          productQuantities[area.id] &&
+          productQuantities[area.id][product.id] &&
+          productQuantities[area.id][product.id] > 0
+        ) {
+          hasOrderInCompany = true
+        }
+      })
+      if (hasOrderInCompany) {
+        productCount += 1
       }
     })
 
@@ -933,21 +800,18 @@ export function ReportGenerator() {
   // Agrupar áreas por compañía
   const getAreasByCompany = () => {
     const areasByCompany: { [companyId: number]: Area[] } = {}
-
     companies.forEach((company) => {
       areasByCompany[company.id] = []
     })
-
     areas.forEach((area) => {
       if (area.companyId && areasByCompany[area.companyId]) {
         areasByCompany[area.companyId].push(area)
       }
     })
-
     return areasByCompany
   }
 
-  // Función para renderizar la tabla de observaciones
+  // NUEVA FUNCIÓN: Renderizar tabla de observaciones por empresa
   const renderObservationsTable = () => {
     const observationsByArea = getObservationsByArea()
     const hasObservations = Object.keys(observationsByArea).length > 0
@@ -956,12 +820,9 @@ export function ReportGenerator() {
       return null
     }
 
-    // Obtener áreas por compañía
-    const areasByCompany = getAreasByCompany()
-
     // Filtrar compañías que tienen áreas con pedidos
     const companiesWithOrders = companies.filter((company) => {
-      const companyAreas = areasByCompany[company.id] || []
+      const companyAreas = getAreasByCompany()[company.id] || []
       return companyAreas.some((area) => areasWithOrders.includes(area.id))
     })
 
@@ -972,22 +833,17 @@ export function ReportGenerator() {
           <div className="max-h-[200px] overflow-auto">
             <table className="w-full text-sm border-collapse">
               <thead className="sticky top-0 z-10">
-                {/* Fila de compañías */}
                 <tr className="bg-white">
-                  <th className="px-4 py-2 text-left border bg-yellow-200 sticky left-0 z-20" rowSpan={2}>
-                    OBSERVACION
-                  </th>
+                  <th className="px-4 py-2 text-left border bg-yellow-200 sticky left-0 z-20">OBSERVACION</th>
                   {companiesWithOrders.map((company) => {
-                    // Filtrar solo áreas con pedidos
                     const companyAreas =
-                      areasByCompany[company.id]?.filter((area) => areasWithOrders.includes(area.id)) || []
-
+                      getAreasByCompany()[company.id]?.filter((area) => areasWithOrders.includes(area.id)) || []
                     if (companyAreas.length === 0) {
-                      return null // No mostrar esta compañía si no tiene áreas con pedidos
+                      return null
                     }
 
-                    // Usar el color de la primera área para la compañía
-                    const firstAreaColor = companyAreas[0]?.color || "#CCCCCC"
+                    // Usar el color de la empresa si está disponible, sino el color de la primera área
+                    const companyColor = company.color || companyAreas[0]?.color || "#CCCCCC"
                     const textColor = getTextColor()
 
                     return (
@@ -995,43 +851,13 @@ export function ReportGenerator() {
                         key={company.id}
                         className="px-4 py-2 text-center border uppercase"
                         style={{
-                          backgroundColor: firstAreaColor,
+                          backgroundColor: companyColor,
                           color: textColor,
                         }}
-                        colSpan={companyAreas.length}
                       >
                         {company.name}
                       </th>
                     )
-                  })}
-                </tr>
-                {/* Fila de áreas */}
-                <tr className="bg-white">
-                  {companiesWithOrders.map((company) => {
-                    // Filtrar solo áreas con pedidos
-                    const companyAreas =
-                      areasByCompany[company.id]?.filter((area) => areasWithOrders.includes(area.id)) || []
-
-                    if (companyAreas.length === 0) {
-                      return null // No mostrar esta compañía si no tiene áreas con pedidos
-                    }
-
-                    return companyAreas.map((area: Area) => {
-                      const textColor = getTextColor()
-
-                      return (
-                        <th
-                          key={area.id}
-                          className="px-4 py-2 text-center border"
-                          style={{
-                            backgroundColor: area.color,
-                            color: textColor,
-                          }}
-                        >
-                          {area.name}
-                        </th>
-                      )
-                    })
                   })}
                 </tr>
               </thead>
@@ -1039,24 +865,28 @@ export function ReportGenerator() {
                 <tr>
                   <td className="px-4 py-2 border font-medium bg-yellow-50 sticky left-0 z-10">Detalle</td>
                   {companiesWithOrders.map((company) => {
-                    // Filtrar solo áreas con pedidos
                     const companyAreas =
-                      areasByCompany[company.id]?.filter((area) => areasWithOrders.includes(area.id)) || []
-
+                      getAreasByCompany()[company.id]?.filter((area) => areasWithOrders.includes(area.id)) || []
                     if (companyAreas.length === 0) {
-                      return null // No mostrar esta compañía si no tiene áreas con pedidos
+                      return null
                     }
 
-                    return companyAreas.map((area: Area) => {
+                    // Combinar observaciones de todas las áreas de la empresa
+                    const allObservations: string[] = []
+                    companyAreas.forEach((area) => {
                       const areaObservations = observationsByArea[area.id] || []
-                      const observationText = areaObservations.join("; ") // Unir múltiples observaciones con ;
-
-                      return (
-                        <td key={area.id} className="px-4 py-2 border bg-yellow-50 min-w-[120px] text-left">
-                          {observationText}
-                        </td>
-                      )
+                      allObservations.push(...areaObservations)
                     })
+
+                    // Eliminar duplicados y unir
+                    const uniqueObservations = [...new Set(allObservations)]
+                    const observationText = uniqueObservations.join("; ")
+
+                    return (
+                      <td key={company.id} className="px-4 py-2 border bg-yellow-50 min-w-[120px] text-left">
+                        {observationText}
+                      </td>
+                    )
                   })}
                 </tr>
               </tbody>
@@ -1072,17 +902,14 @@ export function ReportGenerator() {
     setIsLoading(true)
     setHasData(false)
     setShowReport(false)
-
     try {
       // Establecer la fecha del reporte según el tipo seleccionado
       let orders: Order[] = []
       let apiUrl = ""
-
       if (reportType === "day" && selectedDate) {
         // Para reportes de un solo día, necesitamos el inicio y fin del día
         const startOfDay = new Date(selectedDate)
         startOfDay.setHours(0, 0, 0, 0)
-
         const endOfDay = new Date(selectedDate)
         endOfDay.setHours(23, 59, 59, 999)
 
@@ -1099,7 +926,6 @@ export function ReportGenerator() {
         // Para reportes de rango, usamos desde el inicio del primer día hasta el final del último día
         const startOfRange = new Date(dateRange.from)
         startOfRange.setHours(0, 0, 0, 0)
-
         const endOfRange = new Date(dateRange.to)
         endOfRange.setHours(23, 59, 59, 999)
 
@@ -1120,9 +946,6 @@ export function ReportGenerator() {
         const ordersResponse = await api.get(apiUrl)
         orders = ordersResponse.data
         console.log("Órdenes cargadas:", orders.length)
-        console.log("====================================")
-        console.log(ordersResponse.data)
-        console.log("====================================")
       } else {
         console.error("No se pudo determinar la URL de la API")
         toast.error("Error al generar vista previa", {
@@ -1165,7 +988,6 @@ export function ReportGenerator() {
                   if (!product && item.productId) {
                     const productResponse = await api.get(`/products/${item.productId}`)
                     product = productResponse.data
-
                     // Obtener unidad de medida si no está incluida
                     if (product && product.unitMeasurementId && !product.unitMeasurement) {
                       try {
@@ -1176,6 +998,7 @@ export function ReportGenerator() {
                       }
                     }
                   }
+
                   return { ...item, product }
                 } catch (error) {
                   console.error(`Error al cargar producto ${item.productId}:`, error)
@@ -1241,7 +1064,6 @@ export function ReportGenerator() {
             if (item.productId) {
               // Create a unique key that includes both product ID and unit measurement ID
               const productKey = item.productId
-
               if (!quantities[areaId][productKey]) {
                 quantities[areaId][productKey] = 0
               }
@@ -1255,7 +1077,6 @@ export function ReportGenerator() {
       setAreasWithOrders(areasWithOrdersIds)
 
       // Verificar si hay datos para mostrar
-
       let hasAnyData = false
       for (const areaId in quantities) {
         if (Object.keys(quantities[areaId]).length > 0) {
@@ -1287,10 +1108,8 @@ export function ReportGenerator() {
     }
   }
 
-  // Modificar la vista previa para mostrar tablas por categoría usando colores hexadecimales
+  // NUEVA FUNCIÓN: Renderizar tablas por categoría con columnas de empresa
   const renderCategoryTables = () => {
-    // Obtener áreas por compañía
-    const areasByCompany = getAreasByCompany()
     const productsByCategory = getProductsForReport()
 
     // ORDEN ESPECÍFICO: 1=Verduras, 2=Frutas, 5=Hierbas, 3=IGV, 4=Otros
@@ -1331,7 +1150,7 @@ export function ReportGenerator() {
 
       // Filtrar compañías que tienen áreas con pedidos
       const companiesWithOrders = companies.filter((company) => {
-        const companyAreas = areasByCompany[company.id] || []
+        const companyAreas = getAreasByCompany()[company.id] || []
         return companyAreas.some((area) => areasWithOrders.includes(area.id))
       })
 
@@ -1345,33 +1164,24 @@ export function ReportGenerator() {
               <table className="w-full text-sm border-collapse">
                 <thead className="sticky top-0 z-10">
                   <tr>
-                    <th
-                      colSpan={companiesWithOrders.reduce((total, company) => {
-                        const companyAreas =
-                          areasByCompany[company.id]?.filter((area) => areasWithOrders.includes(area.id)) || []
-                        return total + companyAreas.length
-                      }, 1)}
-                      className="px-4 py-2 text-left border bg-white"
-                    >
+                    <th colSpan={companiesWithOrders.length + 1} className="px-4 py-2 text-left border bg-white">
                       fecha: {reportDate}
                     </th>
                   </tr>
                   {/* Fila de compañías */}
                   <tr className="bg-white">
-                    <th className="px-4 py-2 text-left border bg-gray-100 sticky left-0 z-20" rowSpan={2}>
+                    <th className="px-4 py-2 text-left border bg-gray-100 sticky left-0 z-20">
                       {categoryName.toUpperCase()}
                     </th>
                     {companiesWithOrders.map((company) => {
-                      // Filtrar solo áreas con pedidos
                       const companyAreas =
-                        areasByCompany[company.id]?.filter((area) => areasWithOrders.includes(area.id)) || []
-
+                        getAreasByCompany()[company.id]?.filter((area) => areasWithOrders.includes(area.id)) || []
                       if (companyAreas.length === 0) {
-                        return null // No mostrar esta compañía si no tiene áreas con pedidos
+                        return null
                       }
 
-                      // Usar el color de la primera área para la compañía
-                      const firstAreaColor = companyAreas[0]?.color || "#CCCCCC"
+                      // Usar el color de la empresa si está disponible, sino el color de la primera área
+                      const companyColor = company.color || companyAreas[0]?.color || "#CCCCCC"
                       const textColor = getTextColor()
 
                       return (
@@ -1379,43 +1189,13 @@ export function ReportGenerator() {
                           key={company.id}
                           className="px-4 py-2 text-center border uppercase"
                           style={{
-                            backgroundColor: firstAreaColor,
+                            backgroundColor: companyColor,
                             color: textColor,
                           }}
-                          colSpan={companyAreas.length}
                         >
                           {company.name}
                         </th>
                       )
-                    })}
-                  </tr>
-                  {/* Fila de áreas */}
-                  <tr className="bg-white">
-                    {companiesWithOrders.map((company) => {
-                      // Filtrar solo áreas con pedidos
-                      const companyAreas =
-                        areasByCompany[company.id]?.filter((area) => areasWithOrders.includes(area.id)) || []
-
-                      if (companyAreas.length === 0) {
-                        return null // No mostrar esta compañía si no tiene áreas con pedidos
-                      }
-
-                      return companyAreas.map((area: Area) => {
-                        const textColor = getTextColor()
-
-                        return (
-                          <th
-                            key={area.id}
-                            className="px-4 py-2 text-center border"
-                            style={{
-                              backgroundColor: area.color,
-                              color: textColor,
-                            }}
-                          >
-                            {area.name}
-                          </th>
-                        )
-                      })
                     })}
                   </tr>
                 </thead>
@@ -1424,38 +1204,36 @@ export function ReportGenerator() {
                     <tr key={product.id}>
                       <td className="px-4 py-2 text-left border bg-white sticky left-0">{product.name}</td>
                       {companiesWithOrders.map((company) => {
-                        // Filtrar solo áreas con pedidos
                         const companyAreas =
-                          areasByCompany[company.id]?.filter((area) => areasWithOrders.includes(area.id)) || []
-
+                          getAreasByCompany()[company.id]?.filter((area) => areasWithOrders.includes(area.id)) || []
                         if (companyAreas.length === 0) {
-                          return null // No mostrar esta compañía si no tiene áreas con pedidos
+                          return null
                         }
 
-                        return companyAreas.map((area: Area) => (
-                          <td key={`${product.id}-${area.id}`} className="px-4 py-2 text-left border">
-                            <span dangerouslySetInnerHTML={{ __html: getProductQuantity(product.id, area.id) }} />
+                        return (
+                          <td key={`${product.id}-${company.id}`} className="px-4 py-2 text-left border">
+                            <span
+                              dangerouslySetInnerHTML={{ __html: getProductQuantityByCompany(product.id, company.id) }}
+                            />
                           </td>
-                        ))
+                        )
                       })}
                     </tr>
                   ))}
                   <tr>
                     <td className="px-4 py-2 text-left border font-medium bg-white sticky left-0">TOTAL</td>
                     {companiesWithOrders.map((company) => {
-                      // Filtrar solo áreas con pedidos
                       const companyAreas =
-                        areasByCompany[company.id]?.filter((area) => areasWithOrders.includes(area.id)) || []
-
+                        getAreasByCompany()[company.id]?.filter((area) => areasWithOrders.includes(area.id)) || []
                       if (companyAreas.length === 0) {
-                        return null // No mostrar esta compañía si no tiene áreas con pedidos
+                        return null
                       }
 
-                      return companyAreas.map((area: Area) => (
-                        <td key={`total-${area.id}`} className="px-4 py-2 text-left border font-medium">
-                          {calculateAreaTotalByCategory(area.id, categoryId)}
+                      return (
+                        <td key={`total-${company.id}`} className="px-4 py-2 text-left border font-medium">
+                          {calculateCompanyTotalByCategory(company.id, categoryId)}
                         </td>
-                      ))
+                      )
                     })}
                   </tr>
                 </tbody>
@@ -1486,13 +1264,11 @@ export function ReportGenerator() {
     if (dateValue) {
       const [year, month, day] = dateValue.split("-").map(Number)
       const newDate = new Date(year, month - 1, day)
-
       if (type === "from") {
         setDateRange((prev) => ({ ...prev, from: newDate }))
       } else {
         setDateRange((prev) => ({ ...prev, to: newDate }))
       }
-
       setShowReport(false)
       setHasData(false)
       console.log(`Fecha ${type} seleccionada manualmente:`, format(newDate, "yyyy-MM-dd"))
@@ -1506,7 +1282,7 @@ export function ReportGenerator() {
           id="report-generator-dialog"
           variant="outline"
           size="sm"
-          className="gap-2"
+          className="gap-2 bg-transparent"
           onClick={() => setIsDialogOpen(true)}
         >
           <FileSpreadsheet className="h-4 w-4" />
@@ -1517,9 +1293,10 @@ export function ReportGenerator() {
       <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>Generar Reporte de Productos</DialogTitle>
-          <DialogDescription>Selecciona el período para generar el reporte de productos por áreas.</DialogDescription>
+          <DialogDescription>
+            Selecciona el período para generar el reporte de productos por empresas.
+          </DialogDescription>
         </DialogHeader>
-
         <div className="space-y-4 py-4 flex-1 overflow-hidden flex flex-col">
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
@@ -1615,59 +1392,31 @@ export function ReportGenerator() {
             </Button>
           </div>
 
-          {/* Vista previa del reporte de verduras */}
+          {/* Vista previa del reporte */}
           {showReport && (
             <div className="mt-4 space-y-4 flex-1 overflow-hidden flex flex-col">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-medium">Reporte de Productos</h3>
+                <h3 className="text-lg font-medium">Reporte de Productos por Empresa</h3>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={downloadExcel} className="gap-1">
+                  <Button size="sm" variant="outline" onClick={downloadExcel} className="gap-1 bg-transparent">
                     <FileSpreadsheet className="h-4 w-4" />
                     <span>Excel</span>
                   </Button>
-                  <Button size="sm" variant="outline" onClick={downloadPDF} className="gap-1">
+                  <Button size="sm" variant="outline" onClick={downloadPDF} className="gap-1 bg-transparent">
                     <FilePdf className="h-4 w-4" />
                     <span>PDF</span>
                   </Button>
                 </div>
               </div>
-
               <div className="flex-1 overflow-auto">
                 {renderCategoryTables()}
                 {renderObservationsTable()}
               </div>
-
               <div className="text-sm text-muted-foreground">
                 <div className="mb-2">Reporte para: {reportDate}</div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                  {companies.map((company) => {
-                    // Filtrar solo áreas con pedidos
-                    const companyAreas =
-                      getAreasByCompany()[company.id]?.filter((area) => areasWithOrders.includes(area.id)) || []
-
-                    if (companyAreas.length === 0) {
-                      return null // No mostrar esta compañía si no tiene áreas con pedidos
-                    }
-
-                    // Usar el color de la primera área para mostrar la compañía
-                    const firstAreaColor = companyAreas[0]?.color || "#CCCCCC"
-                    const textColor = getTextColor()
-
-                    return (
-                      <div key={company.id} className="text-xs">
-                        <span
-                          className="inline-block px-2 py-1 rounded"
-                          style={{
-                            backgroundColor: firstAreaColor,
-                            color: textColor,
-                          }}
-                        >
-                          {company.name}
-                        </span>
-                        :<span className="ml-1">{companyAreas.map((area) => area.name).join(", ")}</span>
-                      </div>
-                    )
-                  })}
+                <div className="text-xs">
+                  <strong>Nota:</strong> Las cantidades están coloreadas por área dentro de cada empresa. Cada color
+                  representa un área diferente.
                 </div>
               </div>
             </div>

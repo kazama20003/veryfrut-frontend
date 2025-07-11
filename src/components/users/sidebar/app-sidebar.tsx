@@ -27,6 +27,12 @@ const data = {
       isActive: true,
     },
     {
+      title: "Pedidos - Rápido",
+      url: "/users/fast",
+      icon: BarChart3,
+      isActive: true,
+    },
+    {
       title: "Pedidos - Historial",
       url: "/users/history",
       icon: ShoppingCart,
