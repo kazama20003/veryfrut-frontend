@@ -129,7 +129,7 @@ export default function NewOrderPage() {
   const [checkingArea, setCheckingArea] = useState(false)
   const [areaBlockMessage, setAreaBlockMessage] = useState("")
   const [showProductSearch, setShowProductSearch] = useState(false)
-  const [existingOrderId, setExistingOrderId] = useState<number | null>(null)
+  const [, setExistingOrderId] = useState<number | null>(null)
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(-1)
 
   // Para manejar inputs de cantidad como strings para mejor UX
@@ -843,7 +843,7 @@ export default function NewOrderPage() {
                     if (searchResults.length === 0) {
                       return (
                         <div className="p-4 text-center text-muted-foreground">
-                          No se encontraron productos con "{productSearch}"
+                          No se encontraron productos con {productSearch}
                         </div>
                       )
                     }
