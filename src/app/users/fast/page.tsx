@@ -186,27 +186,7 @@ export default function NewOrderPage() {
     }
   }
 
-  // Función para refrescar datos después de crear orden
-  const refreshData = async () => {
-    try {
-      const productsRes = await api.get("/products")
-      setProducts(productsRes.data)
-
-      // Limpiar formulario
-      setOrderItems([])
-      setQuantityInputs({})
-      setObservation("")
-      setProductSearch("")
-      setShowProductSearch(false)
-
-      // Enfocar el buscador para nueva orden
-      setTimeout(() => {
-        searchInputRef.current?.focus()
-      }, 100)
-    } catch (err) {
-      console.error("Error al refrescar datos:", err)
-    }
-  }
+ 
 
   // Cargar usuario actual y datos
   useEffect(() => {
@@ -274,7 +254,7 @@ export default function NewOrderPage() {
     }
   }, [selectedCustomerId, customers, isAdmin])
 
-  // Verificar si ya existe un pedido para el área seleccionada
+  // Verificar si ya existe un pedido para el área seleccionada - VERIFICACIÓN INICIAL
   useEffect(() => {
     const checkAreaAvailability = async () => {
       if (!selectedAreaId) {
@@ -297,29 +277,25 @@ export default function NewOrderPage() {
         console.log("Respuesta de verificación:", response.data)
 
         if (response.data && response.data.exists === true) {
-          console.log("PEDIDO EXISTE - BLOQUEANDO")
+          console.log("PEDIDO EXISTE - BLOQUEANDO DESDE EL INICIO")
           setAreaBlocked(true)
           setExistingOrderId(response.data.orderId || null)
           setAreaBlockMessage(
-            "⚠️ PEDIDO EXISTENTE: Ya tienes un pedido creado para esta área el día de hoy. Si deseas agregar más productos o hacer cambios, puedes editar tu pedido existente desde el historial.",
+            "⚠️ PEDIDO EXISTENTE: Ya tienes un pedido creado para esta área el día de hoy. No puedes crear otro pedido hasta mañana.",
           )
 
-          toast.info("Pedido existente detectado", {
-            description: "Ya existe un pedido para esta área hoy. Puedes editarlo desde tu historial.",
+          toast.error("Pedido ya existe para hoy", {
+            description: "Ya existe un pedido para esta área hoy. Solo se permite un pedido por área por día.",
             action: {
               label: "Ver historial",
               onClick: () => router.push("/users/history"),
             },
           })
-        } else if (response.data && response.data.exists === false) {
+        } else {
           console.log("NO EXISTE PEDIDO - PERMITIENDO CREACIÓN")
           setAreaBlocked(false)
           setAreaBlockMessage("")
           setExistingOrderId(null)
-        } else {
-          console.log("RESPUESTA INESPERADA:", response.data)
-          setAreaBlocked(false)
-          setAreaBlockMessage("⚠️ No se pudo verificar correctamente. Respuesta inesperada del servidor.")
         }
       } catch (err) {
         console.error("Error al verificar disponibilidad del área:", err)
@@ -328,15 +304,12 @@ export default function NewOrderPage() {
           "⚠️ No se pudo verificar la disponibilidad del área. Verifica tu conexión e intenta nuevamente.",
         )
         setExistingOrderId(null)
-
-        toast.warning("Error de verificación", {
-          description: "No se pudo verificar si ya existe un pedido. Revisa tu conexión.",
-        })
       } finally {
         setCheckingArea(false)
       }
     }
 
+    // Ejecutar verificación inmediatamente cuando se selecciona un área
     if (selectedAreaId) {
       checkAreaAvailability()
     }
@@ -474,19 +447,17 @@ export default function NewOrderPage() {
 
   // Actualizar cantidad de un producto
   const handleQuantityInputChange = (index: number, value: string) => {
-    if (value === "" || value === "0" || value === "0." || /^[0-9]*\.?[0-9]{0,2}$/.test(value)) {
+    if (value === "" || /^[0-9]*\.?[0-9]{0,2}$/.test(value)) {
       setQuantityInputs((prev) => ({
         ...prev,
         [index]: value,
       }))
 
-      const numValue = value === "" || value === "0." ? 0 : Number.parseFloat(value)
-      if (!isNaN(numValue)) {
-        const newItems = [...orderItems]
-        newItems[index].quantity = numValue
-        newItems[index].total = numValue * newItems[index].price
-        setOrderItems(newItems)
-      }
+      const numValue = value === "" ? 0 : Number.parseFloat(value) || 0
+      const newItems = [...orderItems]
+      newItems[index].quantity = numValue
+      newItems[index].total = numValue * newItems[index].price
+      setOrderItems(newItems)
     }
   }
 
@@ -582,9 +553,9 @@ export default function NewOrderPage() {
 
     if (areaBlocked) {
       toast.error("Operación bloqueada", {
-        description: "Ya existe un pedido para esta área hoy. Edita tu pedido existente desde el historial.",
+        description: "Ya existe un pedido para esta área hoy. Solo se permite un pedido por área por día.",
         action: {
-          label: "Ir al historial",
+          label: "Ver historial",
           onClick: () => router.push("/users/history"),
         },
       })
@@ -601,15 +572,10 @@ export default function NewOrderPage() {
       if (checkResponse.data && checkResponse.data.exists === true) {
         console.log("VERIFICACIÓN FINAL - PEDIDO EXISTE - BLOQUEANDO ENVÍO")
         toast.error("Pedido duplicado detectado", {
-          description: "Se detectó un pedido existente para esta área. Edita tu pedido desde el historial.",
-          action: {
-            label: "Ver historial",
-            onClick: () => router.push("/users/history"),
-          },
+          description: "Se detectó un pedido existente para esta área. Solo se permite un pedido por día.",
         })
         setAreaBlocked(true)
         setExistingOrderId(checkResponse.data.orderId || null)
-        setAreaBlockMessage("Se detectó un pedido existente para esta área en la fecha actual.")
         return
       }
 
@@ -637,7 +603,8 @@ export default function NewOrderPage() {
         },
       })
 
-      await refreshData()
+      // Refrescar la página completa después de crear la orden
+      window.location.reload()
     } catch (err) {
       console.error("Error al crear el pedido:", err)
       toast.error("Error al crear el pedido", {
@@ -761,23 +728,14 @@ export default function NewOrderPage() {
       </div>
 
       <form onSubmit={handleSubmit}>
-        {/* Sección de productos optimizada para móvil */}
+        {/* Sección de productos con diseño de tabla como en la imagen */}
         <Card>
           <CardHeader className="pb-4">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Package className="h-5 w-5" />
-                Productos
-                {orderItems.length > 0 && (
-                  <Badge variant="outline" className="ml-2">
-                    {orderItems.length}
-                  </Badge>
-                )}
-              </CardTitle>
+            <div className="flex items-center justify-between mb-4">
+              <CardTitle className="text-lg font-semibold">Productos</CardTitle>
               <Button
                 type="button"
                 size="sm"
-                variant="outline"
                 onClick={() => {
                   const newItem: OrderItem = {
                     productId: 0,
@@ -792,224 +750,224 @@ export default function NewOrderPage() {
                   setOrderItems([...orderItems, newItem])
                   setQuantityInputs((prev) => ({
                     ...prev,
-                    [newIndex]: "1",
+                    [newIndex]: "0",
                   }))
                 }}
-                className="bg-green-600 text-white hover:bg-green-700"
+                className="bg-black text-white hover:bg-gray-800"
+                disabled={areaBlocked}
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-4 w-4 mr-2" />
+                Añadir vacío
               </Button>
             </div>
 
-            {/* Búsqueda de productos optimizada */}
-            <div className="space-y-3">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  ref={searchInputRef}
-                  placeholder="Buscar y agregar productos..."
-                  value={productSearch}
-                  onChange={(e) => {
-                    setProductSearch(e.target.value)
-                    setShowProductSearch(e.target.value.length > 0)
+            {/* Búsqueda de productos */}
+            <div className="relative mb-4">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                ref={searchInputRef}
+                placeholder="Buscar y agregar productos..."
+                value={productSearch}
+                onChange={(e) => {
+                  setProductSearch(e.target.value)
+                  setShowProductSearch(e.target.value.length > 0)
+                  setSelectedSearchIndex(-1)
+                }}
+                onFocus={() => setShowProductSearch(productSearch.length > 0)}
+                onKeyDown={handleSearchKeyDown}
+                className="pl-10 pr-10"
+                disabled={areaBlocked}
+              />
+              {productSearch && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setProductSearch("")
+                    setShowProductSearch(false)
                     setSelectedSearchIndex(-1)
                   }}
-                  onFocus={() => setShowProductSearch(productSearch.length > 0)}
-                  onKeyDown={handleSearchKeyDown}
-                  className="pl-10 pr-10"
-                />
-                {productSearch && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setProductSearch("")
-                      setShowProductSearch(false)
-                      setSelectedSearchIndex(-1)
-                    }}
-                    className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-
-              {/* Resultados de búsqueda */}
-              {showProductSearch && (
-                <div className="border rounded-lg bg-white shadow-lg max-h-64 overflow-y-auto">
-                  {(() => {
-                    const searchResults = getFilteredProductOptions()
-                    if (searchResults.length === 0) {
-                      return (
-                        <div className="p-4 text-center text-muted-foreground">
-                          No se encontraron productos con {productSearch}
-                        </div>
-                      )
-                    }
-                    return searchResults.map((result, index) => (
-                      <button
-                        key={`${result.productId}-${result.unitMeasurementId}`}
-                        type="button"
-                        className={`w-full text-left px-4 py-3 hover:bg-muted/50 border-b last:border-b-0 transition-colors ${
-                          index === selectedSearchIndex ? "bg-blue-50 border-blue-200" : ""
-                        }`}
-                        onClick={() => handleAddSpecificProduct(result)}
-                      >
-                        <div className="flex justify-between items-center">
-                          <div className="flex-1">
-                            <div className="font-medium text-sm">{result.productName}</div>
-                            <div className="text-xs text-muted-foreground flex items-center gap-2">
-                              <span>{result.unitMeasurementName}</span>
-                              {result.stock < 10 && (
-                                <Badge variant="destructive" className="text-xs px-1 py-0">
-                                  Bajo stock
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                          <Plus className="h-4 w-4 text-green-600" />
-                        </div>
-                      </button>
-                    ))
-                  })()}
-                </div>
+                  className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
               )}
             </div>
+
+            {/* Resultados de búsqueda */}
+            {showProductSearch && (
+              <div className="border rounded-lg bg-white shadow-lg max-h-64 overflow-y-auto mb-4">
+                {(() => {
+                  const searchResults = getFilteredProductOptions()
+                  if (searchResults.length === 0) {
+                    return (
+                      <div className="p-4 text-center text-muted-foreground">
+                        No se encontraron productos con {productSearch}
+                      </div>
+                    )
+                  }
+                  return searchResults.map((result, index) => (
+                    <button
+                      key={`${result.productId}-${result.unitMeasurementId}`}
+                      type="button"
+                      className={`w-full text-left px-4 py-3 hover:bg-muted/50 border-b last:border-b-0 transition-colors ${
+                        index === selectedSearchIndex ? "bg-blue-50 border-blue-200" : ""
+                      }`}
+                      onClick={() => handleAddSpecificProduct(result)}
+                    >
+                      <div className="flex justify-between items-center">
+                        <div className="flex-1">
+                          <div className="font-medium text-sm">
+                            {result.productName} - {result.unitMeasurementName}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Stock: {result.stock}
+                            {result.stock < 10 && (
+                              <Badge variant="destructive" className="text-xs px-1 py-0 ml-2">
+                                Bajo stock
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        <Plus className="h-4 w-4 text-green-600" />
+                      </div>
+                    </button>
+                  ))
+                })()}
+              </div>
+            )}
           </CardHeader>
 
           <CardContent>
-            <div className="space-y-4">
-              {orderItems.length === 0 ? (
-                <div className="text-center py-8 border rounded-lg bg-muted/30">
-                  <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground mb-2">No hay productos en el pedido</p>
-                  <p className="text-xs text-muted-foreground">
-                    Usa el buscador de arriba para agregar productos rápidamente
-                  </p>
+            {/* Tabla de productos como en la imagen */}
+            <div className="border rounded-lg overflow-hidden">
+              {/* Header de la tabla */}
+              <div className="bg-gray-50 border-b">
+                <div className="grid grid-cols-12 gap-4 p-3">
+                  <div className="col-span-8 text-sm font-medium text-gray-700">Producto y Unidad</div>
+                  <div className="col-span-3 text-sm font-medium text-gray-700 text-center">Cantidad</div>
+                  <div className="col-span-1"></div>
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  {/* Vista móvil optimizada - Cards simples */}
-                  {orderItems.map((item, index) => (
-                    <Card key={index} className="border-l-4 border-l-green-500">
-                      <CardContent className="p-4">
-                        <div className="space-y-3">
-                          {/* Producto y unidad */}
-                          <div className="flex justify-between items-start">
-                            <div className="flex-1">
-                              <div className="text-sm text-muted-foreground mb-1">Producto y Unidad</div>
-                              {item.productId === 0 ? (
-                                <Select value="" onValueChange={(value) => handleProductUnitChange(index, value)}>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Seleccionar producto y unidad..." />
-                                  </SelectTrigger>
-                                  <SelectContent className="max-h-[300px]">
-                                    {products.flatMap((product) =>
-                                      product.productUnits.map((unit) => (
-                                        <SelectItem
-                                          key={`${product.id}-${unit.unitMeasurementId}`}
-                                          value={`${product.id}-${unit.unitMeasurementId}`}
-                                        >
-                                          <div className="flex flex-col">
-                                            <span>
-                                              {product.name} - {unit.unitMeasurement.name}
-                                            </span>
-                                            <span className="text-xs text-muted-foreground">
-                                              Stock: {product.stock}
-                                            </span>
-                                          </div>
-                                        </SelectItem>
-                                      )),
-                                    )}
-                                  </SelectContent>
-                                </Select>
-                              ) : (
-                                <div className="flex items-center justify-between">
-                                  <div>
-                                    <p className="font-medium">
-                                      {item.productName} - {item.unitMeasurementName}
-                                    </p>
-                                  </div>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => {
-                                      const newItems = [...orderItems]
-                                      newItems[index] = {
-                                        productId: 0,
-                                        productName: "",
-                                        quantity: 0,
-                                        price: 0,
-                                        total: 0,
-                                        unitMeasurementId: 0,
-                                        unitMeasurementName: "",
-                                      }
-                                      setOrderItems(newItems)
-                                    }}
-                                    className="text-blue-600 hover:text-blue-800 text-xs"
+              </div>
+
+              {/* Filas de productos */}
+              <div className="divide-y">
+                {orderItems.length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground">
+                    <Package className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                    <p className="mb-2">No hay productos en el pedido</p>
+                    <p className="text-xs">Usa el buscador de arriba o el botón Añadir vacío</p>
+                  </div>
+                ) : (
+                  orderItems.map((item, index) => (
+                    <div key={index} className="grid grid-cols-12 gap-4 p-3 items-center hover:bg-gray-50">
+                      {/* Producto y Unidad */}
+                      <div className="col-span-8">
+                        {item.productId === 0 ? (
+                          <Select
+                            value=""
+                            onValueChange={(value) => handleProductUnitChange(index, value)}
+                            disabled={areaBlocked}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Seleccionar producto y unidad..." />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-[300px]">
+                              {products.flatMap((product) =>
+                                product.productUnits.map((unit) => (
+                                  <SelectItem
+                                    key={`${product.id}-${unit.unitMeasurementId}`}
+                                    value={`${product.id}-${unit.unitMeasurementId}`}
                                   >
-                                    Cambiar
-                                  </Button>
-                                </div>
+                                    <div className="flex flex-col">
+                                      <span>
+                                        {product.name} - {unit.unitMeasurement.name}
+                                      </span>
+                                      <span className="text-xs text-muted-foreground">Stock: {product.stock}</span>
+                                    </div>
+                                  </SelectItem>
+                                )),
                               )}
-                            </div>
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium">
+                              {item.productName} - {item.unitMeasurementName}
+                            </span>
                             <Button
                               type="button"
                               variant="ghost"
-                              size="icon"
-                              onClick={() => handleRemoveProduct(index)}
-                              className="h-8 w-8 text-red-500 ml-2"
+                              size="sm"
+                              onClick={() => {
+                                const newItems = [...orderItems]
+                                newItems[index] = {
+                                  productId: 0,
+                                  productName: "",
+                                  quantity: 0,
+                                  price: 0,
+                                  total: 0,
+                                  unitMeasurementId: 0,
+                                  unitMeasurementName: "",
+                                }
+                                setOrderItems(newItems)
+                                setQuantityInputs((prev) => ({
+                                  ...prev,
+                                  [index]: "0",
+                                }))
+                              }}
+                              className="text-blue-600 hover:text-blue-800 text-sm"
+                              disabled={areaBlocked}
                             >
-                              <Trash2 className="h-4 w-4" />
+                              Cambiar
                             </Button>
                           </div>
+                        )}
+                      </div>
 
-                          {/* Cantidad */}
-                          <div className="flex items-center gap-3">
-                            <div className="flex-1">
-                              <Label className="text-sm">Cantidad</Label>
-                              <Input
-                                type="text"
-                                inputMode="decimal"
-                                value={
-                                  quantityInputs[index] !== undefined ? quantityInputs[index] : item.quantity.toString()
-                                }
-                                onChange={(e) => handleQuantityInputChange(index, e.target.value)}
-                                className="mt-1"
-                                placeholder="1"
-                              />
-                            </div>
-                            {/* Total (sin mostrar precio unitario) */}
-                            <div className="text-right">
-                              <div className="text-sm text-muted-foreground">Total</div>
-                              <div className="text-lg font-bold">{item.total.toFixed(2)}</div>
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                      {/* Cantidad */}
+                      <div className="col-span-3">
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          value={quantityInputs[index] !== undefined ? quantityInputs[index] : item.quantity.toString()}
+                          onChange={(e) => handleQuantityInputChange(index, e.target.value)}
+                          className="text-center"
+                          placeholder="0"
+                          disabled={areaBlocked}
+                        />
+                      </div>
 
-                  {/* Resumen total */}
-                  <div className="border-t pt-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">
-                        {orderItems.length} producto{orderItems.length !== 1 ? "s" : ""}
-                      </span>
-                      <div className="text-right">
-                        <p className="text-sm text-muted-foreground">Total de productos</p>
-                        <p className="text-xl font-bold">{calculateTotalQuantity()}</p>
+                      {/* Botón eliminar */}
+                      <div className="col-span-1 text-center">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemoveProduct(index)}
+                          className="h-8 w-8 text-red-500 hover:text-red-700"
+                          disabled={areaBlocked}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
-                  </div>
-                </div>
-              )}
+                  ))
+                )}
+              </div>
+            </div>
 
-              {/* Observación */}
-              {orderItems.length > 0 && (
-                <div className="space-y-2 pt-4 border-t">
+            {/* Resumen y observación */}
+            {orderItems.length > 0 && (
+              <div className="mt-6 space-y-4">
+                {/* Total de productos */}
+                <div className="text-right">
+                  <span className="text-sm font-medium">Total productos: {calculateTotalQuantity()}</span>
+                </div>
+
+                {/* Observación */}
+                <div className="space-y-2">
                   <Label htmlFor="observation">Observación (opcional)</Label>
                   <Textarea
                     id="observation"
@@ -1017,10 +975,11 @@ export default function NewOrderPage() {
                     value={observation}
                     onChange={(e) => setObservation(e.target.value)}
                     rows={3}
+                    disabled={areaBlocked}
                   />
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </CardContent>
 
           <CardFooter className="flex flex-col gap-3">
@@ -1038,12 +997,12 @@ export default function NewOrderPage() {
                 {submitting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Creando...
+                    Creando pedido...
                   </>
                 ) : areaBlocked ? (
                   <>
                     <AlertTriangle className="mr-2 h-4 w-4" />
-                    Bloqueado
+                    Bloqueado - Pedido existe
                   </>
                 ) : (
                   <>
