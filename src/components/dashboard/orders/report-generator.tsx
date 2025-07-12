@@ -1895,7 +1895,7 @@ export function ReportGenerator() {
               <div className="flex justify-center py-8">
                 <p className="text-muted-foreground">
                   {reportType === "day"
-                    ? "Selecciona un día y haz clic en 'Generar Reporte' para ver los resultados"
+                    ? "Selecciona un dia y haz clic en 'Generar Reporte' para ver los resultados"
                     : "Selecciona un rango de fechas y haz clic en 'Generar Reporte' para ver los resultados"}
                 </p>
               </div>
