@@ -42,26 +42,42 @@ interface Area {
 interface Company {
   id: number
   name: string
-  color?: string // Agregado el campo color para empresas
+  color?: string
   areas?: Area[]
 }
 
-// Colores predefinidos organizados por categorías - TODOS ÚNICOS
+// Colores predefinidos organizados por categorías - ACTUALIZADOS CON LOS NUEVOS COLORES
 const colorOptions = {
-  Rojos: ["#FF6B6B", "#FF5252", "#F44336", "#E53E3E", "#DC2626", "#B91C1C", "#991B1B", "#7F1D1D", "#FF1744", "#D50000"],
+  Rojos: [
+    "#FF0000", // Nuevo - Rojo puro
+    "#FF5252", // Nuevo - Ya existía
+    "#FF6B6B",
+    "#F44336",
+    "#E53E3E",
+    "#DC2626",
+    "#B91C1C",
+    "#991B1B",
+    "#7F1D1D",
+    "#FF1744",
+    "#D50000",
+  ],
   Azules: [
+    "#1976D2", // Nuevo - Ya existía
+    "#0070C0", // Nuevo
     "#4FC3F7",
     "#42A5F5",
     "#2196F3",
-    "#1976D2",
     "#1565C0",
     "#0D47A1",
     "#01579B",
     "#0277BD",
     "#0288D1",
     "#039BE5",
+    "#BBDEFB", // Nuevo - Ya existía
   ],
   Verdes: [
+    "#00CC00", // Nuevo
+    "#00B050", // Nuevo
     "#66BB6A",
     "#4CAF50",
     "#43A047",
@@ -74,6 +90,8 @@ const colorOptions = {
     "#26A69A",
   ],
   Naranjas: [
+    "#E26B0A", // Nuevo
+    "#FFB300", // Nuevo - Ya existía
     "#FFA726",
     "#FF9800",
     "#F57C00",
@@ -82,13 +100,12 @@ const colorOptions = {
     "#FF6F00",
     "#FF8F00",
     "#FFA000",
-    "#FFB300",
     "#FFC107",
   ],
   Morados: [
+    "#8E24AA", // Nuevo - Ya existía
     "#AB47BC",
     "#9C27B0",
-    "#8E24AA",
     "#7B1FA2",
     "#6A1B9A",
     "#4A148C",
@@ -97,7 +114,17 @@ const colorOptions = {
     "#CE93D8",
     "#E1BEE7",
   ],
-  Rosas: ["#EC407A", "#E91E63", "#D81B60", "#C2185B", "#AD1457", "#880E4F", "#F50057", "#C51162", "#F8BBD9", "#FCE4EC"],
+  Rosas: [
+    "#C2185B", // Nuevo - Ya existía
+    "#EC407A",
+    "#E91E63",
+    "#D81B60",
+    "#AD1457",
+    "#880E4F",
+    "#F50057",
+    "#F8BBD9",
+    "#FCE4EC",
+  ],
   Amarillos: [
     "#FFEE58",
     "#FFEB3B",
@@ -111,6 +138,7 @@ const colorOptions = {
     "#FFF9C4",
   ],
   Grises: [
+    "#000000", // Nuevo - Negro
     "#78909C",
     "#607D8B",
     "#546E7A",
@@ -159,16 +187,28 @@ const colorOptions = {
     "#795548",
   ],
   Neones: [
+    "#00FFFF", // Nuevo - Ya existía
     "#FF073A",
     "#FF9500",
     "#FFFF00",
     "#39FF14",
-    "#00FFFF",
     "#0080FF",
     "#8000FF",
     "#FF00FF",
     "#FF1493",
     "#FF69B4",
+  ],
+  Especiales: [
+    "#948A54", // Nuevo - Verde oliva/Marrón
+    "#8B4513", // Marrón silla de montar
+    "#A0522D", // Marrón siena
+    "#CD853F", // Marrón arena
+    "#DEB887", // Marrón claro
+    "#F4A460", // Marrón arena claro
+    "#D2691E", // Chocolate
+    "#B8860B", // Vara de oro oscura
+    "#DAA520", // Vara de oro
+    "#FFD700", // Oro
   ],
 }
 
@@ -193,7 +233,10 @@ function ColorSelector({
           className="w-8 h-8 rounded-full border-2 border-gray-300 shadow-sm"
           style={{ backgroundColor: value || "#4FC3F7" }}
         />
-        <span className="text-sm font-medium">Color seleccionado</span>
+        <div className="flex flex-col">
+          <span className="text-sm font-medium">Color seleccionado</span>
+          <span className="text-xs text-gray-500 font-mono">{value || "#4FC3F7"}</span>
+        </div>
       </div>
 
       {/* Categorías de colores */}
@@ -214,19 +257,32 @@ function ColorSelector({
         </div>
 
         {/* Paleta de colores de la categoría seleccionada */}
-        <div className="grid grid-cols-5 gap-2 p-3 border rounded-lg bg-white">
+        <div className="grid grid-cols-6 gap-2 p-3 border rounded-lg bg-white max-h-48 overflow-y-auto">
           {colorOptions[selectedCategory as keyof typeof colorOptions].map((color, index) => (
             <button
               key={`${color}-${index}`}
               type="button"
-              className="relative w-10 h-10 rounded-lg border-2 border-gray-200 hover:border-gray-400 transition-all hover:scale-105 focus:outline-none focus:ring-blue-500"
+              className="relative w-10 h-10 rounded-lg border-2 border-gray-200 hover:border-gray-400 transition-all hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500"
               style={{ backgroundColor: color }}
               onClick={() => onChange(color)}
               title={`Seleccionar ${color}`}
             >
-              {value === color && <Check className="absolute inset-0 m-auto h-5 w-5 text-white drop-shadow-lg" />}
+              {value === color && (
+                <Check
+                  className="absolute inset-0 m-auto h-4 w-4 text-white drop-shadow-lg"
+                  style={{
+                    color: color === "#FFFFFF" || color === "#FFFF00" || color === "#FFD700" ? "#000000" : "#FFFFFF",
+                  }}
+                />
+              )}
             </button>
           ))}
+        </div>
+
+        {/* Información adicional */}
+        <div className="text-xs text-gray-500 bg-blue-50 p-2 rounded border">
+          <strong>Tip:</strong> Los colores se organizan por categorías para facilitar la selección. Puedes cambiar
+          entre categorías usando los botones superiores.
         </div>
       </div>
     </div>
@@ -274,7 +330,7 @@ function CompanyForm({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{company ? "Editar empresa" : "Nueva empresa"}</DialogTitle>
           <DialogDescription>
@@ -294,9 +350,7 @@ function CompanyForm({
               required
             />
           </div>
-
           <ColorSelector value={color} onChange={setColor} label="Color identificativo de la empresa" />
-
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
@@ -363,7 +417,7 @@ function AreaForm({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{area ? "Editar área" : "Nueva área"}</DialogTitle>
           <DialogDescription>
@@ -381,9 +435,7 @@ function AreaForm({
               required
             />
           </div>
-
           <ColorSelector value={color} onChange={setColor} label="Color identificativo del área" />
-
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar

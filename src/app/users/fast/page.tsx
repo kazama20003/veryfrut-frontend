@@ -1,5 +1,4 @@
 "use client"
-
 import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
@@ -9,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Trash2, Save, Loader2, User, Search, Package, AlertTriangle, Edit, Zap, ArrowRight } from "lucide-react"
+import { Plus, Trash2, Save, Loader2, User, Search, Package, AlertTriangle, Edit, Zap, X } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -88,15 +87,35 @@ interface ProductOption {
   searchText: string
 }
 
+// Función para decodificar JWT token
+const decodeJWT = (token: string) => {
+  try {
+    const base64Url = token.split(".")[1]
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/")
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join(""),
+    )
+    return JSON.parse(jsonPayload)
+  } catch (error) {
+    console.error("Error decodificando JWT:", error)
+    return null
+  }
+}
+
 export default function NewOrderPage() {
   const router = useRouter()
   const searchInputRef = useRef<HTMLInputElement>(null)
+
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
   const [customers, setCustomers] = useState<Customer[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
   const [customerSearch, setCustomerSearch] = useState("")
   const [productSearch, setProductSearch] = useState("")
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("")
@@ -105,11 +124,12 @@ export default function NewOrderPage() {
   const [orderItems, setOrderItems] = useState<OrderItem[]>([])
   const [observation, setObservation] = useState("")
   const [status, setStatus] = useState<OrderStatus>(OrderStatus.CREATED)
+
   const [areaBlocked, setAreaBlocked] = useState(false)
   const [checkingArea, setCheckingArea] = useState(false)
   const [areaBlockMessage, setAreaBlockMessage] = useState("")
   const [showProductSearch, setShowProductSearch] = useState(false)
-  const [, setExistingOrderId] = useState<number | null>(null)
+  const [existingOrderId, setExistingOrderId] = useState<number | null>(null)
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(-1)
 
   // Para manejar inputs de cantidad como strings para mejor UX
@@ -122,58 +142,44 @@ export default function NewOrderPage() {
   // Función para obtener fecha actual en zona horaria de Lima, Perú (UTC-5)
   const getLimaPeruDate = (): string => {
     const now = new Date()
-    // Crear fecha en zona horaria de Lima, Perú (UTC-5)
     const utc = now.getTime() + now.getTimezoneOffset() * 60000
-    const limaTime = new Date(utc + -5 * 3600000) // UTC-5 para Lima
+    const limaTime = new Date(utc + -5 * 3600000)
 
-    // Formatear como YYYY-MM-DD
     const year = limaTime.getFullYear()
     const month = String(limaTime.getMonth() + 1).padStart(2, "0")
     const day = String(limaTime.getDate()).padStart(2, "0")
-
     return `${year}-${month}-${day}`
   }
 
-  // Función para obtener el usuario actual
+  // Función mejorada para obtener el usuario actual desde el token JWT
   const getCurrentUser = async (): Promise<CurrentUser | null> => {
     try {
-      // Primero intentar obtener del localStorage
-      const userDataString = localStorage.getItem("user")
-      if (userDataString) {
-        try {
-          const userData = JSON.parse(userDataString)
-          // Verificar que tenga los campos necesarios
-          if (userData.id && userData.email && userData.role) {
-            return userData
-          }
-        } catch (error) {
-          console.error("Error al parsear datos del localStorage:", error)
-        }
-      }
-
-      // Si no hay datos válidos en localStorage, obtener del token o sesión
+      // Obtener token del localStorage
       const token = localStorage.getItem("token") || localStorage.getItem("authToken")
       if (!token) {
         throw new Error("No hay token de autenticación")
       }
 
-      // Obtener todos los usuarios y encontrar el actual basado en el token/email
-      const usersResponse = await api.get("/users")
-      const users = usersResponse.data
-
-      // Si solo hay un usuario customer, probablemente sea el actual
-      const customerUsers = users.filter((user: Customer) => user.role === "customer")
-      if (customerUsers.length === 1) {
-        return customerUsers[0] as CurrentUser
+      // Decodificar el token JWT para obtener el ID del usuario
+      const decodedToken = decodeJWT(token)
+      if (!decodedToken || !decodedToken.sub) {
+        throw new Error("Token inválido o sin ID de usuario")
       }
 
-      // Si hay múltiples usuarios, necesitamos otra forma de identificar al actual
-      // Por ahora, usar el primer customer como fallback
-      if (customerUsers.length > 0) {
-        return customerUsers[0] as CurrentUser
+      const userId = decodedToken.sub
+      console.log("ID de usuario desde token:", userId)
+
+      // Obtener información completa del usuario desde la API
+      const userResponse = await api.get(`/users/${userId}`)
+      const userData = userResponse.data
+
+      console.log("Datos del usuario obtenidos:", userData)
+
+      if (!userData.id || !userData.email || !userData.role) {
+        throw new Error("Datos de usuario incompletos")
       }
 
-      throw new Error("No se pudo identificar el usuario actual")
+      return userData as CurrentUser
     } catch (error) {
       console.error("Error al obtener usuario actual:", error)
       return null
@@ -183,7 +189,6 @@ export default function NewOrderPage() {
   // Función para refrescar datos después de crear orden
   const refreshData = async () => {
     try {
-      // Recargar productos para reflejar cambios en stock
       const productsRes = await api.get("/products")
       setProducts(productsRes.data)
 
@@ -209,13 +214,15 @@ export default function NewOrderPage() {
       setLoading(true)
       setError(null)
       try {
-        // Obtener usuario actual
+        // Obtener usuario actual desde el token
         const userData = await getCurrentUser()
         if (!userData) {
           setError("No se encontró información del usuario. Por favor, inicia sesión.")
           return
         }
+
         setCurrentUser(userData)
+        console.log("Usuario actual establecido:", userData)
 
         // Cargar productos siempre
         const productsRes = await api.get("/products")
@@ -229,6 +236,7 @@ export default function NewOrderPage() {
           // Si es cliente, usar automáticamente sus datos
           setSelectedCustomerId(userData.id.toString())
           setSelectedCustomer(userData as Customer)
+
           // Si tiene áreas, seleccionar la primera por defecto
           if (userData.areas && userData.areas.length > 0) {
             setSelectedAreaId(userData.areas[0].id.toString())
@@ -257,7 +265,7 @@ export default function NewOrderPage() {
     if (isAdmin && selectedCustomerId) {
       const customer = customers.find((c) => c.id === Number(selectedCustomerId))
       setSelectedCustomer(customer || null)
-      // Si el cliente tiene áreas, seleccionar la primera por defecto
+
       if (customer?.areas && customer.areas.length > 0) {
         setSelectedAreaId(customer.areas[0].id.toString())
       } else {
@@ -282,7 +290,6 @@ export default function NewOrderPage() {
       setExistingOrderId(null)
 
       try {
-        // Obtener la fecha actual en zona horaria de Lima, Perú
         const limaDate = getLimaPeruDate()
         console.log(`Verificando pedido para área ${selectedAreaId} en fecha ${limaDate}`)
 
@@ -290,7 +297,6 @@ export default function NewOrderPage() {
         console.log("Respuesta de verificación:", response.data)
 
         if (response.data && response.data.exists === true) {
-          // BLOQUEO INMEDIATO - El pedido ya existe
           console.log("PEDIDO EXISTE - BLOQUEANDO")
           setAreaBlocked(true)
           setExistingOrderId(response.data.orderId || null)
@@ -298,7 +304,6 @@ export default function NewOrderPage() {
             "⚠️ PEDIDO EXISTENTE: Ya tienes un pedido creado para esta área el día de hoy. Si deseas agregar más productos o hacer cambios, puedes editar tu pedido existente desde el historial.",
           )
 
-          // Toast inmediato para informar al usuario
           toast.info("Pedido existente detectado", {
             description: "Ya existe un pedido para esta área hoy. Puedes editarlo desde tu historial.",
             action: {
@@ -307,20 +312,17 @@ export default function NewOrderPage() {
             },
           })
         } else if (response.data && response.data.exists === false) {
-          // No existe pedido, permitir creación
           console.log("NO EXISTE PEDIDO - PERMITIENDO CREACIÓN")
           setAreaBlocked(false)
           setAreaBlockMessage("")
           setExistingOrderId(null)
         } else {
-          // Respuesta inesperada
           console.log("RESPUESTA INESPERADA:", response.data)
           setAreaBlocked(false)
           setAreaBlockMessage("⚠️ No se pudo verificar correctamente. Respuesta inesperada del servidor.")
         }
       } catch (err) {
         console.error("Error al verificar disponibilidad del área:", err)
-        // En caso de error de conexión, mostrar advertencia pero no bloquear completamente
         setAreaBlocked(false)
         setAreaBlockMessage(
           "⚠️ No se pudo verificar la disponibilidad del área. Verifica tu conexión e intenta nuevamente.",
@@ -335,7 +337,6 @@ export default function NewOrderPage() {
       }
     }
 
-    // Ejecutar verificación inmediatamente cuando se selecciona un área
     if (selectedAreaId) {
       checkAreaAvailability()
     }
@@ -354,7 +355,6 @@ export default function NewOrderPage() {
     if (!productSearch.trim()) return []
 
     const searchTerm = productSearch.toLowerCase().trim()
-
     return products
       .flatMap((product) =>
         product.productUnits.map((unit) => ({
@@ -375,14 +375,13 @@ export default function NewOrderPage() {
           option.unitMeasurementName.toLowerCase().includes(searchTerm),
       )
       .sort((a, b) => {
-        // Priorizar coincidencias exactas al inicio
         const aStartsWith = a.productName.toLowerCase().startsWith(searchTerm)
         const bStartsWith = b.productName.toLowerCase().startsWith(searchTerm)
         if (aStartsWith && !bStartsWith) return -1
         if (!aStartsWith && bStartsWith) return 1
         return a.productName.localeCompare(b.productName)
       })
-      .slice(0, 10) // Limitar a 10 resultados para mejor rendimiento
+      .slice(0, 10)
   }
 
   // Manejar navegación con teclado en búsqueda
@@ -407,42 +406,21 @@ export default function NewOrderPage() {
     }
   }
 
-  // Añadir producto al pedido
-  const handleAddProduct = () => {
-    const newItem: OrderItem = {
-      productId: 0,
-      productName: "",
-      quantity: 0,
-      price: 0,
-      total: 0,
-      unitMeasurementId: 0,
-      unitMeasurementName: "",
-    }
-    const newIndex = orderItems.length
-    setOrderItems([...orderItems, newItem])
-    // Inicializar el input de cantidad como "1"
-    setQuantityInputs((prev) => ({
-      ...prev,
-      [newIndex]: "1",
-    }))
-  }
-
   // Añadir producto específico desde la búsqueda
   const handleAddSpecificProduct = (productOption: ProductOption) => {
-    // Verificar si el producto ya está en la lista
     const existingIndex = orderItems.findIndex(
       (item) =>
         item.productId === productOption.productId && item.unitMeasurementId === productOption.unitMeasurementId,
     )
 
     if (existingIndex >= 0) {
-      // Si ya existe, incrementar cantidad
       const currentQuantity = orderItems[existingIndex].quantity
       const newQuantity = currentQuantity + 1
       const newItems = [...orderItems]
       newItems[existingIndex].quantity = newQuantity
       newItems[existingIndex].total = newQuantity * newItems[existingIndex].price
       setOrderItems(newItems)
+
       setQuantityInputs((prev) => ({
         ...prev,
         [existingIndex]: newQuantity.toString(),
@@ -452,7 +430,6 @@ export default function NewOrderPage() {
         description: `${productOption.productName} - ${productOption.unitMeasurementName}: ${newQuantity}`,
       })
     } else {
-      // Si no existe, agregar nuevo
       const newItem: OrderItem = {
         productId: productOption.productId,
         productName: productOption.productName,
@@ -462,6 +439,7 @@ export default function NewOrderPage() {
         unitMeasurementId: productOption.unitMeasurementId,
         unitMeasurementName: productOption.unitMeasurementName,
       }
+
       const newIndex = orderItems.length
       setOrderItems([...orderItems, newItem])
       setQuantityInputs((prev) => ({
@@ -478,7 +456,6 @@ export default function NewOrderPage() {
     setShowProductSearch(false)
     setSelectedSearchIndex(-1)
 
-    // Enfocar de nuevo el buscador para continuar agregando
     setTimeout(() => {
       searchInputRef.current?.focus()
     }, 100)
@@ -489,23 +466,20 @@ export default function NewOrderPage() {
     const newItems = [...orderItems]
     newItems.splice(index, 1)
     setOrderItems(newItems)
-    // Eliminar el input de cantidad correspondiente
+
     const newQuantityInputs = { ...quantityInputs }
     delete newQuantityInputs[index]
     setQuantityInputs(newQuantityInputs)
   }
 
-  // Actualizar cantidad de un producto - maneja el input como string
+  // Actualizar cantidad de un producto
   const handleQuantityInputChange = (index: number, value: string) => {
-    // Permitir valores vacíos, "0", "0." y decimales
-    // Validar que solo contenga números y un punto decimal
     if (value === "" || value === "0" || value === "0." || /^[0-9]*\.?[0-9]{0,2}$/.test(value)) {
       setQuantityInputs((prev) => ({
         ...prev,
         [index]: value,
       }))
 
-      // Actualizar el valor numérico en el orderItem
       const numValue = value === "" || value === "0." ? 0 : Number.parseFloat(value)
       if (!isNaN(numValue)) {
         const newItems = [...orderItems]
@@ -536,7 +510,6 @@ export default function NewOrderPage() {
     newItems[index].unitMeasurementName = unit.unitMeasurement.name
     setOrderItems(newItems)
 
-    // Actualizar input de cantidad si no existe
     if (!quantityInputs[index]) {
       setQuantityInputs((prev) => ({
         ...prev,
@@ -566,7 +539,6 @@ export default function NewOrderPage() {
       return false
     }
 
-    // VALIDACIÓN CRÍTICA: Bloquear si ya existe un pedido para esta área hoy
     if (areaBlocked) {
       toast.error("Pedido ya existe", {
         description: "Ya tienes un pedido para esta área hoy. Edita tu pedido existente desde el historial.",
@@ -585,7 +557,6 @@ export default function NewOrderPage() {
       return false
     }
 
-    // Validar que todos los productos estén seleccionados
     const unselectedItems = orderItems.filter((item) => item.productId === 0)
     if (unselectedItems.length > 0) {
       toast.error("Error de validación", {
@@ -594,7 +565,6 @@ export default function NewOrderPage() {
       return false
     }
 
-    // Validar que todas las cantidades sean válidas
     const invalidItems = orderItems.filter((item) => item.quantity <= 0)
     if (invalidItems.length > 0) {
       toast.error("Error de validación", {
@@ -610,7 +580,6 @@ export default function NewOrderPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // VERIFICACIÓN ADICIONAL: Doble verificación antes de enviar
     if (areaBlocked) {
       toast.error("Operación bloqueada", {
         description: "Ya existe un pedido para esta área hoy. Edita tu pedido existente desde el historial.",
@@ -626,7 +595,6 @@ export default function NewOrderPage() {
 
     setSubmitting(true)
     try {
-      // VERIFICACIÓN FINAL: Verificar una vez más antes de enviar al servidor usando fecha de Lima
       const limaDate = getLimaPeruDate()
       const checkResponse = await api.get(`/orders/check?areaId=${selectedAreaId}&date=${limaDate}`)
 
@@ -660,6 +628,7 @@ export default function NewOrderPage() {
       }
 
       await api.post("/orders", orderData)
+
       toast.success("¡Pedido creado exitosamente!", {
         description: `Se creó el pedido con ${orderItems.length} productos.`,
         action: {
@@ -668,7 +637,6 @@ export default function NewOrderPage() {
         },
       })
 
-      // Refrescar datos y limpiar formulario
       await refreshData()
     } catch (err) {
       console.error("Error al crear el pedido:", err)
@@ -703,186 +671,458 @@ export default function NewOrderPage() {
 
   return (
     <div className="container mx-auto p-4 max-w-7xl">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-            {isClient ? "Pedido Rápido" : "Nuevo Pedido"}
-          </h1>
-          <Badge variant="secondary" className="bg-green-100 text-green-700">
-            <Zap className="h-3 w-3 mr-1" />
-            Rápido
-          </Badge>
-        </div>
-        {isClient && currentUser && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-3 py-2 rounded-lg">
-            <User className="h-4 w-4" />
-            <span>
-              {currentUser.firstName} {currentUser.lastName}
-            </span>
+      {/* Header optimizado para móvil */}
+      <div className="flex flex-col gap-4 mb-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
+              {isClient ? "Pedido Rápido" : "Nuevo Pedido"}
+            </h1>
+            <Badge variant="secondary" className="bg-green-100 text-green-700">
+              <Zap className="h-3 w-3 mr-1" />
+              Rápido
+            </Badge>
           </div>
+          {isClient && currentUser && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <User className="h-4 w-4" />
+              <span className="hidden sm:inline">
+                {currentUser.firstName} {currentUser.lastName}
+              </span>
+              <span className="sm:hidden">{currentUser.firstName}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Información del área seleccionada - Móvil optimizado */}
+        {selectedCustomer && (
+          <Card className="bg-muted/30">
+            <CardContent className="p-4">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium">Área de entrega</Label>
+                  {checkingArea && <Loader2 className="h-4 w-4 animate-spin" />}
+                </div>
+                <Select value={selectedAreaId} onValueChange={setSelectedAreaId} disabled={checkingArea}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={checkingArea ? "Verificando..." : "Seleccionar área"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {selectedCustomer.areas && selectedCustomer.areas.length > 0 ? (
+                      selectedCustomer.areas.map((area) => (
+                        <SelectItem key={area.id} value={area.id.toString()}>
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-3 h-3 rounded-full"
+                              style={{ backgroundColor: area.color || "#4FC3F7" }}
+                            />
+                            {area.name}
+                          </div>
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <div className="p-2 text-center text-muted-foreground">No hay áreas disponibles</div>
+                    )}
+                  </SelectContent>
+                </Select>
+
+                {areaBlockMessage && (
+                  <div
+                    className={`text-sm p-3 rounded-lg flex items-start gap-2 ${
+                      areaBlocked
+                        ? "bg-red-50 text-red-700 border border-red-200"
+                        : "bg-yellow-50 text-yellow-700 border border-yellow-200"
+                    }`}
+                  >
+                    <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <span>{areaBlockMessage}</span>
+                      {areaBlocked && (
+                        <div className="mt-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => router.push("/users/history")}
+                            className="bg-red-600 text-white hover:bg-red-700"
+                          >
+                            <Edit className="h-4 w-4 mr-2" />
+                            Editar pedido existente
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         )}
       </div>
 
       <form onSubmit={handleSubmit}>
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Información del cliente - Solo mostrar para admins */}
-          {isAdmin && (
-            <Card className="lg:col-span-4">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <User className="h-5 w-5" />
-                  Cliente
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="customerSearch">Buscar cliente</Label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="customerSearch"
-                      placeholder="Buscar por nombre o email"
-                      value={customerSearch}
-                      onChange={(e) => setCustomerSearch(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="customerId">Seleccionar cliente</Label>
-                  <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
-                    <SelectTrigger id="customerId">
-                      <SelectValue placeholder="Seleccionar cliente" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[200px]">
-                      {filteredCustomers.length > 0 ? (
-                        filteredCustomers.map((customer) => (
-                          <SelectItem key={customer.id} value={customer.id.toString()}>
-                            <div className="flex flex-col">
-                              <span>
-                                {customer.firstName} {customer.lastName}
-                              </span>
-                              <span className="text-xs text-muted-foreground">{customer.email}</span>
-                            </div>
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <div className="p-2 text-center text-muted-foreground">No se encontraron clientes</div>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {selectedCustomer && (
-                  <div className="border rounded-lg p-4 space-y-3 bg-muted/30">
-                    <div>
-                      <p className="font-medium">
-                        {selectedCustomer.firstName} {selectedCustomer.lastName}
-                      </p>
-                      <p className="text-sm text-muted-foreground">{selectedCustomer.email}</p>
-                    </div>
-                    {selectedCustomer.phone && (
-                      <div>
-                        <p className="text-xs text-muted-foreground">Teléfono:</p>
-                        <p className="text-sm">{selectedCustomer.phone}</p>
-                      </div>
-                    )}
-                    {selectedCustomer.address && (
-                      <div>
-                        <p className="text-xs text-muted-foreground">Dirección:</p>
-                        <p className="text-sm">{selectedCustomer.address}</p>
-                      </div>
-                    )}
-                  </div>
+        {/* Sección de productos optimizada para móvil */}
+        <Card>
+          <CardHeader className="pb-4">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Package className="h-5 w-5" />
+                Productos
+                {orderItems.length > 0 && (
+                  <Badge variant="outline" className="ml-2">
+                    {orderItems.length}
+                  </Badge>
                 )}
-              </CardContent>
-            </Card>
-          )}
+              </CardTitle>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const newItem: OrderItem = {
+                    productId: 0,
+                    productName: "",
+                    quantity: 0,
+                    price: 0,
+                    total: 0,
+                    unitMeasurementId: 0,
+                    unitMeasurementName: "",
+                  }
+                  const newIndex = orderItems.length
+                  setOrderItems([...orderItems, newItem])
+                  setQuantityInputs((prev) => ({
+                    ...prev,
+                    [newIndex]: "1",
+                  }))
+                }}
+                className="bg-green-600 text-white hover:bg-green-700"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
 
-          {/* Configuración del pedido */}
-          <Card className={isAdmin ? "lg:col-span-4" : "lg:col-span-5"}>
-            <CardHeader>
-              <CardTitle className="text-lg">{isClient ? "Mi Información" : "Configuración del Pedido"}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Mostrar información del cliente para usuarios no admin */}
-              {isClient && currentUser && (
-                <div className="border rounded-lg p-4 space-y-3 bg-muted/30">
-                  <div>
-                    <p className="font-medium">
-                      {currentUser.firstName} {currentUser.lastName}
-                    </p>
-                    <p className="text-sm text-muted-foreground">{currentUser.email}</p>
+            {/* Búsqueda de productos optimizada */}
+            <div className="space-y-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  ref={searchInputRef}
+                  placeholder="Buscar y agregar productos..."
+                  value={productSearch}
+                  onChange={(e) => {
+                    setProductSearch(e.target.value)
+                    setShowProductSearch(e.target.value.length > 0)
+                    setSelectedSearchIndex(-1)
+                  }}
+                  onFocus={() => setShowProductSearch(productSearch.length > 0)}
+                  onKeyDown={handleSearchKeyDown}
+                  className="pl-10 pr-10"
+                />
+                {productSearch && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setProductSearch("")
+                      setShowProductSearch(false)
+                      setSelectedSearchIndex(-1)
+                    }}
+                    className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+
+              {/* Resultados de búsqueda */}
+              {showProductSearch && (
+                <div className="border rounded-lg bg-white shadow-lg max-h-64 overflow-y-auto">
+                  {(() => {
+                    const searchResults = getFilteredProductOptions()
+                    if (searchResults.length === 0) {
+                      return (
+                        <div className="p-4 text-center text-muted-foreground">
+                          No se encontraron productos con "{productSearch}"
+                        </div>
+                      )
+                    }
+                    return searchResults.map((result, index) => (
+                      <button
+                        key={`${result.productId}-${result.unitMeasurementId}`}
+                        type="button"
+                        className={`w-full text-left px-4 py-3 hover:bg-muted/50 border-b last:border-b-0 transition-colors ${
+                          index === selectedSearchIndex ? "bg-blue-50 border-blue-200" : ""
+                        }`}
+                        onClick={() => handleAddSpecificProduct(result)}
+                      >
+                        <div className="flex justify-between items-center">
+                          <div className="flex-1">
+                            <div className="font-medium text-sm">{result.productName}</div>
+                            <div className="text-xs text-muted-foreground flex items-center gap-2">
+                              <span>{result.unitMeasurementName}</span>
+                              {result.stock < 10 && (
+                                <Badge variant="destructive" className="text-xs px-1 py-0">
+                                  Bajo stock
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                          <Plus className="h-4 w-4 text-green-600" />
+                        </div>
+                      </button>
+                    ))
+                  })()}
+                </div>
+              )}
+            </div>
+          </CardHeader>
+
+          <CardContent>
+            <div className="space-y-4">
+              {orderItems.length === 0 ? (
+                <div className="text-center py-8 border rounded-lg bg-muted/30">
+                  <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground mb-2">No hay productos en el pedido</p>
+                  <p className="text-xs text-muted-foreground">
+                    Usa el buscador de arriba para agregar productos rápidamente
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {/* Vista móvil optimizada - Cards simples */}
+                  {orderItems.map((item, index) => (
+                    <Card key={index} className="border-l-4 border-l-green-500">
+                      <CardContent className="p-4">
+                        <div className="space-y-3">
+                          {/* Producto y unidad */}
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <div className="text-sm text-muted-foreground mb-1">Producto y Unidad</div>
+                              {item.productId === 0 ? (
+                                <Select value="" onValueChange={(value) => handleProductUnitChange(index, value)}>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Seleccionar producto y unidad..." />
+                                  </SelectTrigger>
+                                  <SelectContent className="max-h-[300px]">
+                                    {products.flatMap((product) =>
+                                      product.productUnits.map((unit) => (
+                                        <SelectItem
+                                          key={`${product.id}-${unit.unitMeasurementId}`}
+                                          value={`${product.id}-${unit.unitMeasurementId}`}
+                                        >
+                                          <div className="flex flex-col">
+                                            <span>
+                                              {product.name} - {unit.unitMeasurement.name}
+                                            </span>
+                                            <span className="text-xs text-muted-foreground">
+                                              Stock: {product.stock}
+                                            </span>
+                                          </div>
+                                        </SelectItem>
+                                      )),
+                                    )}
+                                  </SelectContent>
+                                </Select>
+                              ) : (
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <p className="font-medium">
+                                      {item.productName} - {item.unitMeasurementName}
+                                    </p>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      const newItems = [...orderItems]
+                                      newItems[index] = {
+                                        productId: 0,
+                                        productName: "",
+                                        quantity: 0,
+                                        price: 0,
+                                        total: 0,
+                                        unitMeasurementId: 0,
+                                        unitMeasurementName: "",
+                                      }
+                                      setOrderItems(newItems)
+                                    }}
+                                    className="text-blue-600 hover:text-blue-800 text-xs"
+                                  >
+                                    Cambiar
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleRemoveProduct(index)}
+                              className="h-8 w-8 text-red-500 ml-2"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+
+                          {/* Cantidad */}
+                          <div className="flex items-center gap-3">
+                            <div className="flex-1">
+                              <Label className="text-sm">Cantidad</Label>
+                              <Input
+                                type="text"
+                                inputMode="decimal"
+                                value={
+                                  quantityInputs[index] !== undefined ? quantityInputs[index] : item.quantity.toString()
+                                }
+                                onChange={(e) => handleQuantityInputChange(index, e.target.value)}
+                                className="mt-1"
+                                placeholder="1"
+                              />
+                            </div>
+                            {/* Total (sin mostrar precio unitario) */}
+                            <div className="text-right">
+                              <div className="text-sm text-muted-foreground">Total</div>
+                              <div className="text-lg font-bold">{item.total.toFixed(2)}</div>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+
+                  {/* Resumen total */}
+                  <div className="border-t pt-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">
+                        {orderItems.length} producto{orderItems.length !== 1 ? "s" : ""}
+                      </span>
+                      <div className="text-right">
+                        <p className="text-sm text-muted-foreground">Total de productos</p>
+                        <p className="text-xl font-bold">{calculateTotalQuantity()}</p>
+                      </div>
+                    </div>
                   </div>
-                  {currentUser.phone && (
-                    <div>
-                      <p className="text-xs text-muted-foreground">Teléfono:</p>
-                      <p className="text-sm">{currentUser.phone}</p>
-                    </div>
-                  )}
-                  {currentUser.address && (
-                    <div>
-                      <p className="text-xs text-muted-foreground">Dirección:</p>
-                      <p className="text-sm">{currentUser.address}</p>
-                    </div>
-                  )}
                 </div>
               )}
 
-              {selectedCustomer && (
-                <div className="space-y-2">
-                  <Label htmlFor="areaId">Área</Label>
-                  <Select value={selectedAreaId} onValueChange={setSelectedAreaId} disabled={checkingArea}>
-                    <SelectTrigger id="areaId">
-                      <SelectValue placeholder={checkingArea ? "Verificando..." : "Seleccionar área"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {selectedCustomer.areas && selectedCustomer.areas.length > 0 ? (
-                        selectedCustomer.areas.map((area) => (
-                          <SelectItem key={area.id} value={area.id.toString()}>
-                            {area.name}
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <div className="p-2 text-center text-muted-foreground">No hay áreas disponibles</div>
-                      )}
-                    </SelectContent>
-                  </Select>
+              {/* Observación */}
+              {orderItems.length > 0 && (
+                <div className="space-y-2 pt-4 border-t">
+                  <Label htmlFor="observation">Observación (opcional)</Label>
+                  <Textarea
+                    id="observation"
+                    placeholder="Añadir observación sobre el pedido..."
+                    value={observation}
+                    onChange={(e) => setObservation(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+              )}
+            </div>
+          </CardContent>
 
-                  {checkingArea && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Verificando disponibilidad del área...
+          <CardFooter className="flex flex-col gap-3">
+            <div className="flex w-full gap-3">
+              <Button type="button" variant="outline" asChild className="flex-1 bg-transparent">
+                <Link href="/users/fast">Cancelar</Link>
+              </Button>
+              <Button
+                type="submit"
+                disabled={submitting || areaBlocked || checkingArea || orderItems.length === 0}
+                className={`flex-1 ${
+                  areaBlocked ? "bg-red-600 hover:bg-red-700 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"
+                }`}
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creando...
+                  </>
+                ) : areaBlocked ? (
+                  <>
+                    <AlertTriangle className="mr-2 h-4 w-4" />
+                    Bloqueado
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    Crear pedido
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardFooter>
+        </Card>
+
+        {/* Información del cliente para admins - Colapsada en móvil */}
+        {isAdmin && (
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <User className="h-5 w-5" />
+                Cliente
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="customerSearch">Buscar cliente</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="customerSearch"
+                    placeholder="Buscar por nombre o email"
+                    value={customerSearch}
+                    onChange={(e) => setCustomerSearch(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="customerId">Seleccionar cliente</Label>
+                <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
+                  <SelectTrigger id="customerId">
+                    <SelectValue placeholder="Seleccionar cliente" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[200px]">
+                    {filteredCustomers.length > 0 ? (
+                      filteredCustomers.map((customer) => (
+                        <SelectItem key={customer.id} value={customer.id.toString()}>
+                          <div className="flex flex-col">
+                            <span>
+                              {customer.firstName} {customer.lastName}
+                            </span>
+                            <span className="text-xs text-muted-foreground">{customer.email}</span>
+                          </div>
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <div className="p-2 text-center text-muted-foreground">No se encontraron clientes</div>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {selectedCustomer && (
+                <div className="border rounded-lg p-4 space-y-3 bg-muted/30">
+                  <div>
+                    <p className="font-medium">
+                      {selectedCustomer.firstName} {selectedCustomer.lastName}
+                    </p>
+                    <p className="text-sm text-muted-foreground">{selectedCustomer.email}</p>
+                  </div>
+                  {selectedCustomer.phone && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Teléfono:</p>
+                      <p className="text-sm">{selectedCustomer.phone}</p>
                     </div>
                   )}
-
-                  {areaBlockMessage && (
-                    <div
-                      className={`text-sm p-3 rounded-lg flex items-start gap-2 ${
-                        areaBlocked
-                          ? "bg-red-50 text-red-700 border border-red-200"
-                          : "bg-yellow-50 text-yellow-700 border border-yellow-200"
-                      }`}
-                    >
-                      <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                      <div className="flex-1">
-                        <span>{areaBlockMessage}</span>
-                        {areaBlocked && (
-                          <div className="mt-2">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              onClick={() => router.push("/users/history")}
-                              className="bg-red-600 text-white hover:bg-red-700"
-                            >
-                              <Edit className="h-4 w-4 mr-2" />
-                              Editar pedido existente
-                            </Button>
-                          </div>
-                        )}
-                      </div>
+                  {selectedCustomer.address && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Dirección:</p>
+                      <p className="text-sm">{selectedCustomer.address}</p>
                     </div>
                   )}
                 </div>
@@ -903,372 +1143,9 @@ export default function NewOrderPage() {
                   </Select>
                 </div>
               )}
-
-              <div className="space-y-2">
-                <Label htmlFor="observation">Observación (opcional)</Label>
-                <Textarea
-                  id="observation"
-                  placeholder="Añadir observación sobre el pedido..."
-                  value={observation}
-                  onChange={(e) => setObservation(e.target.value)}
-                  rows={3}
-                />
-              </div>
             </CardContent>
           </Card>
-
-          {/* Productos del pedido */}
-          <Card className={isAdmin ? "lg:col-span-4" : "lg:col-span-7"}>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Package className="h-5 w-5" />
-                Productos
-                {orderItems.length > 0 && (
-                  <Badge variant="outline" className="ml-2">
-                    {orderItems.length}
-                  </Badge>
-                )}
-              </CardTitle>
-
-              {/* Búsqueda de productos mejorada */}
-              <div className="space-y-3">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    ref={searchInputRef}
-                    placeholder="Buscar y agregar productos... (Usa ↑↓ Enter)"
-                    value={productSearch}
-                    onChange={(e) => {
-                      setProductSearch(e.target.value)
-                      setShowProductSearch(e.target.value.length > 0)
-                      setSelectedSearchIndex(-1)
-                    }}
-                    onFocus={() => setShowProductSearch(productSearch.length > 0)}
-                    onKeyDown={handleSearchKeyDown}
-                    className="pl-10 pr-10"
-                  />
-                  {productSearch && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setProductSearch("")
-                        setShowProductSearch(false)
-                        setSelectedSearchIndex(-1)
-                      }}
-                      className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
-                    >
-                      ×
-                    </Button>
-                  )}
-                </div>
-
-                {/* Resultados de búsqueda mejorados */}
-                {showProductSearch && (
-                  <div className="border rounded-lg bg-white shadow-lg max-h-64 overflow-y-auto">
-                    {(() => {
-                      const searchResults = getFilteredProductOptions()
-                      if (searchResults.length === 0) {
-                        return (
-                          <div className="p-4 text-center text-muted-foreground">
-                            No se encontraron productos con {productSearch}
-                          </div>
-                        )
-                      }
-                      return searchResults.map((result, index) => (
-                        <button
-                          key={`${result.productId}-${result.unitMeasurementId}`}
-                          type="button"
-                          className={`w-full text-left px-4 py-3 hover:bg-muted/50 border-b last:border-b-0 transition-colors ${
-                            index === selectedSearchIndex ? "bg-blue-50 border-blue-200" : ""
-                          }`}
-                          onClick={() => handleAddSpecificProduct(result)}
-                        >
-                          <div className="flex justify-between items-center">
-                            <div className="flex-1">
-                              <div className="font-medium text-sm">{result.productName}</div>
-                              <div className="text-xs text-muted-foreground flex items-center gap-2">
-                                <span>{result.unitMeasurementName}</span>
-                                {result.stock < 10 && (
-                                  <Badge variant="destructive" className="text-xs px-1 py-0">
-                                    Bajo
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {index === selectedSearchIndex && <ArrowRight className="h-4 w-4 text-blue-600" />}
-                              <Plus className="h-4 w-4 text-muted-foreground" />
-                            </div>
-                          </div>
-                        </button>
-                      ))
-                    })()}
-                  </div>
-                )}
-
-                <div className="text-xs text-muted-foreground">
-                  💡 Tip: Escribe el nombre del producto y presiona Enter para agregarlo rápidamente
-                </div>
-              </div>
-            </CardHeader>
-
-            <CardContent>
-              <div className="space-y-4">
-                {orderItems.length === 0 ? (
-                  <div className="text-center py-8 border rounded-lg bg-muted/30">
-                    <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground mb-2">No hay productos en el pedido</p>
-                    <p className="text-xs text-muted-foreground mb-4">
-                      Usa el buscador de arriba para agregar productos rápidamente
-                    </p>
-                    <Button type="button" variant="link" onClick={handleAddProduct}>
-                      O añadir producto vacío
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {/* Vista móvil: Cards */}
-                    <div className="block lg:hidden space-y-3">
-                      {orderItems.map((item, index) => (
-                        <Card key={index} className="p-4">
-                          <div className="space-y-3">
-                            <div className="flex justify-between items-start">
-                              <div className="flex-1">
-                                {item.productId === 0 ? (
-                                  <Select value="" onValueChange={(value) => handleProductUnitChange(index, value)}>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Seleccionar producto..." />
-                                    </SelectTrigger>
-                                    <SelectContent className="max-h-[300px]">
-                                      {products.flatMap((product) =>
-                                        product.productUnits.map((unit) => (
-                                          <SelectItem
-                                            key={`${product.id}-${unit.unitMeasurementId}`}
-                                            value={`${product.id}-${unit.unitMeasurementId}`}
-                                          >
-                                            <div className="flex flex-col">
-                                              <span>{product.name}</span>
-                                              <span className="text-xs text-muted-foreground">
-                                                {unit.unitMeasurement.name} • Stock: {product.stock}
-                                              </span>
-                                            </div>
-                                          </SelectItem>
-                                        )),
-                                      )}
-                                    </SelectContent>
-                                  </Select>
-                                ) : (
-                                  <div>
-                                    <p className="font-medium">{item.productName}</p>
-                                    <p className="text-sm text-muted-foreground">{item.unitMeasurementName}</p>
-                                  </div>
-                                )}
-                              </div>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleRemoveProduct(index)}
-                                className="h-8 w-8 text-red-500"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-
-                            <div className="flex items-center gap-3">
-                              <div className="flex-1">
-                                <Label className="text-sm">Cantidad</Label>
-                                <Input
-                                  type="text"
-                                  inputMode="decimal"
-                                  value={
-                                    quantityInputs[index] !== undefined
-                                      ? quantityInputs[index]
-                                      : item.quantity.toString()
-                                  }
-                                  onChange={(e) => handleQuantityInputChange(index, e.target.value)}
-                                  className="mt-1"
-                                  placeholder="1"
-                                />
-                              </div>
-                            </div>
-
-                            {item.productId !== 0 && (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  const newItems = [...orderItems]
-                                  newItems[index] = {
-                                    productId: 0,
-                                    productName: "",
-                                    quantity: 0,
-                                    price: 0,
-                                    total: 0,
-                                    unitMeasurementId: 0,
-                                    unitMeasurementName: "",
-                                  }
-                                  setOrderItems(newItems)
-                                }}
-                                className="text-blue-600 hover:text-blue-800 w-full"
-                              >
-                                Cambiar producto
-                              </Button>
-                            )}
-                          </div>
-                        </Card>
-                      ))}
-                    </div>
-
-                    {/* Vista desktop: Tabla compacta */}
-                    <div className="hidden lg:block border rounded-lg overflow-hidden">
-                      <table className="w-full">
-                        <thead className="bg-muted/50">
-                          <tr>
-                            <th className="px-3 py-2 text-left text-sm font-medium">Producto</th>
-                            <th className="px-3 py-2 text-center text-sm font-medium">Cantidad</th>
-                            <th className="px-3 py-2 text-center text-sm font-medium w-10"></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {orderItems.map((item, index) => (
-                            <tr key={index} className="border-t">
-                              <td className="px-3 py-2">
-                                {item.productId === 0 ? (
-                                  <Select value="" onValueChange={(value) => handleProductUnitChange(index, value)}>
-                                    <SelectTrigger className="h-8">
-                                      <SelectValue placeholder="Seleccionar..." />
-                                    </SelectTrigger>
-                                    <SelectContent className="max-h-[300px]">
-                                      {products.flatMap((product) =>
-                                        product.productUnits.map((unit) => (
-                                          <SelectItem
-                                            key={`${product.id}-${unit.unitMeasurementId}`}
-                                            value={`${product.id}-${unit.unitMeasurementId}`}
-                                          >
-                                            <div className="flex flex-col">
-                                              <span>{product.name}</span>
-                                              <span className="text-xs text-muted-foreground">
-                                                {unit.unitMeasurement.name} • Stock: {product.stock}
-                                              </span>
-                                            </div>
-                                          </SelectItem>
-                                        )),
-                                      )}
-                                    </SelectContent>
-                                  </Select>
-                                ) : (
-                                  <div className="flex items-center justify-between">
-                                    <div>
-                                      <span className="font-medium text-sm">{item.productName}</span>
-                                      <div className="text-xs text-muted-foreground">{item.unitMeasurementName}</div>
-                                    </div>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => {
-                                        const newItems = [...orderItems]
-                                        newItems[index] = {
-                                          productId: 0,
-                                          productName: "",
-                                          quantity: 0,
-                                          price: 0,
-                                          total: 0,
-                                          unitMeasurementId: 0,
-                                          unitMeasurementName: "",
-                                        }
-                                        setOrderItems(newItems)
-                                      }}
-                                      className="text-blue-600 hover:text-blue-800 h-6 px-2 text-xs"
-                                    >
-                                      Cambiar
-                                    </Button>
-                                  </div>
-                                )}
-                              </td>
-                              <td className="px-3 py-2 text-center">
-                                <Input
-                                  type="text"
-                                  inputMode="decimal"
-                                  value={
-                                    quantityInputs[index] !== undefined
-                                      ? quantityInputs[index]
-                                      : item.quantity.toString()
-                                  }
-                                  onChange={(e) => handleQuantityInputChange(index, e.target.value)}
-                                  className="w-16 mx-auto text-center h-8"
-                                  placeholder="1"
-                                />
-                              </td>
-                              <td className="px-3 py-2 text-center">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleRemoveProduct(index)}
-                                  className="h-6 w-6 text-red-500"
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    {/* Resumen */}
-                    <div className="border-t pt-4">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">
-                          {orderItems.length} producto{orderItems.length !== 1 ? "s" : ""}
-                        </span>
-                        <div className="text-right">
-                          <p className="text-sm text-muted-foreground">Total de productos</p>
-                          <p className="text-xl font-bold">{calculateTotalQuantity()}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-
-            <CardFooter className="flex flex-col sm:flex-row justify-between gap-3">
-              <Button type="button" variant="outline" asChild className="w-full sm:w-auto bg-transparent">
-                <Link href="/users/fast">Cancelar</Link>
-              </Button>
-              <Button
-                type="submit"
-                disabled={submitting || areaBlocked || checkingArea || orderItems.length === 0}
-                className={`w-full sm:w-auto ${
-                  areaBlocked ? "bg-red-600 hover:bg-red-700 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"
-                }`}
-              >
-                {submitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Creando pedido...
-                  </>
-                ) : areaBlocked ? (
-                  <>
-                    <AlertTriangle className="mr-2 h-4 w-4" />
-                    Pedido ya existe - Bloqueado
-                  </>
-                ) : (
-                  <>
-                    <Save className="mr-2 h-4 w-4" />
-                    {isClient ? "Crear pedido rápido" : "Crear pedido"}
-                  </>
-                )}
-              </Button>
-            </CardFooter>
-          </Card>
-        </div>
+        )}
       </form>
     </div>
   )
