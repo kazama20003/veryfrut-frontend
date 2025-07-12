@@ -235,23 +235,30 @@ export function ReportGenerator() {
     return "000000"
   }
 
-  // Función para obtener observaciones por área
+  // Función CORREGIDA para obtener observaciones por área
   const getObservationsByArea = () => {
     const observationsByArea: { [areaId: number]: string[] } = {}
+
+    console.log("Procesando observaciones de órdenes:", orders.length)
+
     orders.forEach((order) => {
       if (order.observation && order.observation.trim()) {
         const areaId = order.areaId || order.area?.id
+        console.log(`Orden ${order.id}: observación="${order.observation}", areaId=${areaId}`)
+
         if (areaId) {
           if (!observationsByArea[areaId]) {
             observationsByArea[areaId] = []
           }
           // Evitar duplicados en la misma área
-          if (!observationsByArea[areaId].includes(order.observation)) {
-            observationsByArea[areaId].push(order.observation)
+          if (!observationsByArea[areaId].includes(order.observation.trim())) {
+            observationsByArea[areaId].push(order.observation.trim())
           }
         }
       }
     })
+
+    console.log("Observaciones por área:", observationsByArea)
     return observationsByArea
   }
 
@@ -263,7 +270,7 @@ export function ReportGenerator() {
     })
     areas.forEach((area) => {
       if (area.companyId && areasByCompany[area.companyId]) {
-        areasByCompany[area.companyId].push(area) // CORREGIDO: usar area.companyId en lugar de company.id
+        areasByCompany[area.companyId].push(area)
       }
     })
     return areasByCompany
@@ -335,7 +342,6 @@ export function ReportGenerator() {
 
       // Configurar fuente
       doc.setFont("helvetica")
-
       let yPosition = 20
       const pageWidth = doc.internal.pageSize.getWidth()
       const pageHeight = doc.internal.pageSize.getHeight()
@@ -452,9 +458,9 @@ export function ReportGenerator() {
           const textWidth = doc.getTextWidth(company.name.toUpperCase())
           const textX = xPosition + (companyColumnWidth - textWidth) / 2
           doc.text(company.name.toUpperCase(), textX, yPosition + 5)
-
           xPosition += companyColumnWidth
         })
+
         yPosition += 8
 
         // Filas de productos
@@ -484,6 +490,7 @@ export function ReportGenerator() {
 
             // Obtener cantidades por empresa con colores (igual que el preview)
             const quantities: Array<{ quantity: string; color: string }> = []
+
             companyAreas.forEach((area) => {
               if (productQuantities[area.id] && productQuantities[area.id][product.id]) {
                 // Buscar en las órdenes los items con este productId y areaId
@@ -502,6 +509,7 @@ export function ReportGenerator() {
                     }
                   }
                 }
+
                 // Si no encontramos nada en las órdenes, usar la cantidad del estado
                 if (!foundInOrders && productQuantities[area.id][product.id]) {
                   const productData = products.find((p) => p.id === product.id)
@@ -558,6 +566,7 @@ export function ReportGenerator() {
             doc.setTextColor(0, 0, 0)
             xPosition += companyColumnWidth
           })
+
           yPosition += 6
         })
 
@@ -584,15 +593,17 @@ export function ReportGenerator() {
 
           const total = calculateCompanyTotalByCategory(company.id, categoryId)
           doc.text(total.toString(), xPosition + 2, yPosition + 4)
-
           xPosition += companyColumnWidth
         })
+
         yPosition += 10
       }
 
-      // Agregar observaciones si existen
+      // SECCIÓN DE OBSERVACIONES CORREGIDA
       const observationsByArea = getObservationsByArea()
       const hasObservations = Object.keys(observationsByArea).length > 0
+
+      console.log("¿Hay observaciones para PDF?", hasObservations, observationsByArea)
 
       if (hasObservations) {
         // Verificar si necesitamos una nueva página
@@ -604,7 +615,6 @@ export function ReportGenerator() {
         // Título de observaciones
         doc.setFont("helvetica", "bold")
         doc.setFontSize(10)
-
         let xPosition = margin
 
         // Encabezado de observaciones
@@ -634,9 +644,9 @@ export function ReportGenerator() {
           const textWidth = doc.getTextWidth(company.name.toUpperCase())
           const textX = xPosition + (companyColumnWidth - textWidth) / 2
           doc.text(company.name.toUpperCase(), textX, yPosition + 5)
-
           xPosition += companyColumnWidth
         })
+
         yPosition += 8
 
         // Fila de detalles de observaciones
@@ -669,11 +679,13 @@ export function ReportGenerator() {
           const uniqueObservations = [...new Set(allObservations)]
           const observationText = uniqueObservations.join("; ")
 
+          console.log(`Observaciones para empresa ${company.name}:`, observationText)
+
           // Dividir texto largo en múltiples líneas
           const maxWidth = companyColumnWidth - 4
           const lines = doc.splitTextToSize(observationText, maxWidth)
-
           let lineY = yPosition + 4
+
           lines.slice(0, 2).forEach((line: string) => {
             // Máximo 2 líneas
             doc.text(line, xPosition + 2, lineY)
@@ -973,9 +985,11 @@ export function ReportGenerator() {
         excelData.push([])
       })
 
-      // Agregar sección de observaciones al final (igual que el preview)
+      // SECCIÓN DE OBSERVACIONES CORREGIDA PARA EXCEL
       const observationsByArea = getObservationsByArea()
       const hasObservations = Object.keys(observationsByArea).length > 0
+
+      console.log("¿Hay observaciones para Excel?", hasObservations, observationsByArea)
 
       if (hasObservations) {
         // Fila de observaciones
@@ -1010,6 +1024,8 @@ export function ReportGenerator() {
           // Eliminar duplicados y unir
           const uniqueObservations = [...new Set(allObservations)]
           const observationText = uniqueObservations.join("; ")
+
+          console.log(`Observaciones Excel para empresa ${company.name}:`, observationText)
 
           observationRow.push({
             v: observationText,
@@ -1112,6 +1128,7 @@ export function ReportGenerator() {
         categoryId: 1,
       },
     ]
+
     demoData[2] = [
       {
         id: 4,
@@ -1122,6 +1139,7 @@ export function ReportGenerator() {
         categoryId: 2,
       },
     ]
+
     demoData[5] = [
       {
         id: 6,
@@ -1132,6 +1150,7 @@ export function ReportGenerator() {
         categoryId: 5,
       },
     ]
+
     demoData[3] = [
       {
         id: 8,
@@ -1142,6 +1161,7 @@ export function ReportGenerator() {
         categoryId: 3,
       },
     ]
+
     demoData[4] = [
       {
         id: 9,
@@ -1183,6 +1203,7 @@ export function ReportGenerator() {
             }
           }
         }
+
         // Si no encontramos nada en las órdenes, usar la cantidad del estado
         if (quantities.filter((q) => q.areaName === area.name).length === 0 && productQuantities[area.id][productId]) {
           const product = products.find((p) => p.id === productId)
@@ -1232,10 +1253,12 @@ export function ReportGenerator() {
     return productCount
   }
 
-  // NUEVA FUNCIÓN: Renderizar tabla de observaciones por empresa
+  // FUNCIÓN CORREGIDA: Renderizar tabla de observaciones por empresa
   const renderObservationsTable = () => {
     const observationsByArea = getObservationsByArea()
     const hasObservations = Object.keys(observationsByArea).length > 0
+
+    console.log("Renderizando observaciones en preview:", hasObservations, observationsByArea)
 
     if (!hasObservations) {
       return null
@@ -1262,9 +1285,11 @@ export function ReportGenerator() {
                     if (companyAreas.length === 0) {
                       return null
                     }
+
                     // Usar el color de la empresa si está disponible, sino el color de la primera área
                     const companyColor = company.color || companyAreas[0]?.color || "#CCCCCC"
                     const textColor = getTextColor()
+
                     return (
                       <th
                         key={company.id}
@@ -1289,15 +1314,20 @@ export function ReportGenerator() {
                     if (companyAreas.length === 0) {
                       return null
                     }
+
                     // Combinar observaciones de todas las áreas de la empresa
                     const allObservations: string[] = []
                     companyAreas.forEach((area) => {
                       const areaObservations = observationsByArea[area.id] || []
                       allObservations.push(...areaObservations)
                     })
+
                     // Eliminar duplicados y unir
                     const uniqueObservations = [...new Set(allObservations)]
                     const observationText = uniqueObservations.join("; ")
+
+                    console.log(`Observaciones preview para empresa ${company.name}:`, observationText)
+
                     return (
                       <td key={company.id} className="px-4 py-2 border bg-yellow-50 min-w-[120px] text-left">
                         {observationText}
@@ -1365,6 +1395,7 @@ export function ReportGenerator() {
         const ordersResponse = await api.get(apiUrl)
         orders = ordersResponse.data
         console.log("Órdenes cargadas:", orders.length)
+        console.log("Órdenes con observaciones:", orders.filter((o) => o.observation).length)
       } else {
         console.error("No se pudo determinar la URL de la API")
         toast.error("Error al generar vista previa", {
@@ -1407,6 +1438,7 @@ export function ReportGenerator() {
                   if (!product && item.productId) {
                     const productResponse = await api.get(`/products/${item.productId}`)
                     product = productResponse.data
+
                     // Obtener unidad de medida si no está incluida
                     if (product && product.unitMeasurementId && !product.unitMeasurement) {
                       try {
@@ -1547,7 +1579,7 @@ export function ReportGenerator() {
       }
     })
 
-    return orderedCategoryEntries.map(([categoryIdStr, categoryProducts]) => {
+    const categoryTables = orderedCategoryEntries.map(([categoryIdStr, categoryProducts]) => {
       const categoryId = Number.parseInt(categoryIdStr)
       const categoryName = categories[categoryId]?.name || `Categoría ${categoryId}`
 
@@ -1598,9 +1630,11 @@ export function ReportGenerator() {
                       if (companyAreas.length === 0) {
                         return null
                       }
+
                       // Usar el color de la empresa si está disponible, sino el color de la primera área
                       const companyColor = company.color || companyAreas[0]?.color || "#CCCCCC"
                       const textColor = getTextColor()
+
                       return (
                         <th
                           key={company.id}
@@ -1626,6 +1660,7 @@ export function ReportGenerator() {
                         if (companyAreas.length === 0) {
                           return null
                         }
+
                         return (
                           <td key={`${product.id}-${company.id}`} className="px-4 py-2 text-left border">
                             <span
@@ -1644,6 +1679,7 @@ export function ReportGenerator() {
                       if (companyAreas.length === 0) {
                         return null
                       }
+
                       return (
                         <td key={`total-${company.id}`} className="px-4 py-2 text-left border font-medium">
                           {calculateCompanyTotalByCategory(company.id, categoryId)}
@@ -1658,6 +1694,13 @@ export function ReportGenerator() {
         </div>
       )
     })
+
+    return (
+      <>
+        {categoryTables}
+        {renderObservationsTable()}
+      </>
+    )
   }
 
   // Función para manejar la entrada manual de fecha
@@ -1680,11 +1723,13 @@ export function ReportGenerator() {
     if (dateValue) {
       const [year, month, day] = dateValue.split("-").map(Number)
       const newDate = new Date(year, month - 1, day)
+
       if (type === "from") {
         setDateRange((prev) => ({ ...prev, from: newDate }))
       } else {
         setDateRange((prev) => ({ ...prev, to: newDate }))
       }
+
       setShowReport(false)
       setHasData(false)
       setGeneratedPdfBlob(null)
@@ -1737,6 +1782,7 @@ export function ReportGenerator() {
                 </SelectContent>
               </Select>
             </div>
+
             {reportType === "day" ? (
               <div className="flex flex-col gap-2">
                 <label className="text-sm font-medium">Seleccionar día</label>
@@ -1781,6 +1827,7 @@ export function ReportGenerator() {
                 </div>
               </div>
             )}
+
             <Button
               onClick={() => {
                 console.log(
@@ -1807,6 +1854,7 @@ export function ReportGenerator() {
               )}
             </Button>
           </div>
+
           {/* Vista previa del reporte */}
           {showReport && (
             <div className="mt-4 space-y-4 flex-1 overflow-hidden flex flex-col">
@@ -1823,10 +1871,7 @@ export function ReportGenerator() {
                   </Button>
                 </div>
               </div>
-              <div className="flex-1 overflow-auto">
-                {renderCategoryTables()}
-                {renderObservationsTable()}
-              </div>
+              <div className="flex-1 overflow-auto">{renderCategoryTables()}</div>
               <div className="text-sm text-muted-foreground">
                 <div className="mb-2">Reporte para: {reportDate}</div>
                 <div className="text-xs">
@@ -1837,6 +1882,7 @@ export function ReportGenerator() {
               </div>
             </div>
           )}
+
           {isLoading ? (
             <div className="flex justify-center py-8">
               <div className="flex flex-col items-center">
