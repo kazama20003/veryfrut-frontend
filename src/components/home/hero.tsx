@@ -4,7 +4,8 @@ import React, { useEffect, useState } from "react"
 import Lottie from "lottie-react"
 
 const Hero = () => {
-  const [animationData, setAnimationData] = useState<Record<string, unknown> | null>(null)
+  const [animationData, setAnimationData] =
+    useState<Record<string, unknown> | null>(null)
 
   useEffect(() => {
     fetch("/lotties/hero.json")
@@ -12,7 +13,7 @@ const Hero = () => {
         if (!res.ok) throw new Error("Error loading Lottie JSON")
         return res.json()
       })
-      .then((data: Record<string, unknown>) => setAnimationData(data))
+      .then((data) => setAnimationData(data))
       .catch(console.error)
   }, [])
 
@@ -21,13 +22,12 @@ const Hero = () => {
       className="
         relative
         w-full
-        /* 🔹 Más alto para que Services suba sobre él sin ver el fondo de la página */
-        h-[120svh] 
+        h-[120svh]
         overflow-hidden
         bg-[var(--color-lime)]
       "
     >
-      {/* 🔹 LOTTIE */}
+      {/* LOTTIE BACKGROUND */}
       {animationData && (
         <Lottie
           animationData={animationData}
@@ -38,23 +38,53 @@ const Hero = () => {
         />
       )}
 
-      {/* 🔹 CONTENIDO CENTRADO RESPECTO AL VIEWPORT */}
+      {/* CONTENIDO */}
       <div
         className="
           relative
           z-10
           w-full
-          h-[100svh] /* Se mantiene al alto de la pantalla para el texto */
-          px-8
+          h-[100svh]
+          px-6
+          md:px-8
           flex
+          flex-col
           items-center
           justify-center
+          text-center
+          gap-6
         "
       >
-        <h1 className="w-full md:w-[60%] text-center font-medium leading-[1.1] text-[2.5rem] md:text-[4rem] tracking-[-0.08rem] md:tracking-[-0.1rem]">
+        {/* H1 */}
+        <h1
+          className="
+            w-full
+            max-w-5xl
+            font-semibold
+            leading-[0.95]
+            text-[clamp(3.2rem,9vw,5.8rem)]
+            tracking-[-0.14em]
+            md:tracking-[-0.16em]
+            text-[var(--color-primary-text)]
+          "
+        >
           Veryfrut
         </h1>
-        <h2>
+
+        {/* H2 */}
+        <h2
+          className="
+              w-full
+              max-w-6xl
+              font-semibold
+              leading-[0.92]
+              text-[clamp(3.8rem,10vw,6.6rem)]
+              tracking-[-0.18em]
+              text-[#000000]
+              will-change-transform
+            "
+
+        >
           Distribución sostenible de frutas y verduras frescas
         </h2>
       </div>
