@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { QueryClientProvider } from "@/lib/api/providers";
+import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 export const metadata: Metadata = {
   title: "Veryfrut",
@@ -14,7 +16,10 @@ export default function RootLayout({
     <html lang="en">
       <body className="antialiased">
         <main>
-          {children}
+          <QueryClientProvider>
+            {children}
+            <Toaster />
+          </QueryClientProvider>
         </main>
       </body>
     </html>

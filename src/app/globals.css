@@ -1,11 +1,9 @@
-@import "tailwindcss";
-@import "tw-animate-css";
+@import 'tailwindcss';
+@import 'tw-animate-css';
 
 @custom-variant dark (&:is(.dark *));
-/* Added smooth scroll behavior for fluidity */
 
 :root {
-  /* Updated design system with MindMarket's vibrant palette */
   --color-lime: #8ed765;
   --color-primary-text: #1a1a1a;
   --color-secondary-text: #4b5563;
@@ -17,7 +15,7 @@
   --color-vibrant-orange: #fb923c;
   --color-soft-purple: #e9d5ff;
 
-  --background: #8ed765;
+  --background: #f9fafb;
   --foreground: #1a1a1a;
   --card: #ffffff;
   --card-foreground: #1a1a1a;
@@ -42,7 +40,7 @@
   --chart-4: #fb923c;
   --chart-5: #e9d5ff;
   --radius: 9999px;
-  --sidebar: #ffffff;
+  --sidebar: #8ed765;
   --sidebar-foreground: #1a1a1a;
   --sidebar-primary: #1a1a1a;
   --sidebar-primary-foreground: #ffffff;
@@ -136,7 +134,6 @@
   }
 }
 
-
 @keyframes fadeInUp {
   from {
     opacity: 0;
@@ -170,24 +167,3 @@
     opacity: 1;
   }
 }
-h1,
-h2 {
-    font-weight: 500;
-    line-height: 1.1;
-}
-
-h1 {
-    font-size: 4rem;
-    letter-spacing: -0.1rem;
-}
-
-h2 {
-    font-size: 2.5rem;
-    letter-spacing: -0.075rem;
-}
-
-p {
-    font-size: 1.125rem;
-    font-weight: 500;
-}
-

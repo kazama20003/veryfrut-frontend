@@ -50,7 +50,7 @@ export default function Services() {
       priority: true,
     },
     {
-      src: "/illustrations/badge.png",
+      src: "https://res.cloudinary.com/diaujeypx/image/upload/v1768878569/farm-landscape-woman-with-fruit-hands_vk42yc.png",
       alt: "Calidad",
       w: 230,
       h: 230,
@@ -63,7 +63,7 @@ export default function Services() {
       className: "hidden lg:block",
     },
     {
-      src: "/illustrations/box.png",
+      src: "https://res.cloudinary.com/diaujeypx/image/upload/v1768878915/ChatGPT_Image_19_ene_2026_10_13_43_p.m._sbhkzh.png",
       alt: "Caja",
       w: 250,
       h: 250,
@@ -76,7 +76,7 @@ export default function Services() {
       className: "hidden lg:block",
     },
     {
-      src: "/illustrations/leaf.png",
+      src: "https://res.cloudinary.com/diaujeypx/image/upload/v1768878991/pngtree-autumn-leaves-seamless-border-illustration-png-image_15417653_vvurdl.png",
       alt: "Hoja",
       w: 240,
       h: 240,
@@ -89,7 +89,7 @@ export default function Services() {
       className: "hidden lg:block",
     },
     {
-      src: "/illustrations/greens.png",
+      src: "https://res.cloudinary.com/diaujeypx/image/upload/v1768878569/farm-landscape-woman-with-fruit-hands_vk42yc.png",
       alt: "Verduras",
       w: 260,
       h: 260,
