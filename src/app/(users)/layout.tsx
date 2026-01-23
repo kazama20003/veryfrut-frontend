@@ -13,7 +13,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     <>
     <SidebarProvider>
         <AppSidebar />
-             <SidebarInset>
+             <SidebarInset className="m-2 rounded-xl border border-gray-200 overflow-hidden bg-white">
                {children}
              </SidebarInset>
     </SidebarProvider>

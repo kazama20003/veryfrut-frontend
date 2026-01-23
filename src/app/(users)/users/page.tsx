@@ -11,9 +11,9 @@ import { toast } from "sonner"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
-import { useSearchParams } from "next/navigation"
 import { Suspense } from "react"
 import Loading from "@/components/dashboard/sidebar/loading"
+import { SidebarTrigger } from "@/components/ui/sidebar"
 
 // Interfaces
 interface UnitMeasurement {
@@ -198,8 +198,6 @@ export default function UsersPage() {
 
   const { isMobile, mounted } = useIsMobile()
   const { cart, addToCart, getTotalItems, getTotalPrice, ...cartMethods } = useCart()
-  const searchParams = useSearchParams()
-
   // Cargar datos
   const fetchData = useCallback(async () => {
     try {
@@ -302,8 +300,17 @@ export default function UsersPage() {
     return (
       <div className="flex min-h-screen flex-col bg-gray-50">
         <header className="sticky top-0 z-40 border-b bg-white shadow-sm">
-          <div className="flex h-16 items-center justify-between px-6">
-            <h1 className="text-2xl font-bold text-gray-900">Catálogo de Productos</h1>
+          <div className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-green-100 text-green-700">
+                <ShoppingCart className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">Catalogo</p>
+                <h1 className="text-2xl font-bold text-gray-900">Catalogo de productos</h1>
+                <p className="text-sm text-gray-500">Explora y agrega productos al carrito.</p>
+              </div>
+            </div>
           </div>
         </header>
       </div>
@@ -315,15 +322,22 @@ export default function UsersPage() {
       <div className="flex min-h-screen flex-col bg-gray-50">
         {/* Header */}
         <header className="sticky top-0 z-40 border-b bg-white shadow-sm">
-          <div className="flex h-16 items-center justify-between px-4 sm:px-6">
-            <div className="flex items-center gap-3">
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Catálogo de Productos</h1>
+          <div className="flex flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <div className="flex items-center gap-4">
+              <SidebarTrigger className="h-9 w-9 rounded-full border border-gray-200" />
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-green-100 text-green-700">
+                <ShoppingCart className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">Catalogo</p>
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Catalogo de productos</h1>
+                <p className="text-sm text-gray-500">Explora y agrega productos al carrito.</p>
+              </div>
               <Badge variant="secondary" className="hidden sm:inline-flex">
                 {stats.filtered} productos
               </Badge>
             </div>
 
-            {/* Controles */}
             <div className="flex items-center gap-2">
               {isMobile && (
                 <Button
