@@ -12,6 +12,7 @@ import usersService, {
   UpdateUserDto,
 } from '../services/users-service';
 import queryKeys from '../queryKeys';
+import { readAuthToken } from '../auth';
 
 /**
  * Query: Obtener todos los usuarios con paginación, ordenamiento y búsqueda
@@ -21,6 +22,19 @@ export function useUsersQuery(params?: GetUsersParams) {
     queryKey: queryKeys.users.list(params as Record<string, unknown>),
     queryFn: () => usersService.getAll(params),
     staleTime: 1000 * 60 * 5, // 5 minutos
+  });
+}
+
+/**
+ * Query: Obtener usuario actual
+ */
+export function useMeQuery() {
+  const token = readAuthToken();
+  return useQuery({
+    queryKey: queryKeys.users.me(),
+    queryFn: () => usersService.getMe(),
+    enabled: !!token,
+    staleTime: 1000 * 60 * 5,
   });
 }
 

@@ -58,7 +58,7 @@ class CompanyService {
     return responseData && typeof responseData === 'object' && 'id' in responseData ? responseData : undefined;
   }
 
-  /**
+  /*
    * Eliminar empresa
    */
   async delete(id: string | number) {

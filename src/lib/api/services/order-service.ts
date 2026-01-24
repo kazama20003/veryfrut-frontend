@@ -119,9 +119,32 @@ class OrderService {
       console.log('[OrderService] GetByCustomerId response:', response.data);
       
       let data: PaginatedOrdersResponse | undefined;
+
+      if (Array.isArray(response.data)) {
+        const items = response.data as Order[];
+        return {
+          items,
+          total: items.length,
+          page: params?.page ?? 1,
+          limit: params?.limit ?? items.length,
+          hasMore: false,
+          totalPages: 1,
+        };
+      }
       
       if (response.data && 'data' in response.data && !('items' in response.data)) {
-        data = (response.data as unknown as ApiResponse<PaginatedOrdersResponse>).data;
+        const wrapped = (response.data as unknown as ApiResponse<PaginatedOrdersResponse>).data;
+        if (Array.isArray(wrapped)) {
+          return {
+            items: wrapped as Order[],
+            total: wrapped.length,
+            page: params?.page ?? 1,
+            limit: params?.limit ?? wrapped.length,
+            hasMore: false,
+            totalPages: 1,
+          };
+        }
+        data = wrapped as PaginatedOrdersResponse;
       } else if (response.data && 'items' in response.data) {
         data = response.data as unknown as PaginatedOrdersResponse;
       } else if (response.data && typeof response.data === 'object' && response.data !== null) {

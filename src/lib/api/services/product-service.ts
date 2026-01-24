@@ -53,11 +53,34 @@ class ProductService {
       
       // Extraer la data de la respuesta
       let data: PaginatedProductsResponse | undefined;
+
+      if (Array.isArray(response.data)) {
+        const items = response.data as Product[];
+        return {
+          items: items.map(normalizeProduct),
+          total: items.length,
+          page: params?.page ?? 1,
+          limit: params?.limit ?? items.length,
+          hasMore: false,
+          totalPages: 1,
+        };
+      }
       
       // Caso 1: ApiResponse<PaginatedProductsResponse> (envuelto)
       if (response.data && 'data' in response.data && !('items' in response.data)) {
         console.log('[ProductService] Caso 1: ApiResponse envuelto');
-        data = (response.data as unknown as ApiResponse<PaginatedProductsResponse>).data;
+        const wrapped = (response.data as unknown as ApiResponse<PaginatedProductsResponse>).data;
+        if (Array.isArray(wrapped)) {
+          return {
+            items: wrapped.map(normalizeProduct),
+            total: wrapped.length,
+            page: params?.page ?? 1,
+            limit: params?.limit ?? wrapped.length,
+            hasMore: false,
+            totalPages: 1,
+          };
+        }
+        data = wrapped as PaginatedProductsResponse;
       }
       // Caso 2: PaginatedProductsResponse directo (sin envolver)
       else if (response.data && 'items' in response.data) {

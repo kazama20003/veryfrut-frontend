@@ -1,8 +1,10 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useSyncExternalStore } from "react"
+import Image from "next/image"
+import Link from "next/link"
 import { ShoppingBag, RefreshCw } from "lucide-react"
-import { usersService, useOrdersByCustomerQuery } from "@/lib/api"
+import { useMeQuery, useOrdersByCustomerQuery, useProductsQuery } from "@/lib/api"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -21,43 +23,26 @@ function formatDate(dateValue?: string) {
   })
 }
 
+function formatQuantity(value: number) {
+  if (!Number.isFinite(value)) return "0"
+  if (value % 1 === 0) return value.toFixed(0)
+  return value.toFixed(3).replace(/\.?0+$/, "")
+}
+
 function getItemLabel(item: OrderItem) {
   const unitName = item.unitMeasurement?.name ?? "Unidad"
-  return `${item.quantity} ${unitName}`
+  return `${formatQuantity(item.quantity)} ${unitName}`
 }
 
 export default function UsersHistoryPage() {
-  const [userId, setUserId] = useState<number | null>(null)
-  const [isUserLoading, setIsUserLoading] = useState(true)
-  const [userError, setUserError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let isMounted = true
-    setIsUserLoading(true)
-    setUserError(null)
-
-    usersService
-      .getMe()
-      .then((user) => {
-        if (!isMounted) return
-        setUserId(user?.id ?? null)
-        if (!user?.id) {
-          setUserError("Necesitas iniciar sesion para ver tu historial.")
-        }
-      })
-      .catch(() => {
-        if (!isMounted) return
-        setUserError("No se pudo cargar el usuario autenticado.")
-      })
-      .finally(() => {
-        if (!isMounted) return
-        setIsUserLoading(false)
-      })
-
-    return () => {
-      isMounted = false
-    }
-  }, [])
+  const isHydrated = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  )
+  const { data: currentUser, isLoading: isUserLoading, error: userError } = useMeQuery()
+  const userId = currentUser?.id ?? null
+  const showLoadingUser = !isHydrated || isUserLoading
 
   const {
     data: ordersResponse,
@@ -65,8 +50,27 @@ export default function UsersHistoryPage() {
     error: ordersError,
     refetch,
   } = useOrdersByCustomerQuery(userId, { page: 1, limit: 100, sortBy: "createdAt", order: "desc" })
+  const { data: productsResponse } = useProductsQuery({ page: 1, limit: 500, order: "asc", sortBy: "name" })
 
   const orders = useMemo(() => ordersResponse?.items ?? [], [ordersResponse?.items])
+  const productNameById = useMemo(() => {
+    const map = new Map<number, string>()
+    const items = productsResponse?.items ?? []
+    for (const product of items) {
+      map.set(product.id, product.name)
+    }
+    return map
+  }, [productsResponse?.items])
+  const productImageById = useMemo(() => {
+    const map = new Map<number, string>()
+    const items = productsResponse?.items ?? []
+    for (const product of items) {
+      if (product.imageUrl) {
+        map.set(product.id, product.imageUrl)
+      }
+    }
+    return map
+  }, [productsResponse?.items])
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">
       <header className="sticky top-0 z-40 border-b bg-white shadow-sm">
@@ -121,11 +125,19 @@ export default function UsersHistoryPage() {
           </Card>
         </div>
 
-        {isUserLoading ? (
+        {showLoadingUser ? (
           <div className="text-sm text-gray-500">Cargando usuario...</div>
+        ) : !userId ? (
+          <Card className="border border-red-200 bg-red-50">
+            <CardContent className="p-4 text-sm text-red-700">
+              Necesitas iniciar sesion para ver tu historial.
+            </CardContent>
+          </Card>
         ) : userError ? (
           <Card className="border border-red-200 bg-red-50">
-            <CardContent className="p-4 text-sm text-red-700">{userError}</CardContent>
+            <CardContent className="p-4 text-sm text-red-700">
+              No se pudo cargar el usuario autenticado.
+            </CardContent>
           </Card>
         ) : ordersError ? (
           <Card className="border border-red-200 bg-red-50">
@@ -142,7 +154,7 @@ export default function UsersHistoryPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {orders.map((order: Order) => (
               <Card key={order.id} className="border border-gray-200 shadow-sm">
                 <CardHeader className="space-y-2">
@@ -157,9 +169,9 @@ export default function UsersHistoryPage() {
                       </Badge>
                     </div>
                   </div>
-                  {order.area?.name && (
-                    <p className="text-sm text-gray-600">Area: {order.area.name}</p>
-                  )}
+                  <p className="text-sm text-gray-600">
+                    Area: {order.area?.name || `Area #${order.areaId}`}
+                  </p>
                   {order.observation && (
                     <p className="text-sm text-gray-600">Nota: {order.observation}</p>
                   )}
@@ -172,17 +184,37 @@ export default function UsersHistoryPage() {
                         key={item.id}
                         className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2"
                       >
-                        <div className="min-w-0">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded-md bg-white">
+                            <Image
+                              src={
+                                item.product?.imageUrl ||
+                                productImageById.get(item.productId) ||
+                                "/placeholder.svg"
+                              }
+                              alt={item.product?.name || `Producto ${item.productId}`}
+                              fill
+                              className="object-cover"
+                              sizes="40px"
+                            />
+                          </div>
                           <p className="text-sm font-medium text-gray-900 truncate">
-                            {item.product?.name || `Producto #${item.productId}`}
+                            {item.product?.name ||
+                              productNameById.get(item.productId) ||
+                              `Producto #${item.productId}`}
                           </p>
-                          <p className="text-xs text-gray-500">{getItemLabel(item)}</p>
+                          <p className="text-xs text-gray-500">Cantidad: {getItemLabel(item)}</p>
                         </div>
                       </div>
                     ))}
                     {(order.orderItems || []).length === 0 && (
                       <p className="text-sm text-gray-500">No hay items registrados en esta orden.</p>
                     )}
+                  </div>
+                  <div className="mt-4 flex justify-end">
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={`/users/history/${order.id}`}>Editar</Link>
+                    </Button>
                   </div>
                 </CardContent>
               </Card>

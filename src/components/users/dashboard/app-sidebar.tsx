@@ -24,33 +24,28 @@ import {
 } from '@/components/ui/sidebar'
 
 const data = {
-  user: {
-    name: "kazama c",
-    email: "kazama@veryfrut.com",
-    avatar: "/avatars/shadcn.jpg",
-  },
   navMain: [
     {
       title: "Productos",
-      url: "#",
+      url: "/users",
       icon: BarChart3,
       isActive: false,
     },
     {
       title: "Pedidos - Rápido",
-      url: "#",
+      url: "/users/fast",
       icon: BarChart3,
       isActive: false,
     },
     {
       title: "Pedidos - Historial",
-      url: "#",
+      url: "/users/history",
       icon: ShoppingCart,
       isActive: false,
     },
     {
       title: "Perfil",
-      url: "#",
+      url: "/users/profile",
       icon: User,
       isActive: false,
     },
@@ -104,7 +99,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser />
       </SidebarFooter>
     </Sidebar>
   )
