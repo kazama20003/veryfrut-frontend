@@ -97,16 +97,7 @@ export default function OrdersPage() {
   const users = React.useMemo(() => (Array.isArray(usersData) ? usersData : []), [usersData]);
   const products = React.useMemo(() => productsData?.items || [], [productsData?.items]);
 
-  // Logs de depuración (solo cuando cambian los datos importantes)
-  React.useEffect(() => {
-    console.log('[OrdersPage] Estado actual:', {
-      isLoading,
-      isError,
-      error,
-      ordersCount: filteredOrders.length,
-      totalPages
-    });
-  }, [isLoading, isError, error, filteredOrders.length, totalPages]);
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -239,49 +230,50 @@ export default function OrdersPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6 bg-background">
-      <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 bg-white border-b border-border">
-        <div className="flex items-center gap-2 px-6 w-full justify-between">
-          <div className="flex items-center gap-2">
+    <div className="flex flex-col min-h-screen bg-background">
+      <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 bg-background border-b border-border sticky top-0 z-50">
+        <div className="flex items-center gap-2 px-4 sm:px-6 w-full justify-between">
+          <div className="flex items-center gap-2 min-w-0">
             <SidebarTrigger className="-ml-1" />
-            <Separator orientation="vertical" className="mr-2 data-[orientation=vertical]:h-4" />
-            <h1 className="text-base font-semibold">Órdenes</h1>
+            <Separator orientation="vertical" className="mr-2 data-[orientation=vertical]:h-4 hidden sm:block" />
+            <h1 className="text-sm sm:text-base font-semibold truncate">Órdenes</h1>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-1 sm:gap-2 flex-shrink-0">
             <OrderReportGenerator />
             <Button
               onClick={() => router.push('/dashboard/orders/new')}
-              className="gap-2"
+              className="gap-2 text-xs sm:text-sm px-2 sm:px-4 py-2 h-9 sm:h-10"
             >
               <Plus className="w-4 h-4" />
-              Nueva Orden
+              <span className="hidden sm:inline">Nueva Orden</span>
+              <span className="sm:hidden">Nueva</span>
             </Button>
           </div>
         </div>
       </header>
 
-      <div className="flex flex-1 flex-col gap-8 p-8 bg-background">
+      <div className="flex flex-1 flex-col gap-4 sm:gap-8 p-4 sm:p-8 bg-background">
         {/* Form Dialog */}
         <Dialog open={showForm} onOpenChange={setShowForm}>
-          <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-[700px] max-h-[95vh] w-[95vw] overflow-y-auto rounded-lg">
             <DialogHeader>
-              <DialogTitle>{editingId ? 'Editar Orden' : 'Nueva Orden'}</DialogTitle>
-              <DialogDescription>
+              <DialogTitle className="text-lg sm:text-xl">{editingId ? 'Editar Orden' : 'Nueva Orden'}</DialogTitle>
+              <DialogDescription className="text-xs sm:text-sm">
                 {editingId
                   ? 'Actualiza los detalles de la orden'
                   : 'Crea una nueva orden para tu sistema'}
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Área *</label>
+                  <label className="text-xs sm:text-sm font-medium">Área *</label>
                   <select
                     value={formData.areaId}
                     onChange={(e) => setFormData({ ...formData, areaId: Number(e.target.value) })}
                     required
                     disabled={createMutation.isPending || updateMutation.isPending}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex h-9 sm:h-10 w-full rounded border border-input bg-background px-3 py-2 text-xs sm:text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <option value="">Selecciona un área</option>
                     {Array.isArray(areas) &&
@@ -294,12 +286,12 @@ export default function OrdersPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Cliente (Opcional)</label>
+                  <label className="text-xs sm:text-sm font-medium">Cliente (Opcional)</label>
                   <select
                     value={formData.userId || ''}
                     onChange={(e) => setFormData({ ...formData, userId: e.target.value ? Number(e.target.value) : undefined })}
                     disabled={createMutation.isPending || updateMutation.isPending}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex h-9 sm:h-10 w-full rounded border border-input bg-background px-3 py-2 text-xs sm:text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <option value="">Sin cliente</option>
                     {users.map((user: User) => (
@@ -311,14 +303,14 @@ export default function OrdersPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Estado *</label>
+                  <label className="text-xs sm:text-sm font-medium">Estado *</label>
                   <select
                     value={formData.status}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                     disabled={createMutation.isPending || updateMutation.isPending}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex h-9 sm:h-10 w-full rounded border border-input bg-background px-3 py-2 text-xs sm:text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <option value="created">Creada</option>
                     <option value="pending">Pendiente</option>
@@ -328,27 +320,28 @@ export default function OrdersPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Monto Total: ${formData.totalAmount.toFixed(2)}</label>
-                  <Input disabled value={`$${formData.totalAmount.toFixed(2)}`} />
+                  <label className="text-xs sm:text-sm font-medium">Monto Total: ${formData.totalAmount.toFixed(2)}</label>
+                  <Input disabled value={`$${formData.totalAmount.toFixed(2)}`} className="h-9 sm:h-10 text-xs sm:text-sm" />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">Observación</label>
+                <label className="text-xs sm:text-sm font-medium">Observación</label>
                 <Input
                   placeholder="Ej: Entregar en horario de mañana"
                   value={formData.observation}
                   onChange={(e) => setFormData({ ...formData, observation: e.target.value })}
                   disabled={createMutation.isPending || updateMutation.isPending}
+                  className="h-9 sm:h-10 text-xs sm:text-sm"
                 />
               </div>
 
               {/* Agregar Productos */}
-              <div className="border-t border-border pt-4 space-y-4">
-                <h3 className="text-sm font-semibold">Productos en la Orden</h3>
+              <div className="border-t border-border pt-3 sm:pt-4 space-y-3 sm:space-y-4">
+                <h3 className="text-xs sm:text-sm font-semibold">Productos en la Orden</h3>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Producto</label>
+                  <label className="text-xs sm:text-sm font-medium">Producto</label>
                   <select
                     value={currentOrderItem.productId}
                     onChange={(e) => {
@@ -362,7 +355,7 @@ export default function OrdersPage() {
                       });
                     }}
                     disabled={createMutation.isPending || updateMutation.isPending}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex h-9 sm:h-10 w-full rounded border border-input bg-background px-3 py-2 text-xs sm:text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <option value="">Selecciona un producto</option>
                     {products.map((product: Product) => (
@@ -373,9 +366,9 @@ export default function OrdersPage() {
                   </select>
                 </div>
 
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Cantidad</label>
+                    <label className="text-xs sm:text-sm font-medium">Cantidad</label>
                     <Input
                       type="number"
                       step="0.01"
@@ -384,15 +377,16 @@ export default function OrdersPage() {
                       value={currentOrderItem.quantity}
                       onChange={(e) => setCurrentOrderItem({ ...currentOrderItem, quantity: Number(e.target.value) })}
                       disabled={createMutation.isPending || updateMutation.isPending}
+                      className="h-8 sm:h-9 text-xs"
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Unidad</label>
+                    <label className="text-xs sm:text-sm font-medium">Unidad</label>
                     <select
                       value={currentOrderItem.unitMeasurementId}
                       onChange={(e) => setCurrentOrderItem({ ...currentOrderItem, unitMeasurementId: Number(e.target.value) })}
                       disabled={createMutation.isPending || updateMutation.isPending}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="flex h-8 sm:h-9 w-full rounded border border-input bg-background px-2 sm:px-3 py-1 sm:py-2 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <option value="">Selecciona unidad</option>
                       {products.find(p => p.id === currentOrderItem.productId)?.productUnits?.map((unit) => (
@@ -403,7 +397,7 @@ export default function OrdersPage() {
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Precio</label>
+                    <label className="text-xs sm:text-sm font-medium">Precio</label>
                     <Input
                       type="number"
                       step="0.01"
@@ -412,13 +406,15 @@ export default function OrdersPage() {
                       value={currentOrderItem.price}
                       onChange={(e) => setCurrentOrderItem({ ...currentOrderItem, price: Number(e.target.value) })}
                       disabled={createMutation.isPending || updateMutation.isPending}
+                      className="h-8 sm:h-9 text-xs"
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Subtotal</label>
+                    <label className="text-xs sm:text-sm font-medium">Subtotal</label>
                     <Input
                       disabled
                       value={`$${(currentOrderItem.quantity * currentOrderItem.price).toFixed(2)}`}
+                      className="h-8 sm:h-9 text-xs"
                     />
                   </div>
                 </div>
@@ -427,7 +423,7 @@ export default function OrdersPage() {
                   type="button"
                   variant="outline"
                   onClick={addOrderItem}
-                  className="w-full bg-transparent"
+                  className="w-full bg-transparent text-xs sm:text-sm py-2 sm:py-2.5 h-auto"
                   disabled={createMutation.isPending || updateMutation.isPending}
                 >
                   Agregar Producto
@@ -436,25 +432,25 @@ export default function OrdersPage() {
                 {/* Lista de productos en la orden */}
                 {formData.orderItems.length > 0 && (
                   <div className="space-y-2">
-                    <h4 className="text-sm font-medium">Productos Agregados</h4>
-                    <div className="space-y-2">
+                    <h4 className="text-xs sm:text-sm font-medium">Productos Agregados</h4>
+                    <div className="space-y-1.5">
                       {formData.orderItems.map((item, index) => (
                         <div
                           key={index}
-                          className="flex items-center justify-between p-2 bg-muted rounded border border-border"
+                          className="flex items-center justify-between p-2 sm:p-3 bg-muted rounded text-xs sm:text-sm gap-2"
                         >
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">{item.product?.name}</p>
-                            <p className="text-xs text-muted-foreground">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium truncate">{item.product?.name}</p>
+                            <p className="text-muted-foreground text-xs truncate">
                               {item.quantity} × ${item.price.toFixed(2)} = ${(item.quantity * item.price).toFixed(2)}
                             </p>
                           </div>
                           <button
                             type="button"
                             onClick={() => removeOrderItem(index)}
-                            className="p-2 hover:bg-red-50 rounded transition-colors"
+                            className="flex-shrink-0 p-1.5 sm:p-2 hover:bg-background rounded transition-colors"
                           >
-                            <Trash2 className="w-4 h-4 text-red-500" />
+                            <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
                           </button>
                         </div>
                       ))}
@@ -463,7 +459,7 @@ export default function OrdersPage() {
                 )}
               </div>
 
-              <DialogFooter>
+              <DialogFooter className="gap-2 sm:gap-0 flex-col-reverse sm:flex-row pt-4 sm:pt-6">
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -474,13 +470,14 @@ export default function OrdersPage() {
                   }}
                   type="button"
                   disabled={createMutation.isPending || updateMutation.isPending}
+                  className="text-xs sm:text-sm py-2 sm:py-2.5 h-auto w-full sm:w-auto"
                 >
                   Cancelar
                 </Button>
                 <Button
                   type="submit"
                   disabled={createMutation.isPending || updateMutation.isPending}
-                  className="gap-2"
+                  className="gap-2 text-xs sm:text-sm py-2 sm:py-2.5 h-auto w-full sm:w-auto"
                 >
                   {(createMutation.isPending || updateMutation.isPending) && (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -494,9 +491,9 @@ export default function OrdersPage() {
 
         {/* Details Dialog */}
         <Dialog open={showDetails} onOpenChange={setShowDetails}>
-          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-[600px] max-h-[95vh] w-[95vw] overflow-y-auto rounded-lg">
             <DialogHeader>
-              <DialogTitle>Detalles de la Orden #{selectedOrder?.id}</DialogTitle>
+              <DialogTitle className="text-lg sm:text-xl">Detalles de la Orden #{selectedOrder?.id}</DialogTitle>
             </DialogHeader>
             {selectedOrder && (
               <div className="space-y-4">
@@ -564,18 +561,18 @@ export default function OrdersPage() {
         </Dialog>
 
         {/* Welcome Header */}
-        <div className="space-y-2">
-          <h2 className="text-4xl font-bold text-foreground">Gestión de Órdenes</h2>
-          <p className="text-lg text-muted-foreground">Administra todas las órdenes del sistema</p>
+        <div className="space-y-1 sm:space-y-2">
+          <h2 className="text-2xl sm:text-4xl font-bold text-foreground text-balance">Gestión de Órdenes</h2>
+          <p className="text-sm sm:text-lg text-muted-foreground">Administra todas las órdenes del sistema</p>
         </div>
 
         {/* Search */}
-        <div className="flex gap-4 items-center">
+        <div className="flex gap-2 sm:gap-4 items-center">
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Buscar orden por ID o área..."
-              className="pl-10"
+              placeholder="Buscar orden..."
+              className="pl-10 text-xs sm:text-sm h-9 sm:h-10"
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value);
@@ -587,61 +584,61 @@ export default function OrdersPage() {
 
         {/* Orders Table */}
         <Card className="border-0 shadow-sm">
-          <CardHeader className="border-b border-border pb-4">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-xl font-semibold">Lista de Órdenes</CardTitle>
-              <span className="text-sm text-muted-foreground">{filteredOrders.length} registros</span>
+          <CardHeader className="border-b border-border pb-3 sm:pb-4">
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-sm sm:text-xl font-semibold">Lista de Órdenes</CardTitle>
+              <span className="text-xs sm:text-sm text-muted-foreground">{filteredOrders.length} registros</span>
             </div>
           </CardHeader>
-          <CardContent className="pt-6">
+          <CardContent className="pt-3 sm:pt-6 px-3 sm:px-6">
             {isLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-                <p className="ml-2 text-sm text-muted-foreground">Cargando órdenes...</p>
+              <div className="flex items-center justify-center py-8 sm:py-12">
+                <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 animate-spin text-muted-foreground" />
+                <p className="ml-2 text-xs sm:text-sm text-muted-foreground">Cargando órdenes...</p>
               </div>
             ) : isError ? (
-              <div className="flex items-center justify-center py-12">
-                <p className="text-sm text-red-500">
+              <div className="flex items-center justify-center py-8 sm:py-12 px-4">
+                <p className="text-xs sm:text-sm text-muted-foreground text-center">
                   Error al cargar órdenes: {error instanceof Error ? error.message : 'Error desconocido'}
                 </p>
               </div>
             ) : filteredOrders.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 px-4">
-                <div className="text-center space-y-4">
-                  <p className="text-lg font-semibold text-muted-foreground">No hay órdenes disponibles</p>
-                  <p className="text-sm text-muted-foreground">
+              <div className="flex flex-col items-center justify-center py-8 sm:py-12 px-3 sm:px-4">
+                <div className="text-center space-y-2 sm:space-y-4">
+                  <p className="text-base sm:text-lg font-semibold text-muted-foreground">No hay órdenes disponibles</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">
                     {searchTerm ? 'No se encontraron órdenes que coincidan con tu búsqueda.' : 'Crea tu primera orden haciendo clic en "Nueva Orden".'}
                   </p>
                 </div>
               </div>
             ) : (
               <>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
+                <div className="overflow-x-auto -mx-3 sm:-mx-6 px-3 sm:px-6">
+                  <table className="w-full text-xs sm:text-sm">
                     <thead>
                       <tr className="border-b border-border">
-                        <th className="text-left py-3 px-4 text-sm font-semibold text-muted-foreground">ID</th>
-                        <th className="text-left py-3 px-4 text-sm font-semibold text-muted-foreground">Área</th>
-                        <th className="text-left py-3 px-4 text-sm font-semibold text-muted-foreground">Cliente</th>
-                        <th className="text-left py-3 px-4 text-sm font-semibold text-muted-foreground">Fecha</th>
-                        <th className="text-left py-3 px-4 text-sm font-semibold text-muted-foreground">Observación</th>
-                        <th className="text-right py-3 px-4 text-sm font-semibold text-muted-foreground">Acciones</th>
+                        <th className="text-left py-2 sm:py-3 px-2 sm:px-4 font-semibold text-muted-foreground">ID</th>
+                        <th className="text-left py-2 sm:py-3 px-2 sm:px-4 font-semibold text-muted-foreground hidden sm:table-cell">Área</th>
+                        <th className="text-left py-2 sm:py-3 px-2 sm:px-4 font-semibold text-muted-foreground hidden md:table-cell">Cliente</th>
+                        <th className="text-left py-2 sm:py-3 px-2 sm:px-4 font-semibold text-muted-foreground">Fecha</th>
+                        <th className="text-left py-2 sm:py-3 px-2 sm:px-4 font-semibold text-muted-foreground hidden lg:table-cell">Observación</th>
+                        <th className="text-right py-2 sm:py-3 px-2 sm:px-4 font-semibold text-muted-foreground">Acciones</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredOrders.map((order: Order) => (
                         <tr key={order.id} className="border-b border-border hover:bg-muted/50 transition-colors">
-                          <td className="py-4 px-4">
-                            <p className="text-sm font-medium text-foreground">#{order.id}</p>
+                          <td className="py-3 sm:py-4 px-2 sm:px-4">
+                            <p className="font-medium text-foreground">#{order.id}</p>
                           </td>
-                          <td className="py-4 px-4">
-                            <p className="text-sm text-muted-foreground">{getAreaName(order.areaId)}</p>
+                          <td className="py-3 sm:py-4 px-2 sm:px-4 hidden sm:table-cell">
+                            <p className="text-muted-foreground">{getAreaName(order.areaId)}</p>
                           </td>
-                          <td className="py-4 px-4">
-                            <p className="text-sm text-muted-foreground">{getUserName(order.userId)}</p>
+                          <td className="py-3 sm:py-4 px-2 sm:px-4 hidden md:table-cell">
+                            <p className="text-muted-foreground truncate">{getUserName(order.userId)}</p>
                           </td>
-                          <td className="py-4 px-4">
-                            <p className="text-sm text-muted-foreground">
+                          <td className="py-3 sm:py-4 px-2 sm:px-4">
+                            <p className="text-muted-foreground">
                               {order.createdAt ? new Date(order.createdAt).toLocaleString('es-PE', { 
                                 day: '2-digit',
                                 month: '2-digit',
@@ -651,33 +648,33 @@ export default function OrdersPage() {
                               }) : '-'}
                             </p>
                           </td>
-                          <td className="py-4 px-4 max-w-xs">
-                            <p className="text-sm text-muted-foreground truncate" title={order.observation || '-'}>
+                          <td className="py-3 sm:py-4 px-2 sm:px-4 hidden lg:table-cell max-w-xs">
+                            <p className="text-muted-foreground truncate" title={order.observation || '-'}>
                               {order.observation || '-'}
                             </p>
                           </td>
-                          <td className="py-4 px-4 text-right">
-                            <div className="flex gap-2 justify-end">
+                          <td className="py-3 sm:py-4 px-2 sm:px-4 text-right">
+                            <div className="flex gap-1 sm:gap-2 justify-end">
                               <button
                                 onClick={() => handleViewDetails(order)}
-                                className="p-2 hover:bg-muted rounded-lg transition-colors"
+                                className="p-1.5 sm:p-2 hover:bg-muted rounded transition-colors"
                                 title="Ver detalles"
                               >
-                                <Eye className="w-4 h-4 text-muted-foreground" />
+                                <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
                               </button>
                               <button
                                 onClick={() => handleEdit(order)}
-                                className="p-2 hover:bg-muted rounded-lg transition-colors"
+                                className="p-1.5 sm:p-2 hover:bg-muted rounded transition-colors"
                                 title="Editar"
                               >
-                                <Edit2 className="w-4 h-4 text-muted-foreground" />
+                                <Edit2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
                               </button>
                               <button
                                 onClick={() => handleDelete(order.id)}
-                                className="p-2 hover:bg-red-50 rounded-lg transition-colors"
+                                className="p-1.5 sm:p-2 hover:bg-muted rounded transition-colors"
                                 title="Eliminar"
                               >
-                                <Trash2 className="w-4 h-4 text-red-500" />
+                                <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
                               </button>
                             </div>
                           </td>
@@ -689,30 +686,32 @@ export default function OrdersPage() {
 
                 {/* Pagination */}
                 {filteredOrders.length > 0 && (
-                  <div className="flex items-center justify-between mt-6 pt-6 border-t border-border">
-                    <p className="text-sm text-muted-foreground">
+                  <div className="flex flex-col-reverse sm:flex-row items-center justify-between gap-3 sm:gap-0 mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-border">
+                    <p className="text-xs sm:text-sm text-muted-foreground">
                       Página {currentPage} de {totalPages}
                     </p>
-                    <div className="flex gap-2">
+                    <div className="flex gap-1.5 sm:gap-2 w-full sm:w-auto">
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                         disabled={currentPage === 1}
-                        className="gap-2"
+                        className="gap-1 text-xs py-1.5 h-8 sm:h-9 flex-1 sm:flex-auto"
                       >
-                        <ChevronLeft className="w-4 h-4" />
-                        Anterior
+                        <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        <span className="hidden sm:inline">Anterior</span>
+                        <span className="sm:hidden">Atrás</span>
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => setCurrentPage((p) => p + 1)}
                         disabled={currentPage >= totalPages}
-                        className="gap-2"
+                        className="gap-1 text-xs py-1.5 h-8 sm:h-9 flex-1 sm:flex-auto"
                       >
-                        Siguiente
-                        <ChevronRight className="w-4 h-4" />
+                        <span className="hidden sm:inline">Siguiente</span>
+                        <span className="sm:hidden">Sigt.</span>
+                        <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                       </Button>
                     </div>
                   </div>
