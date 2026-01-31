@@ -7,6 +7,7 @@ import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { useRouter } from 'next/navigation';
 import {
   Dialog,
   DialogContent,
@@ -24,11 +25,11 @@ import {
 import { useAreasQuery } from '@/lib/api/hooks/useArea';
 import { useUsersQuery } from '@/lib/api/hooks/useUsers';
 import { useProductsQuery } from '@/lib/api/hooks/useProduct';
-import { Order, OrderItem } from '@/types/order';
+import { Order, OrderItem, OrderStatus } from '@/types/order';
 import { Area } from '@/types/area';
 import { User } from '@/types/users';
 import { Product } from '@/types/product';
-import { ReportGenerator } from '@/components/dashboard/orders/report-generator';
+import { OrderReportGenerator } from '@/components/dashboard/orders/order-report-generator';
 
 interface FormData {
   areaId: number;
@@ -56,6 +57,7 @@ const initialFormData: FormData = {
 };
 
 export default function OrdersPage() {
+  const router = useRouter();
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [showForm, setShowForm] = useState(false);
@@ -79,26 +81,32 @@ export default function OrdersPage() {
   });
   const { data: areas = [] } = useAreasQuery();
   const { data: usersData = [] } = useUsersQuery();
-  const { data: productsData } = useProductsQuery({ limit: 100 });
+  const { data: productsData } = useProductsQuery({ page: 1, limit: 100 });
 
   const createMutation = useCreateOrderMutation();
   const updateMutation = useUpdateOrderMutation(editingId || 0);
   const deleteMutation = useDeleteOrderMutation(deleteId || 0);
 
   // Extraer items
-  const orders = React.useMemo(() => paginatedData?.items || [], [paginatedData]);
+  const orders = React.useMemo(() => {
+    return paginatedData?.items || [];
+  }, [paginatedData]);
   const totalPages = paginatedData?.totalPages || 1;
   const filteredOrders = React.useMemo(() => (Array.isArray(orders) ? orders : []), [orders]);
 
   const users = React.useMemo(() => (Array.isArray(usersData) ? usersData : []), [usersData]);
-  const products = React.useMemo(() => productsData?.items || [], [productsData]);
+  const products = React.useMemo(() => productsData?.items || [], [productsData?.items]);
 
-  // Logs de depuración
+  // Logs de depuración (solo cuando cambian los datos importantes)
   React.useEffect(() => {
-    console.log('[OrdersPage] paginatedData:', paginatedData);
-    console.log('[OrdersPage] isLoading:', isLoading);
-    console.log('[OrdersPage] filteredOrders:', filteredOrders);
-  }, [paginatedData, isLoading, filteredOrders]);
+    console.log('[OrdersPage] Estado actual:', {
+      isLoading,
+      isError,
+      error,
+      ordersCount: filteredOrders.length,
+      totalPages
+    });
+  }, [isLoading, isError, error, filteredOrders.length, totalPages]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -112,18 +120,18 @@ export default function OrdersPage() {
       if (editingId) {
         await updateMutation.mutateAsync({
           areaId: formData.areaId,
-          userId: formData.userId,
+          userId: formData.userId || undefined,
           totalAmount: formData.totalAmount,
-          status: formData.status,
+          status: formData.status as OrderStatus,
           observation: formData.observation || undefined,
           orderItems: formData.orderItems,
         });
       } else {
         await createMutation.mutateAsync({
           areaId: formData.areaId,
-          userId: formData.userId,
+          userId: formData.userId || 0,
           totalAmount: formData.totalAmount,
-          status: formData.status,
+          status: formData.status as OrderStatus,
           observation: formData.observation || undefined,
           orderItems: formData.orderItems,
         });
@@ -152,7 +160,7 @@ export default function OrdersPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (window.confirm('¿Estás seguro de que deseas eliminar esta orden?')) {
+    if (window.confirm('¿Est��s seguro de que deseas eliminar esta orden?')) {
       try {
         setDeleteId(id);
         await deleteMutation.mutateAsync();
@@ -180,8 +188,10 @@ export default function OrdersPage() {
       return;
     }
 
+    const unitMeasurement = product.productUnits?.find(pu => pu.unitMeasurementId === currentOrderItem.unitMeasurementId)?.unitMeasurement;
+
     const newItem: OrderItem = {
-      id: Math.random(),
+      id: Date.now(),
       orderId: editingId || 0,
       productId: currentOrderItem.productId,
       quantity: currentOrderItem.quantity,
@@ -192,6 +202,7 @@ export default function OrdersPage() {
         name: product.name,
         price: product.price,
       },
+      unitMeasurement,
     };
 
     setFormData({
@@ -227,21 +238,6 @@ export default function OrdersPage() {
     return user ? `${user.firstName} ${user.lastName}` : '-';
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'created':
-        return 'bg-blue-100 text-blue-800';
-      case 'delivered':
-        return 'bg-green-100 text-green-800';
-      case 'cancelled':
-        return 'bg-red-100 text-red-800';
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
   return (
     <div className="flex flex-col gap-6 bg-background">
       <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 bg-white border-b border-border">
@@ -252,14 +248,9 @@ export default function OrdersPage() {
             <h1 className="text-base font-semibold">Órdenes</h1>
           </div>
           <div className="flex gap-2">
-            <ReportGenerator />
+            <OrderReportGenerator />
             <Button
-              onClick={() => {
-                setEditingId(null);
-                setFormData(initialFormData);
-                setCurrentOrderItem({ productId: 0, quantity: 0, price: 0, unitMeasurementId: 0 });
-                setShowForm(!showForm);
-              }}
+              onClick={() => router.push('/dashboard/orders/new')}
               className="gap-2"
             >
               <Plus className="w-4 h-4" />
@@ -367,6 +358,7 @@ export default function OrdersPage() {
                         ...currentOrderItem,
                         productId,
                         price: product?.price || 0,
+                        unitMeasurementId: product?.productUnits?.[0]?.unitMeasurementId || 0,
                       });
                     }}
                     disabled={createMutation.isPending || updateMutation.isPending}
@@ -381,7 +373,7 @@ export default function OrdersPage() {
                   </select>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-4 gap-2">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Cantidad</label>
                     <Input
@@ -393,6 +385,22 @@ export default function OrdersPage() {
                       onChange={(e) => setCurrentOrderItem({ ...currentOrderItem, quantity: Number(e.target.value) })}
                       disabled={createMutation.isPending || updateMutation.isPending}
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Unidad</label>
+                    <select
+                      value={currentOrderItem.unitMeasurementId}
+                      onChange={(e) => setCurrentOrderItem({ ...currentOrderItem, unitMeasurementId: Number(e.target.value) })}
+                      disabled={createMutation.isPending || updateMutation.isPending}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <option value="">Selecciona unidad</option>
+                      {products.find(p => p.id === currentOrderItem.productId)?.productUnits?.map((unit) => (
+                        <option key={unit.id} value={unit.unitMeasurementId}>
+                          {unit.unitMeasurement.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Precio</label>
@@ -419,7 +427,7 @@ export default function OrdersPage() {
                   type="button"
                   variant="outline"
                   onClick={addOrderItem}
-                  className="w-full"
+                  className="w-full bg-transparent"
                   disabled={createMutation.isPending || updateMutation.isPending}
                 >
                   Agregar Producto
@@ -502,14 +510,16 @@ export default function OrdersPage() {
                     <p className="text-sm font-medium">{getUserName(selectedOrder.userId)}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Estado</p>
-                    <p className={`text-xs font-medium px-2 py-1 rounded w-fit ${getStatusColor(selectedOrder.status)}`}>
-                      {selectedOrder.status}
+                    <p className="text-sm text-muted-foreground">Fecha</p>
+                    <p className="text-sm font-medium">
+                      {selectedOrder.createdAt ? new Date(selectedOrder.createdAt).toLocaleString('es-PE', { 
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      }) : '-'}
                     </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Monto Total</p>
-                    <p className="text-sm font-medium">${selectedOrder.totalAmount.toFixed(2)}</p>
                   </div>
                 </div>
 
@@ -595,6 +605,15 @@ export default function OrdersPage() {
                   Error al cargar órdenes: {error instanceof Error ? error.message : 'Error desconocido'}
                 </p>
               </div>
+            ) : filteredOrders.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 px-4">
+                <div className="text-center space-y-4">
+                  <p className="text-lg font-semibold text-muted-foreground">No hay órdenes disponibles</p>
+                  <p className="text-sm text-muted-foreground">
+                    {searchTerm ? 'No se encontraron órdenes que coincidan con tu búsqueda.' : 'Crea tu primera orden haciendo clic en "Nueva Orden".'}
+                  </p>
+                </div>
+              </div>
             ) : (
               <>
                 <div className="overflow-x-auto">
@@ -604,70 +623,66 @@ export default function OrdersPage() {
                         <th className="text-left py-3 px-4 text-sm font-semibold text-muted-foreground">ID</th>
                         <th className="text-left py-3 px-4 text-sm font-semibold text-muted-foreground">Área</th>
                         <th className="text-left py-3 px-4 text-sm font-semibold text-muted-foreground">Cliente</th>
-                        <th className="text-left py-3 px-4 text-sm font-semibold text-muted-foreground">Estado</th>
-                        <th className="text-right py-3 px-4 text-sm font-semibold text-muted-foreground">Monto</th>
+                        <th className="text-left py-3 px-4 text-sm font-semibold text-muted-foreground">Fecha</th>
+                        <th className="text-left py-3 px-4 text-sm font-semibold text-muted-foreground">Observación</th>
                         <th className="text-right py-3 px-4 text-sm font-semibold text-muted-foreground">Acciones</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredOrders.length === 0 ? (
-                        <tr className="border-b border-border">
-                          <td colSpan={6} className="py-12 px-4 text-center text-sm text-muted-foreground">
-                            No hay órdenes disponibles
+                      {filteredOrders.map((order: Order) => (
+                        <tr key={order.id} className="border-b border-border hover:bg-muted/50 transition-colors">
+                          <td className="py-4 px-4">
+                            <p className="text-sm font-medium text-foreground">#{order.id}</p>
+                          </td>
+                          <td className="py-4 px-4">
+                            <p className="text-sm text-muted-foreground">{getAreaName(order.areaId)}</p>
+                          </td>
+                          <td className="py-4 px-4">
+                            <p className="text-sm text-muted-foreground">{getUserName(order.userId)}</p>
+                          </td>
+                          <td className="py-4 px-4">
+                            <p className="text-sm text-muted-foreground">
+                              {order.createdAt ? new Date(order.createdAt).toLocaleString('es-PE', { 
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              }) : '-'}
+                            </p>
+                          </td>
+                          <td className="py-4 px-4 max-w-xs">
+                            <p className="text-sm text-muted-foreground truncate" title={order.observation || '-'}>
+                              {order.observation || '-'}
+                            </p>
+                          </td>
+                          <td className="py-4 px-4 text-right">
+                            <div className="flex gap-2 justify-end">
+                              <button
+                                onClick={() => handleViewDetails(order)}
+                                className="p-2 hover:bg-muted rounded-lg transition-colors"
+                                title="Ver detalles"
+                              >
+                                <Eye className="w-4 h-4 text-muted-foreground" />
+                              </button>
+                              <button
+                                onClick={() => handleEdit(order)}
+                                className="p-2 hover:bg-muted rounded-lg transition-colors"
+                                title="Editar"
+                              >
+                                <Edit2 className="w-4 h-4 text-muted-foreground" />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(order.id)}
+                                className="p-2 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Eliminar"
+                              >
+                                <Trash2 className="w-4 h-4 text-red-500" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
-                      ) : (
-                        filteredOrders.map((order: Order) => (
-                          <tr key={order.id} className="border-b border-border hover:bg-muted/50 transition-colors">
-                            <td className="py-4 px-4">
-                              <p className="text-sm font-medium text-foreground">#{order.id}</p>
-                            </td>
-                            <td className="py-4 px-4">
-                              <p className="text-sm text-muted-foreground">{getAreaName(order.areaId)}</p>
-                            </td>
-                            <td className="py-4 px-4">
-                              <p className="text-sm text-muted-foreground">{getUserName(order.userId)}</p>
-                            </td>
-                            <td className="py-4 px-4">
-                              <span
-                                className={`text-xs font-medium px-2 py-1 rounded ${getStatusColor(
-                                  order.status
-                                )}`}
-                              >
-                                {order.status}
-                              </span>
-                            </td>
-                            <td className="py-4 px-4 text-right">
-                              <p className="text-sm font-medium text-foreground">${order.totalAmount.toFixed(2)}</p>
-                            </td>
-                            <td className="py-4 px-4 text-right">
-                              <div className="flex gap-2 justify-end">
-                                <button
-                                  onClick={() => handleViewDetails(order)}
-                                  className="p-2 hover:bg-muted rounded-lg transition-colors"
-                                  title="Ver detalles"
-                                >
-                                  <Eye className="w-4 h-4 text-muted-foreground" />
-                                </button>
-                                <button
-                                  onClick={() => handleEdit(order)}
-                                  className="p-2 hover:bg-muted rounded-lg transition-colors"
-                                  title="Editar"
-                                >
-                                  <Edit2 className="w-4 h-4 text-muted-foreground" />
-                                </button>
-                                <button
-                                  onClick={() => handleDelete(order.id)}
-                                  className="p-2 hover:bg-red-50 rounded-lg transition-colors"
-                                  title="Eliminar"
-                                >
-                                  <Trash2 className="w-4 h-4 text-red-500" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      )}
+                      ))}
                     </tbody>
                   </table>
                 </div>

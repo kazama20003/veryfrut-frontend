@@ -11,6 +11,16 @@ import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 import { areaService, useCreateOrderMutation, usersService } from "@/lib/api"
 import type { Area } from "@/types/area"
+import type { User } from "@/types/users"
+
+// Alternative user interface with areas instead of areaIds
+interface UserWithAreas extends Omit<User, 'areaIds'> {
+  areas: Array<{
+    id: number
+    name: string
+    description?: string
+  }>
+}
 
 interface Product {
   id: number
@@ -85,8 +95,8 @@ export function ShoppingCartDrawer({
       const currentUser = await usersService.getMe()
       const currentUserAreaIds = Array.isArray(currentUser?.areaIds)
         ? currentUser.areaIds
-        : Array.isArray((currentUser as { areas?: Area[] })?.areas)
-          ? (currentUser as { areas: Area[] }).areas.map((area) => area.id)
+        : currentUser && 'areas' in currentUser && Array.isArray((currentUser as UserWithAreas).areas)
+          ? (currentUser as UserWithAreas).areas.map((area) => area.id)
           : null
       console.log("[v0] Usuario actual:", currentUser)
       console.log("[v0] Areas del usuario:", currentUserAreaIds)
@@ -136,9 +146,10 @@ export function ShoppingCartDrawer({
       }))
 
       const orderData = {
+        userId: 0, // TODO: Get actual user ID
         areaId: parseInt(selectedAreaId, 10),
         totalAmount: totalPrice,
-        status: "created",
+        status: "created" as any,
         observation: observation || undefined,
         orderItems,
       }

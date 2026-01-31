@@ -23,6 +23,24 @@ function formatDate(dateValue?: string) {
   })
 }
 
+// Memoize today's date to avoid hydration issues
+const getTodayString = (() => {
+  let cached: string | null = null
+  return () => {
+    if (!cached) {
+      cached = new Date().toDateString()
+    }
+    return cached
+  }
+})()
+
+function isToday(dateValue?: string) {
+  if (!dateValue) return false
+  const orderDate = new Date(dateValue)
+  if (Number.isNaN(orderDate.getTime())) return false
+  return orderDate.toDateString() === getTodayString()
+}
+
 function formatQuantity(value: number) {
   if (!Number.isFinite(value)) return "0"
   if (value % 1 === 0) return value.toFixed(0)
@@ -211,11 +229,18 @@ export default function UsersHistoryPage() {
                       <p className="text-sm text-gray-500">No hay items registrados en esta orden.</p>
                     )}
                   </div>
-                  <div className="mt-4 flex justify-end">
-                    <Button asChild size="sm" variant="outline">
-                      <Link href={`/users/history/${order.id}`}>Editar</Link>
-                    </Button>
-                  </div>
+                  {isToday(order.createdAt) && (
+                    <div className="mt-4 flex justify-end">
+                      <Button asChild size="sm" className="bg-blue-600 hover:bg-blue-700 text-white border-0">
+                        <Link href={`/users/history/${order.id}`} className="flex items-center gap-2">
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                          Modificar pedido
+                        </Link>
+                      </Button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ))}

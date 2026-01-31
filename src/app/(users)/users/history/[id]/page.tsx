@@ -6,7 +6,6 @@ import Link from "next/link"
 import { useParams } from "next/navigation"
 import { ArrowLeft, ShoppingBag } from "lucide-react"
 import {
-  useCheckOrderQuery,
   useOrderQuery,
   useProductsQuery,
 } from "@/lib/api"
@@ -25,6 +24,24 @@ function formatDate(dateValue?: string) {
     month: "short",
     day: "numeric",
   })
+}
+
+// Memoize today's date to avoid hydration issues
+const getTodayString = (() => {
+  let cached: string | null = null
+  return () => {
+    if (!cached) {
+      cached = new Date().toDateString()
+    }
+    return cached
+  }
+})()
+
+function isToday(dateValue?: string) {
+  if (!dateValue) return false
+  const orderDate = new Date(dateValue)
+  if (Number.isNaN(orderDate.getTime())) return false
+  return orderDate.toDateString() === getTodayString()
 }
 
 function formatQuantity(value: number) {
@@ -73,14 +90,9 @@ export default function OrderHistoryDetailPage() {
     return map
   }, [productsResponse?.items])
 
-  const todayIso = useMemo(() => (isHydrated ? new Date().toISOString() : ""), [isHydrated])
-  const checkData =
-    isHydrated && order?.areaId && todayIso
-      ? { areaId: String(order.areaId), date: todayIso }
-      : null
-
-  const { data: checkResult, isLoading: isCheckLoading } = useCheckOrderQuery(checkData, !!checkData)
-  const canEdit = !!checkResult
+  const canEdit = useMemo(() => {
+    return isHydrated && isToday(order?.createdAt)
+  }, [isHydrated, order?.createdAt])
 
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">
@@ -177,20 +189,38 @@ export default function OrderHistoryDetailPage() {
                 <CardTitle className="text-base text-gray-900">Edicion</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {isCheckLoading ? (
-                  <p className="text-sm text-gray-500">Validando fecha del pedido...</p>
-                ) : canEdit ? (
-                  <p className="text-sm text-gray-600">
-                    Edicion habilitada para el pedido de hoy.
+                {!isHydrated ? (
+                  <p className="text-sm text-gray-500">Cargando...</p>
+                ) : !order?.createdAt ? (
+                  <p className="text-sm text-red-700">
+                    No se puede determinar la fecha del pedido.
+                  </p>
+                ) : !canEdit ? (
+                  <p className="text-sm text-red-700">
+                    Solo se pueden editar pedidos del día actual.
                   </p>
                 ) : (
-                  <p className="text-sm text-red-700">
-                    No puedes editar pedidos fuera de la fecha actual.
+                  <p className="text-sm text-green-700">
+                    ✅ Este pedido puede ser editado.
                   </p>
                 )}
-                <Button disabled={!canEdit} className="w-full">
-                  Editar pedido
-                </Button>
+                {canEdit ? (
+                  <Button asChild className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+                    <Link href={`/users/edit-order/${order.id}`} className="flex items-center justify-center gap-2">
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      Editar pedido
+                    </Link>
+                  </Button>
+                ) : (
+                  <Button disabled className="w-full">
+                    <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                      Edición no disponible
+                  </Button>
+                )}
               </CardContent>
             </Card>
           </div>

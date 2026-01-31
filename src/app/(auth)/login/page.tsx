@@ -3,20 +3,20 @@
 import type { FormEvent } from "react"
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Fraunces, Space_Grotesk } from "next/font/google"
-import { Loader2, ShieldCheck } from "lucide-react"
+import { Space_Grotesk, Inter } from "next/font/google"
+import { Loader2, Lock, Mail, Phone, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useLoginMutation } from "@/lib/api"
 import { decodeJwtPayload } from "@/lib/api/auth"
 import { toast } from "sonner"
 
-const display = Fraunces({
+const display = Space_Grotesk({
   subsets: ["latin"],
   weight: ["600", "700"],
 })
 
-const body = Space_Grotesk({
+const body = Inter({
   subsets: ["latin"],
   weight: ["400", "500", "600"],
 })
@@ -75,90 +75,168 @@ export default function LoginPage() {
   }
 
   return (
-    <div className={`${body.className} relative min-h-screen overflow-hidden bg-[#f6f0e8]`}>
-      <div className="absolute inset-0">
-        <div className="absolute -top-24 right-[-10%] h-[420px] w-[420px] rounded-full bg-[radial-gradient(circle_at_center,_#ffd5a8_0%,_#f6f0e8_70%)] blur-2xl" />
-        <div className="absolute bottom-[-120px] left-[-10%] h-[480px] w-[480px] rounded-full bg-[radial-gradient(circle_at_center,_#b8e7c7_0%,_#f6f0e8_70%)] blur-2xl" />
-        <div className="absolute left-1/2 top-10 h-[260px] w-[260px] -translate-x-1/2 rounded-[40%] bg-[radial-gradient(circle_at_center,_#fff2d9_0%,_#f6f0e8_70%)] blur-2xl" />
-      </div>
+    <div className={`${body.className} relative min-h-screen w-full`}>
+      {/* Background gradient */}
+      <div className="absolute inset-0 bg-gradient-to-br from-[#f5f3ed] via-white to-[#faf8f5] pointer-events-none" />
+      
+      {/* Decorative blobs */}
+      <div className="absolute top-0 right-0 w-96 h-96 bg-[#8ed765]/8 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-80 h-80 bg-[#8ed765]/5 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="relative mx-auto flex min-h-screen w-full max-w-5xl items-center px-6 py-14">
-        <div className="grid w-full gap-8 md:grid-cols-[1.05fr_0.95fr]">
-          <section className="relative rounded-[32px] border border-black/10 bg-white/60 p-8 shadow-[0_20px_60px_rgba(0,0,0,0.08)] backdrop-blur">
-            <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/80 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-black/70">
-              <ShieldCheck className="h-4 w-4" />
-              acceso seguro
+      {/* Main container */}
+      <div className="relative flex min-h-screen w-full items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
+        <div className="w-full max-w-6xl grid gap-12 lg:grid-cols-2 items-center">
+          
+          {/* Left section - Info */}
+          <div className="hidden lg:block space-y-12">
+            <div>
+              <div className="inline-flex items-center gap-2 mb-8">
+                <div className="text-3xl font-bold text-gray-900">VeryFrut</div>
+                <div className="h-1 w-16 bg-[#8ed765] rounded-full" />
+              </div>
+              
+              <h1 className={`${display.className} text-5xl lg:text-6xl font-bold text-gray-900 leading-tight mb-6`}>
+                Acceso Exclusivo
+              </h1>
+              
+              <p className="text-lg text-gray-600 leading-relaxed max-w-md">
+                Gestiona tus órdenes, revisa productos exclusivos y accede a entregas precisas en tu zona asignada.
+              </p>
             </div>
-            <h1 className={`${display.className} mt-6 text-4xl font-bold text-[#23201a] md:text-5xl`}>
-              Tu cuenta Veryfrut en un solo lugar
-            </h1>
-            <p className="mt-4 max-w-md text-base text-black/70">
-              Ingresa con tus credenciales para crear ordenes, revisar productos y gestionar tu tablero.
-            </p>
-            <div className="mt-10 grid gap-4 text-sm text-black/70">
-              <div className="flex items-center gap-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#ffe3bf] text-black/80">1</span>
-                Identifica las areas asignadas a tu cuenta.
+
+            {/* Contact cards */}
+            <div className="space-y-6">
+              <div className="flex items-start gap-4 p-6 rounded-2xl bg-white/50 backdrop-blur border border-gray-100">
+                <div className="flex-shrink-0">
+                  <Phone className="w-6 h-6 text-[#8ed765]" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500 mb-1">Teléfono</p>
+                  <a href="tel:987801148" className="text-[#1a1a1a] hover:text-[#8ed765] transition-colors flex font-normal text-lg items-center gap-0 leading-7 tracking-normal">
+                    987 801 148
+                  </a>
+                </div>
               </div>
-              <div className="flex items-center gap-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#c8f0d7] text-black/80">2</span>
-                Crea ordenes con entregas precisas.
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#ffe3bf] text-black/80">3</span>
-                Administra tu cuenta de forma segura.
+
+              <div className="flex items-start gap-4 p-6 rounded-2xl bg-white/50 backdrop-blur border border-gray-100">
+                <div className="flex-shrink-0">
+                  <Mail className="w-6 h-6 text-[#8ed765]" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500 mb-1">Correo</p>
+                  <a href="mailto:veryfrut.fernanda@gmail.com" className="text-[#1a1a1a] hover:text-[#8ed765] transition-colors flex font-normal text-lg items-center gap-0 leading-7 tracking-normal">
+                    veryfrut.fernanda@gmail.com
+                  </a>
+                </div>
               </div>
             </div>
-          </section>
 
-          <section className="rounded-[32px] border border-black/10 bg-white p-8 shadow-[0_18px_50px_rgba(0,0,0,0.08)]">
-            <h2 className={`${display.className} text-3xl font-semibold text-[#23201a]`}>
-              Iniciar sesion
-            </h2>
-            <p className="mt-2 text-sm text-black/60">Usa tu email y tu clave personal.</p>
+            <div className="pt-8 border-t border-gray-200">
+              <p className="text-sm text-gray-500">Para solicitar acceso, contacta con nuestro equipo comercial</p>
+              <p className="text-xs text-gray-400 mt-2">Atención: Lunes a Viernes | 8:00 AM - 6:00 PM</p>
+            </div>
+          </div>
 
-            <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-black/80">Email</label>
-                <Input
-                  type="email"
-                  placeholder="correo@empresa.com"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  autoComplete="email"
-                  className="h-11 rounded-xl border-black/10 bg-white/80"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-black/80">Clave</label>
-                <Input
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  autoComplete="current-password"
-                  className="h-11 rounded-xl border-black/10 bg-white/80"
-                />
-              </div>
-              <Button
-                type="submit"
-                className="h-11 w-full rounded-xl bg-[#1f7a48] text-white hover:bg-[#18633b]"
-                disabled={!canSubmit || loginMutation.isPending}
-              >
-                {loginMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ingresando
-                  </>
-                ) : (
-                  "Entrar"
+          {/* Right section - Form */}
+          <div className="w-full max-w-md mx-auto lg:mx-0">
+            {/* Mobile header */}
+            <div className="lg:hidden mb-8">
+              <div className="text-2xl font-bold text-gray-900 mb-1">VeryFrut</div>
+              <p className="text-[#8ed765] font-semibold text-sm">Acceso Exclusivo para Clientes</p>
+            </div>
+
+            {/* Login card */}
+            <div className="rounded-3xl bg-white/80 backdrop-blur border border-gray-100 p-8 shadow-sm">
+              <h2 className={`${display.className} text-3xl font-bold text-gray-900 mb-2`}>
+                Iniciar Sesión
+              </h2>
+              <p className="text-gray-600 mb-8 text-sm">Usa tu email y contraseña personal</p>
+
+              <form className="space-y-5" onSubmit={handleSubmit}>
+                <div className="space-y-2.5">
+                  <label htmlFor="email" className="block text-sm font-semibold text-gray-900">
+                    Email
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-4 top-3.5 w-5 h-5 text-gray-400" />
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="correo@empresa.com"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      autoComplete="email"
+                      className="h-11 rounded-xl border border-gray-200 bg-white/50 pl-12 text-gray-900 placeholder:text-gray-400 focus:border-[#8ed765] focus:ring-2 focus:ring-[#8ed765]/20 transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2.5">
+                  <label htmlFor="password" className="block text-sm font-semibold text-gray-900">
+                    Contraseña
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-3.5 w-5 h-5 text-gray-400" />
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      autoComplete="current-password"
+                      className="h-11 rounded-xl border border-gray-200 bg-white/50 pl-12 text-gray-900 placeholder:text-gray-400 focus:border-[#8ed765] focus:ring-2 focus:ring-[#8ed765]/20 transition-colors"
+                    />
+                  </div>
+                </div>
+
+                {errorMessage && (
+                  <div className="p-3 rounded-lg bg-red-50 border border-red-200">
+                    <p className="text-sm text-red-600">{errorMessage}</p>
+                  </div>
                 )}
-              </Button>
-              {errorMessage ? (
-                <p className="text-sm text-red-600">{errorMessage}</p>
-              ) : null}
-            </form>
-          </section>
+
+                <Button
+                  type="submit"
+                  disabled={!canSubmit || loginMutation.isPending}
+                  className="w-full h-11 rounded-xl bg-[#8ed765] text-gray-900 font-semibold hover:bg-[#7fc955] active:bg-[#75b84a] transition-colors duration-200 flex items-center justify-center gap-2"
+                >
+                  {loginMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Ingresando...
+                    </>
+                  ) : (
+                    <>
+                      Entrar
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </Button>
+              </form>
+
+              {/* Mobile contact section */}
+              <div className="lg:hidden mt-8 pt-8 border-t border-gray-200 space-y-3">
+                <p className="text-sm font-semibold text-gray-900">¿Necesitas acceso?</p>
+                <a 
+                  href="tel:987801148" 
+                  className="flex items-center gap-3 p-3 rounded-xl bg-[#8ed765]/10 hover:bg-[#8ed765]/20 transition-colors group"
+                >
+                  <Phone className="w-5 h-5 text-[#8ed765] group-hover:scale-110 transition-transform" />
+                  <span className="text-sm text-gray-900 font-medium">987 801 148</span>
+                </a>
+                <a 
+                  href="mailto:veryfrut.fernanda@gmail.com" 
+                  className="flex items-center gap-3 p-3 rounded-xl bg-[#8ed765]/10 hover:bg-[#8ed765]/20 transition-colors group"
+                >
+                  <Mail className="w-5 h-5 text-[#8ed765] group-hover:scale-110 transition-transform" />
+                  <span className="text-sm text-gray-900 font-medium">veryfrut.fernanda@gmail.com</span>
+                </a>
+              </div>
+            </div>
+
+            {/* Footer text */}
+            <p className="text-xs text-gray-500 text-center mt-6">© 2024 VeryFrut. Todos los derechos reservados.</p>
+          </div>
         </div>
       </div>
     </div>

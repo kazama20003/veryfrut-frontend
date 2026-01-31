@@ -9,6 +9,7 @@ import orderService, {
   CreateOrderDto,
   UpdateOrderDto,
   CheckOrderDto,
+  CheckOrderResponse,
   GetOrdersParams,
   GetOrdersByDateRangeParams,
 } from '../services/order-service';
@@ -83,7 +84,7 @@ export function useOrdersByDateRangeQuery(
  * Query: Verificar existencia de orden
  */
 export function useCheckOrderQuery(checkData: CheckOrderDto | null, enabled: boolean = false) {
-  return useQuery({
+  return useQuery<CheckOrderResponse>({
     queryKey: ['orders', 'check', checkData],
     queryFn: () => orderService.check(checkData as CheckOrderDto),
     enabled: !!checkData && enabled,

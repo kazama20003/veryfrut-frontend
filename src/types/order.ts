@@ -9,7 +9,7 @@ export interface OrderItem {
   id: number;
   orderId: number;
   productId: number;
-  quantity: number;
+  quantity: number; // Supports decimal values (e.g., 0.25, 0.5, 0.75, 1)
   price: number;
   unitMeasurementId: number;
   product?: {
@@ -57,20 +57,40 @@ export interface Order {
 }
 
 /**
+ * Enum para status de orden
+ */
+export enum OrderStatus {
+  CREATED = 'created',
+  PROCESS = 'process',
+  DELIVERED = 'delivered',
+  PENDING = 'pending',
+  CANCELLED = 'cancelled',
+}
+
+export type OrderStatusType = 'created' | 'process' | 'delivered' | 'pending' | 'cancelled';
+
+/**
+ * Item de orden para creación
+ * Estructura exacta que espera el backend con class-validator
+ */
+export interface CreateOrderItemDto {
+  productId: number; // @IsNumber() @IsPositive()
+  quantity: number; // @IsNumber() @IsPositive() - Supports decimal values (e.g., 0.25, 0.5, 0.75, 1)
+  price: number; // @IsNumber()
+  unitMeasurementId: number; // @IsNumber() @IsPositive()
+}
+
+/**
  * DTO para crear orden
+ * Estructura exacta que espera el backend con class-validator y class-transformer
  */
 export interface CreateOrderDto {
-  areaId: number;
-  userId?: number;
-  totalAmount: number;
-  status?: string;
-  observation?: string;
-  orderItems: Array<{
-    productId: number;
-    quantity: number;
-    price: number;
-    unitMeasurementId: number;
-  }>;
+  userId: number; // @IsNumber() @IsPositive()
+  areaId: number; // @IsNumber() @IsPositive()
+  totalAmount: number; // @IsNumber()
+  status: OrderStatus; // @IsEnum(OrderStatus)
+  observation?: string; // @IsOptional() @IsString()
+  orderItems: CreateOrderItemDto[]; // @IsArray() @ValidateNested({ each: true }) @Type(() => CreateOrderItemDto)
 }
 
 /**
@@ -84,7 +104,7 @@ export interface UpdateOrderDto {
   observation?: string;
   orderItems?: Array<{
     productId: number;
-    quantity: number;
+    quantity: number; // Supports decimal values (e.g., 0.25, 0.5, 0.75, 1)
     price: number;
     unitMeasurementId: number;
   }>;
@@ -96,6 +116,14 @@ export interface UpdateOrderDto {
 export interface CheckOrderDto {
   areaId?: string;
   date?: string;
+}
+
+/**
+ * Respuesta de verificación de orden
+ */
+export interface CheckOrderResponse {
+  exists: boolean;
+  order?: Order;
 }
 
 /**

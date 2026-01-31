@@ -2,6 +2,7 @@
   import type React from "react"
   import { useState } from "react"
   import { ChevronDown, X } from "lucide-react"
+import Link from "next/link"
 
   interface NavItem {
     label: string
@@ -102,7 +103,7 @@
           {/* Quote Button - hidden on mobile, shown on md screens */}
           <button className="hidden md:flex bg-white rounded-[10px] shadow-[0_2px_12px_rgba(0,0,0,0.04)] items-center gap-2 md:gap-3 min-h-[68px] hover:bg-neutral-50 transition-colors cursor-pointer shrink-0 px-4 md:px-6 py-0 mr-0 ml-1 mt-1 mb-1 whitespace-nowrap">
             <span className="text-[#1A1A1A] text-base md:text-lg lg:text-[18px] font-normal tracking-normal leading-9">
-              Pedir ya
+              <Link href="/users">Pedir ya</Link>
             </span>
             <QuoteCharacter />
           </button>
