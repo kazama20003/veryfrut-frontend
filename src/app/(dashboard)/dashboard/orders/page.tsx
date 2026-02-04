@@ -1,725 +1,313 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Plus, Search, Trash2, Edit2, Loader2, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
-import { Separator } from '@/components/ui/separator';
-import { SidebarTrigger } from '@/components/ui/sidebar';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { useOrdersQuery } from '@/lib/api';
+import { Order } from '@/types/order';
+import { ReportDialog } from './report-dialog';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useRouter } from 'next/navigation';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import {
-  useOrdersQuery,
-  useCreateOrderMutation,
-  useUpdateOrderMutation,
-  useDeleteOrderMutation,
-} from '@/lib/api/hooks/useOrder';
-import { useAreasQuery } from '@/lib/api/hooks/useArea';
-import { useUsersQuery } from '@/lib/api/hooks/useUsers';
-import { useProductsQuery } from '@/lib/api/hooks/useProduct';
-import { Order, OrderItem, OrderStatus } from '@/types/order';
-import { Area } from '@/types/area';
-import { User } from '@/types/users';
-import { Product } from '@/types/product';
-import { OrderReportGenerator } from '@/components/dashboard/orders/order-report-generator';
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Loader2, AlertCircle, Plus, FileDown } from 'lucide-react';
 
-interface FormData {
-  areaId: number;
-  userId?: number;
-  totalAmount: number;
-  status: string;
-  observation?: string;
-  orderItems: OrderItem[];
-}
+const statusColorMap: Record<string, { bg: string; text: string }> = {
+  created: { bg: 'bg-blue-100', text: 'text-blue-800' },
+  pending: { bg: 'bg-yellow-100', text: 'text-yellow-800' },
+  process: { bg: 'bg-purple-100', text: 'text-purple-800' },
+  confirmed: { bg: 'bg-green-100', text: 'text-green-800' },
+  delivered: { bg: 'bg-emerald-100', text: 'text-emerald-800' },
+  cancelled: { bg: 'bg-red-100', text: 'text-red-800' },
+};
 
-interface OrderItemForm {
-  productId: number;
-  quantity: number;
-  price: number;
-  unitMeasurementId: number;
-}
-
-const initialFormData: FormData = {
-  areaId: 0,
-  userId: undefined,
-  totalAmount: 0,
-  status: 'created',
-  observation: '',
-  orderItems: [],
+const statusLabels: Record<string, string> = {
+  created: 'Creada',
+  pending: 'Pendiente',
+  process: 'En proceso',
+  confirmed: 'Confirmada',
+  delivered: 'Entregada',
+  cancelled: 'Cancelada',
 };
 
 export default function OrdersPage() {
-  const router = useRouter();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [showForm, setShowForm] = useState(false);
-  const [showDetails, setShowDetails] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [formData, setFormData] = useState<FormData>(initialFormData);
-  const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [currentOrderItem, setCurrentOrderItem] = useState<OrderItemForm>({
-    productId: 0,
-    quantity: 0,
-    price: 0,
-    unitMeasurementId: 0,
+  const [pagination, setPagination] = useState({ page: 1, limit: 100 });
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const { data, isLoading, error } = useOrdersQuery({
+    page: pagination.page,
+    limit: pagination.limit,
   });
 
-  const limit = 10;
-  const { data: paginatedData, isLoading, isError, error } = useOrdersQuery({
-    page: currentPage,
-    limit,
-    q: searchTerm,
-  });
-  const { data: areas = [] } = useAreasQuery();
-  const { data: usersData = [] } = useUsersQuery();
-  const { data: productsData } = useProductsQuery({ page: 1, limit: 100 });
-
-  const createMutation = useCreateOrderMutation();
-  const updateMutation = useUpdateOrderMutation(editingId || 0);
-  const deleteMutation = useDeleteOrderMutation(deleteId || 0);
-
-  // Extraer items
-  const orders = React.useMemo(() => {
-    return paginatedData?.items || [];
-  }, [paginatedData]);
-  const totalPages = paginatedData?.totalPages || 1;
-  const filteredOrders = React.useMemo(() => (Array.isArray(orders) ? orders : []), [orders]);
-
-  const users = React.useMemo(() => (Array.isArray(usersData) ? usersData : []), [usersData]);
-  const products = React.useMemo(() => productsData?.items || [], [productsData?.items]);
-
-
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!formData.areaId || formData.orderItems.length === 0) {
-      alert('Por favor completa los campos requeridos y añade al menos un producto');
-      return;
-    }
-
-    try {
-      if (editingId) {
-        await updateMutation.mutateAsync({
-          areaId: formData.areaId,
-          userId: formData.userId || undefined,
-          totalAmount: formData.totalAmount,
-          status: formData.status as OrderStatus,
-          observation: formData.observation || undefined,
-          orderItems: formData.orderItems,
-        });
-      } else {
-        await createMutation.mutateAsync({
-          areaId: formData.areaId,
-          userId: formData.userId || 0,
-          totalAmount: formData.totalAmount,
-          status: formData.status as OrderStatus,
-          observation: formData.observation || undefined,
-          orderItems: formData.orderItems,
-        });
-      }
-
-      setFormData(initialFormData);
-      setEditingId(null);
-      setShowForm(false);
-    } catch (error) {
-      console.error('Error:', error);
-      alert('Error al guardar la orden');
-    }
-  };
-
-  const handleEdit = (order: Order) => {
-    setFormData({
-      areaId: order.areaId,
-      userId: order.userId,
-      totalAmount: order.totalAmount,
-      status: order.status,
-      observation: order.observation || '',
-      orderItems: order.orderItems || [],
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    const dateStr = date.toLocaleDateString('es-ES', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
     });
-    setEditingId(order.id);
-    setShowForm(true);
-  };
-
-  const handleDelete = async (id: number) => {
-    if (window.confirm('¿Est��s seguro de que deseas eliminar esta orden?')) {
-      try {
-        setDeleteId(id);
-        await deleteMutation.mutateAsync();
-      } catch (error) {
-        console.error('Error:', error);
-        alert('Error al eliminar la orden');
-      }
-    }
-  };
-
-  const handleViewDetails = (order: Order) => {
-    setSelectedOrder(order);
-    setShowDetails(true);
-  };
-
-  const addOrderItem = () => {
-    if (!currentOrderItem.productId || !currentOrderItem.quantity || !currentOrderItem.unitMeasurementId) {
-      alert('Por favor completa todos los campos del producto');
-      return;
-    }
-
-    const product = products.find((p) => p.id === currentOrderItem.productId);
-    if (!product) {
-      alert('Producto no encontrado');
-      return;
-    }
-
-    const unitMeasurement = product.productUnits?.find(pu => pu.unitMeasurementId === currentOrderItem.unitMeasurementId)?.unitMeasurement;
-
-    const newItem: OrderItem = {
-      id: Date.now(),
-      orderId: editingId || 0,
-      productId: currentOrderItem.productId,
-      quantity: currentOrderItem.quantity,
-      price: currentOrderItem.price,
-      unitMeasurementId: currentOrderItem.unitMeasurementId,
-      product: {
-        id: product.id,
-        name: product.name,
-        price: product.price,
-      },
-      unitMeasurement,
-    };
-
-    setFormData({
-      ...formData,
-      orderItems: [...formData.orderItems, newItem],
-      totalAmount: formData.totalAmount + currentOrderItem.quantity * currentOrderItem.price,
+    const timeStr = date.toLocaleTimeString('es-ES', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
     });
-
-    setCurrentOrderItem({
-      productId: 0,
-      quantity: 0,
-      price: 0,
-      unitMeasurementId: 0,
-    });
+    return `${dateStr} ${timeStr}`;
   };
 
-  const removeOrderItem = (index: number) => {
-    const item = formData.orderItems[index];
-    setFormData({
-      ...formData,
-      orderItems: formData.orderItems.filter((_, i) => i !== index),
-      totalAmount: formData.totalAmount - item.quantity * item.price,
-    });
+  const handleNewOrder = () => {
+    console.log('[v0] Navigating to create new order');
   };
 
-  const getAreaName = (areaId: number) => {
-    return areas.find((a) => a.id === areaId)?.name || '-';
-  };
-
-  const getUserName = (userId?: number) => {
-    if (!userId) return '-';
-    const user = users.find((u: User) => u.id === userId);
-    return user ? `${user.firstName} ${user.lastName}` : '-';
+  const handleGenerateReport = () => {
+    setReportDialogOpen(true);
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-background">
-      <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 bg-background border-b border-border sticky top-0 z-50">
-        <div className="flex items-center gap-2 px-4 sm:px-6 w-full justify-between">
-          <div className="flex items-center gap-2 min-w-0">
-            <SidebarTrigger className="-ml-1" />
-            <Separator orientation="vertical" className="mr-2 data-[orientation=vertical]:h-4 hidden sm:block" />
-            <h1 className="text-sm sm:text-base font-semibold truncate">Órdenes</h1>
+    <div className='h-full w-full flex flex-col bg-background overflow-hidden'>
+      <div className='h-full flex flex-col p-6 overflow-y-auto'>
+        {/* Header con acciones */}
+        <div className='mb-6 flex items-start justify-between'>
+          <div>
+            <h1 className='text-3xl font-bold tracking-tight'>Órdenes</h1>
+            <p className='text-sm text-muted-foreground mt-1'>Gestiona y visualiza todas tus órdenes</p>
           </div>
-          <div className="flex gap-1 sm:gap-2 flex-shrink-0">
-            <OrderReportGenerator />
-            <Button
-              onClick={() => router.push('/dashboard/orders/new')}
-              className="gap-2 text-xs sm:text-sm px-2 sm:px-4 py-2 h-9 sm:h-10"
-            >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">Nueva Orden</span>
-              <span className="sm:hidden">Nueva</span>
+          <div className='flex gap-3'>
+            <Button onClick={handleGenerateReport} variant='outline' className='gap-2'>
+              <FileDown className='w-4 h-4' />
+              Generar reporte
+            </Button>
+            <Button onClick={handleNewOrder} className='gap-2'>
+              <Plus className='w-4 h-4' />
+              Nueva orden
             </Button>
           </div>
         </div>
-      </header>
 
-      <div className="flex flex-1 flex-col gap-4 sm:gap-8 p-4 sm:p-8 bg-background">
-        {/* Form Dialog */}
-        <Dialog open={showForm} onOpenChange={setShowForm}>
-          <DialogContent className="sm:max-w-[700px] max-h-[95vh] w-[95vw] overflow-y-auto rounded-lg">
-            <DialogHeader>
-              <DialogTitle className="text-lg sm:text-xl">{editingId ? 'Editar Orden' : 'Nueva Orden'}</DialogTitle>
-              <DialogDescription className="text-xs sm:text-sm">
-                {editingId
-                  ? 'Actualiza los detalles de la orden'
-                  : 'Crea una nueva orden para tu sistema'}
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                <div className="space-y-2">
-                  <label className="text-xs sm:text-sm font-medium">Área *</label>
-                  <select
-                    value={formData.areaId}
-                    onChange={(e) => setFormData({ ...formData, areaId: Number(e.target.value) })}
-                    required
-                    disabled={createMutation.isPending || updateMutation.isPending}
-                    className="flex h-9 sm:h-10 w-full rounded border border-input bg-background px-3 py-2 text-xs sm:text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <option value="">Selecciona un área</option>
-                    {Array.isArray(areas) &&
-                      areas.map((area: Area) => (
-                        <option key={area.id} value={area.id}>
-                          {area.name}
-                        </option>
-                      ))}
-                  </select>
-                </div>
+        {/* Cards de resumen */}
+        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-6'>
+          <Card className='border-l-4 border-l-blue-500'>
+            <CardHeader className='pb-1 pt-3 px-4'>
+              <CardTitle className='text-xs font-medium text-muted-foreground'>
+                Total de órdenes
+              </CardTitle>
+            </CardHeader>
+            <CardContent className='px-4 pb-3'>
+              <div className='text-2xl font-bold'>{data?.total || 0}</div>
+              <p className='text-xs text-muted-foreground mt-1'>en el sistema</p>
+            </CardContent>
+          </Card>
 
-                <div className="space-y-2">
-                  <label className="text-xs sm:text-sm font-medium">Cliente (Opcional)</label>
-                  <select
-                    value={formData.userId || ''}
-                    onChange={(e) => setFormData({ ...formData, userId: e.target.value ? Number(e.target.value) : undefined })}
-                    disabled={createMutation.isPending || updateMutation.isPending}
-                    className="flex h-9 sm:h-10 w-full rounded border border-input bg-background px-3 py-2 text-xs sm:text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <option value="">Sin cliente</option>
-                    {users.map((user: User) => (
-                      <option key={user.id} value={user.id}>
-                        {user.firstName} {user.lastName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+          <Card className='border-l-4 border-l-purple-500'>
+            <CardHeader className='pb-1 pt-3 px-4'>
+              <CardTitle className='text-xs font-medium text-muted-foreground'>
+                En proceso
+              </CardTitle>
+            </CardHeader>
+            <CardContent className='px-4 pb-3'>
+              <div className='text-2xl font-bold'>
+                {data?.items?.filter((o) => o.status === 'process').length || 0}
               </div>
+              <p className='text-xs text-muted-foreground mt-1'>pendientes de completar</p>
+            </CardContent>
+          </Card>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                <div className="space-y-2">
-                  <label className="text-xs sm:text-sm font-medium">Estado *</label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                    disabled={createMutation.isPending || updateMutation.isPending}
-                    className="flex h-9 sm:h-10 w-full rounded border border-input bg-background px-3 py-2 text-xs sm:text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <option value="created">Creada</option>
-                    <option value="pending">Pendiente</option>
-                    <option value="delivered">Entregada</option>
-                    <option value="cancelled">Cancelada</option>
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs sm:text-sm font-medium">Monto Total: ${formData.totalAmount.toFixed(2)}</label>
-                  <Input disabled value={`$${formData.totalAmount.toFixed(2)}`} className="h-9 sm:h-10 text-xs sm:text-sm" />
-                </div>
+          <Card className='border-l-4 border-l-green-500'>
+            <CardHeader className='pb-1 pt-3 px-4'>
+              <CardTitle className='text-xs font-medium text-muted-foreground'>
+                Entregadas
+              </CardTitle>
+            </CardHeader>
+            <CardContent className='px-4 pb-3'>
+              <div className='text-2xl font-bold'>
+                {data?.items?.filter((o) => o.status === 'delivered').length || 0}
               </div>
+              <p className='text-xs text-muted-foreground mt-1'>completadas</p>
+            </CardContent>
+          </Card>
 
-              <div className="space-y-2">
-                <label className="text-xs sm:text-sm font-medium">Observación</label>
-                <Input
-                  placeholder="Ej: Entregar en horario de mañana"
-                  value={formData.observation}
-                  onChange={(e) => setFormData({ ...formData, observation: e.target.value })}
-                  disabled={createMutation.isPending || updateMutation.isPending}
-                  className="h-9 sm:h-10 text-xs sm:text-sm"
-                />
+          <Card className='border-l-4 border-l-red-500'>
+            <CardHeader className='pb-1 pt-3 px-4'>
+              <CardTitle className='text-xs font-medium text-muted-foreground'>
+                Canceladas
+              </CardTitle>
+            </CardHeader>
+            <CardContent className='px-4 pb-3'>
+              <div className='text-2xl font-bold'>
+                {data?.items?.filter((o) => o.status === 'cancelled').length || 0}
               </div>
+              <p className='text-xs text-muted-foreground mt-1'>sin procesar</p>
+            </CardContent>
+          </Card>
+        </div>
 
-              {/* Agregar Productos */}
-              <div className="border-t border-border pt-3 sm:pt-4 space-y-3 sm:space-y-4">
-                <h3 className="text-xs sm:text-sm font-semibold">Productos en la Orden</h3>
+        {/* Tabla de órdenes */}
+        <Card>
+          <CardHeader className='pb-3'>
+            <CardTitle className='text-lg'>Listado de órdenes</CardTitle>
+            <CardDescription className='text-xs'>
+              {data?.total} órdenes en total ({data?.page || 1} de {data?.totalPages || 1} páginas)
+            </CardDescription>
+          </CardHeader>
 
-                <div className="space-y-2">
-                  <label className="text-xs sm:text-sm font-medium">Producto</label>
-                  <select
-                    value={currentOrderItem.productId}
-                    onChange={(e) => {
-                      const productId = Number(e.target.value);
-                      const product = products.find((p) => p.id === productId);
-                      setCurrentOrderItem({
-                        ...currentOrderItem,
-                        productId,
-                        price: product?.price || 0,
-                        unitMeasurementId: product?.productUnits?.[0]?.unitMeasurementId || 0,
-                      });
-                    }}
-                    disabled={createMutation.isPending || updateMutation.isPending}
-                    className="flex h-9 sm:h-10 w-full rounded border border-input bg-background px-3 py-2 text-xs sm:text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <option value="">Selecciona un producto</option>
-                    {products.map((product: Product) => (
-                      <option key={product.id} value={product.id}>
-                        {product.name} (${product.price.toFixed(2)})
-                      </option>
-                    ))}
-                  </select>
+          <CardContent className='px-4'>
+            {error && (
+              <div className='mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex gap-3'>
+                <AlertCircle className='w-5 h-5 text-red-600 flex-shrink-0 mt-0.5' />
+                <div>
+                  <p className='font-semibold text-red-900'>Error al cargar órdenes</p>
+                  <p className='text-red-700 text-sm'>{error instanceof Error ? error.message : 'Intenta de nuevo'}</p>
                 </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <div className="space-y-2">
-                    <label className="text-xs sm:text-sm font-medium">Cantidad</label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0"
-                      value={currentOrderItem.quantity}
-                      onChange={(e) => setCurrentOrderItem({ ...currentOrderItem, quantity: Number(e.target.value) })}
-                      disabled={createMutation.isPending || updateMutation.isPending}
-                      className="h-8 sm:h-9 text-xs"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs sm:text-sm font-medium">Unidad</label>
-                    <select
-                      value={currentOrderItem.unitMeasurementId}
-                      onChange={(e) => setCurrentOrderItem({ ...currentOrderItem, unitMeasurementId: Number(e.target.value) })}
-                      disabled={createMutation.isPending || updateMutation.isPending}
-                      className="flex h-8 sm:h-9 w-full rounded border border-input bg-background px-2 sm:px-3 py-1 sm:py-2 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <option value="">Selecciona unidad</option>
-                      {products.find(p => p.id === currentOrderItem.productId)?.productUnits?.map((unit) => (
-                        <option key={unit.id} value={unit.unitMeasurementId}>
-                          {unit.unitMeasurement.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs sm:text-sm font-medium">Precio</label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0.00"
-                      value={currentOrderItem.price}
-                      onChange={(e) => setCurrentOrderItem({ ...currentOrderItem, price: Number(e.target.value) })}
-                      disabled={createMutation.isPending || updateMutation.isPending}
-                      className="h-8 sm:h-9 text-xs"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs sm:text-sm font-medium">Subtotal</label>
-                    <Input
-                      disabled
-                      value={`$${(currentOrderItem.quantity * currentOrderItem.price).toFixed(2)}`}
-                      className="h-8 sm:h-9 text-xs"
-                    />
-                  </div>
-                </div>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={addOrderItem}
-                  className="w-full bg-transparent text-xs sm:text-sm py-2 sm:py-2.5 h-auto"
-                  disabled={createMutation.isPending || updateMutation.isPending}
-                >
-                  Agregar Producto
-                </Button>
-
-                {/* Lista de productos en la orden */}
-                {formData.orderItems.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="text-xs sm:text-sm font-medium">Productos Agregados</h4>
-                    <div className="space-y-1.5">
-                      {formData.orderItems.map((item, index) => (
-                        <div
-                          key={index}
-                          className="flex items-center justify-between p-2 sm:p-3 bg-muted rounded text-xs sm:text-sm gap-2"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">{item.product?.name}</p>
-                            <p className="text-muted-foreground text-xs truncate">
-                              {item.quantity} × ${item.price.toFixed(2)} = ${(item.quantity * item.price).toFixed(2)}
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => removeOrderItem(index)}
-                            className="flex-shrink-0 p-1.5 sm:p-2 hover:bg-background rounded transition-colors"
-                          >
-                            <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <DialogFooter className="gap-2 sm:gap-0 flex-col-reverse sm:flex-row pt-4 sm:pt-6">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowForm(false);
-                    setEditingId(null);
-                    setFormData(initialFormData);
-                    setCurrentOrderItem({ productId: 0, quantity: 0, price: 0, unitMeasurementId: 0 });
-                  }}
-                  type="button"
-                  disabled={createMutation.isPending || updateMutation.isPending}
-                  className="text-xs sm:text-sm py-2 sm:py-2.5 h-auto w-full sm:w-auto"
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={createMutation.isPending || updateMutation.isPending}
-                  className="gap-2 text-xs sm:text-sm py-2 sm:py-2.5 h-auto w-full sm:w-auto"
-                >
-                  {(createMutation.isPending || updateMutation.isPending) && (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  )}
-                  {editingId ? 'Actualizar' : 'Crear'} Orden
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
-
-        {/* Details Dialog */}
-        <Dialog open={showDetails} onOpenChange={setShowDetails}>
-          <DialogContent className="sm:max-w-[600px] max-h-[95vh] w-[95vw] overflow-y-auto rounded-lg">
-            <DialogHeader>
-              <DialogTitle className="text-lg sm:text-xl">Detalles de la Orden #{selectedOrder?.id}</DialogTitle>
-            </DialogHeader>
-            {selectedOrder && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Área</p>
-                    <p className="text-sm font-medium">{getAreaName(selectedOrder.areaId)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Cliente</p>
-                    <p className="text-sm font-medium">{getUserName(selectedOrder.userId)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Fecha</p>
-                    <p className="text-sm font-medium">
-                      {selectedOrder.createdAt ? new Date(selectedOrder.createdAt).toLocaleString('es-PE', { 
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: '2-digit',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      }) : '-'}
-                    </p>
-                  </div>
-                </div>
-
-                {selectedOrder.observation && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">Observación</p>
-                    <p className="text-sm">{selectedOrder.observation}</p>
-                  </div>
-                )}
-
-                {selectedOrder.createdAt && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Creada</p>
-                      <p className="text-sm">{new Date(selectedOrder.createdAt).toLocaleDateString()}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Actualizada</p>
-                      <p className="text-sm">{new Date(selectedOrder.updatedAt || '').toLocaleDateString()}</p>
-                    </div>
-                  </div>
-                )}
-
-                {selectedOrder.orderItems && selectedOrder.orderItems.length > 0 && (
-                  <div className="border-t border-border pt-4">
-                    <h4 className="text-sm font-semibold mb-2">Productos</h4>
-                    <div className="space-y-2">
-                      {selectedOrder.orderItems.map((item) => (
-                        <div key={item.id} className="flex justify-between p-2 bg-muted rounded text-sm">
-                          <span>{item.product?.name}</span>
-                          <span>
-                            {item.quantity} × ${item.price.toFixed(2)} = ${(item.quantity * item.price).toFixed(2)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             )}
-          </DialogContent>
-        </Dialog>
 
-        {/* Welcome Header */}
-        <div className="space-y-1 sm:space-y-2">
-          <h2 className="text-2xl sm:text-4xl font-bold text-foreground text-balance">Gestión de Órdenes</h2>
-          <p className="text-sm sm:text-lg text-muted-foreground">Administra todas las órdenes del sistema</p>
-        </div>
-
-        {/* Search */}
-        <div className="flex gap-2 sm:gap-4 items-center">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar orden..."
-              className="pl-10 text-xs sm:text-sm h-9 sm:h-10"
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setCurrentPage(1);
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Orders Table */}
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="border-b border-border pb-3 sm:pb-4">
-            <div className="flex items-center justify-between gap-2">
-              <CardTitle className="text-sm sm:text-xl font-semibold">Lista de Órdenes</CardTitle>
-              <span className="text-xs sm:text-sm text-muted-foreground">{filteredOrders.length} registros</span>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-3 sm:pt-6 px-3 sm:px-6">
             {isLoading ? (
-              <div className="flex items-center justify-center py-8 sm:py-12">
-                <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 animate-spin text-muted-foreground" />
-                <p className="ml-2 text-xs sm:text-sm text-muted-foreground">Cargando órdenes...</p>
+              <div className='flex items-center justify-center py-12'>
+                <div className='flex flex-col items-center gap-2'>
+                  <Loader2 className='w-8 h-8 animate-spin text-muted-foreground' />
+                  <p className='text-muted-foreground'>Cargando órdenes...</p>
+                </div>
               </div>
-            ) : isError ? (
-              <div className="flex items-center justify-center py-8 sm:py-12 px-4">
-                <p className="text-xs sm:text-sm text-muted-foreground text-center">
-                  Error al cargar órdenes: {error instanceof Error ? error.message : 'Error desconocido'}
-                </p>
-              </div>
-            ) : filteredOrders.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 sm:py-12 px-3 sm:px-4">
-                <div className="text-center space-y-2 sm:space-y-4">
-                  <p className="text-base sm:text-lg font-semibold text-muted-foreground">No hay órdenes disponibles</p>
-                  <p className="text-xs sm:text-sm text-muted-foreground">
-                    {searchTerm ? 'No se encontraron órdenes que coincidan con tu búsqueda.' : 'Crea tu primera orden haciendo clic en "Nueva Orden".'}
+            ) : data?.items && data.items.length > 0 ? (
+              <>
+                <div className='overflow-x-auto'>
+                  <Table className='text-sm'>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className='w-12 text-xs'>ID</TableHead>
+                        <TableHead className='text-xs'>Cliente</TableHead>
+                        <TableHead className='text-xs'>Área</TableHead>
+                        <TableHead className='text-xs'>Productos</TableHead>
+                        <TableHead className='text-xs'>Estado</TableHead>
+                        <TableHead className='text-xs'>Fecha y Hora</TableHead>
+                        <TableHead className='w-16 text-right text-xs'>Acciones</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {data.items.map((order: Order) => (
+                        <TableRow key={order.id} className='hover:bg-muted/50'>
+                          <TableCell className='font-semibold text-primary text-xs'>#{order.id}</TableCell>
+                          <TableCell>
+                            <div>
+                              <p className='font-medium text-xs'>
+                                {order.User?.firstName} {order.User?.lastName}
+                              </p>
+                              <p className='text-xs text-muted-foreground'>{order.User?.email || 'N/A'}</p>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div
+                              className='px-2 py-1 rounded-full text-xs font-semibold text-white w-fit'
+                              style={{ backgroundColor: order.area?.color || '#666' }}
+                            >
+                              {order.area?.name || 'N/A'}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className='text-xs'>
+                              <p className='font-medium'>{order.orderItems?.length || 0}</p>
+                              {order.orderItems && order.orderItems.length > 0 && (
+                                <p className='text-xs text-muted-foreground line-clamp-1'>
+                                  {order.orderItems
+                                    .map((item) => `${item.quantity} ${item.product?.name}`)
+                                    .join(', ')}
+                                </p>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div
+                              className={`px-2 py-1 rounded-full text-xs font-semibold w-fit ${
+                                statusColorMap[order.status]?.bg || 'bg-gray-100'
+                              } ${statusColorMap[order.status]?.text || 'text-gray-800'}`}
+                            >
+                              {statusLabels[order.status] || order.status}
+                            </div>
+                          </TableCell>
+                          <TableCell className='text-xs text-muted-foreground whitespace-nowrap'>
+                            {formatDate(order.createdAt || '')}
+                          </TableCell>
+                          <TableCell className='text-right'>
+                            <Button variant='ghost' size='sm' className='text-xs h-7'>
+                              Ver
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Paginación */}
+                <div className='mt-4 flex items-center justify-between border-t pt-3'>
+                  <div className='text-xs text-muted-foreground'>
+                    Mostrando {(pagination.page - 1) * pagination.limit + 1} a{' '}
+                    {Math.min(pagination.page * pagination.limit, data.total)} de {data.total} órdenes
+                  </div>
+                  <div className='flex gap-2 items-center'>
+                    <Button
+                      variant='outline'
+                      size='sm'
+                      onClick={() =>
+                        setPagination((prev) => ({
+                          ...prev,
+                          page: Math.max(prev.page - 1, 1),
+                        }))
+                      }
+                      disabled={pagination.page === 1}
+                      className='h-8 text-xs'
+                    >
+                      Anterior
+                    </Button>
+                    <div className='flex items-center gap-1 px-2'>
+                      <span className='text-xs font-medium'>
+                        Pág {pagination.page} de {data.totalPages}
+                      </span>
+                    </div>
+                    <Button
+                      variant='outline'
+                      size='sm'
+                      onClick={() =>
+                        setPagination((prev) => ({
+                          ...prev,
+                          page: Math.min(prev.page + 1, data.totalPages),
+                        }))
+                      }
+                      disabled={pagination.page >= data.totalPages}
+                      className='h-8 text-xs'
+                    >
+                      Siguiente
+                    </Button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className='flex items-center justify-center py-12'>
+                <div className='text-center'>
+                  <p className='text-muted-foreground text-lg'>No hay órdenes disponibles</p>
+                  <p className='text-sm text-muted-foreground mt-1'>
+                    Comienza creando una nueva orden
                   </p>
                 </div>
               </div>
-            ) : (
-              <>
-                <div className="overflow-x-auto -mx-3 sm:-mx-6 px-3 sm:px-6">
-                  <table className="w-full text-xs sm:text-sm">
-                    <thead>
-                      <tr className="border-b border-border">
-                        <th className="text-left py-2 sm:py-3 px-2 sm:px-4 font-semibold text-muted-foreground">ID</th>
-                        <th className="text-left py-2 sm:py-3 px-2 sm:px-4 font-semibold text-muted-foreground hidden sm:table-cell">Área</th>
-                        <th className="text-left py-2 sm:py-3 px-2 sm:px-4 font-semibold text-muted-foreground hidden md:table-cell">Cliente</th>
-                        <th className="text-left py-2 sm:py-3 px-2 sm:px-4 font-semibold text-muted-foreground">Fecha</th>
-                        <th className="text-left py-2 sm:py-3 px-2 sm:px-4 font-semibold text-muted-foreground hidden lg:table-cell">Observación</th>
-                        <th className="text-right py-2 sm:py-3 px-2 sm:px-4 font-semibold text-muted-foreground">Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredOrders.map((order: Order) => (
-                        <tr key={order.id} className="border-b border-border hover:bg-muted/50 transition-colors">
-                          <td className="py-3 sm:py-4 px-2 sm:px-4">
-                            <p className="font-medium text-foreground">#{order.id}</p>
-                          </td>
-                          <td className="py-3 sm:py-4 px-2 sm:px-4 hidden sm:table-cell">
-                            <p className="text-muted-foreground">{getAreaName(order.areaId)}</p>
-                          </td>
-                          <td className="py-3 sm:py-4 px-2 sm:px-4 hidden md:table-cell">
-                            <p className="text-muted-foreground truncate">{getUserName(order.userId)}</p>
-                          </td>
-                          <td className="py-3 sm:py-4 px-2 sm:px-4">
-                            <p className="text-muted-foreground">
-                              {order.createdAt ? new Date(order.createdAt).toLocaleString('es-PE', { 
-                                day: '2-digit',
-                                month: '2-digit',
-                                year: '2-digit',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              }) : '-'}
-                            </p>
-                          </td>
-                          <td className="py-3 sm:py-4 px-2 sm:px-4 hidden lg:table-cell max-w-xs">
-                            <p className="text-muted-foreground truncate" title={order.observation || '-'}>
-                              {order.observation || '-'}
-                            </p>
-                          </td>
-                          <td className="py-3 sm:py-4 px-2 sm:px-4 text-right">
-                            <div className="flex gap-1 sm:gap-2 justify-end">
-                              <button
-                                onClick={() => handleViewDetails(order)}
-                                className="p-1.5 sm:p-2 hover:bg-muted rounded transition-colors"
-                                title="Ver detalles"
-                              >
-                                <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
-                              </button>
-                              <button
-                                onClick={() => handleEdit(order)}
-                                className="p-1.5 sm:p-2 hover:bg-muted rounded transition-colors"
-                                title="Editar"
-                              >
-                                <Edit2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
-                              </button>
-                              <button
-                                onClick={() => handleDelete(order.id)}
-                                className="p-1.5 sm:p-2 hover:bg-muted rounded transition-colors"
-                                title="Eliminar"
-                              >
-                                <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Pagination */}
-                {filteredOrders.length > 0 && (
-                  <div className="flex flex-col-reverse sm:flex-row items-center justify-between gap-3 sm:gap-0 mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-border">
-                    <p className="text-xs sm:text-sm text-muted-foreground">
-                      Página {currentPage} de {totalPages}
-                    </p>
-                    <div className="flex gap-1.5 sm:gap-2 w-full sm:w-auto">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                        disabled={currentPage === 1}
-                        className="gap-1 text-xs py-1.5 h-8 sm:h-9 flex-1 sm:flex-auto"
-                      >
-                        <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                        <span className="hidden sm:inline">Anterior</span>
-                        <span className="sm:hidden">Atrás</span>
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage((p) => p + 1)}
-                        disabled={currentPage >= totalPages}
-                        className="gap-1 text-xs py-1.5 h-8 sm:h-9 flex-1 sm:flex-auto"
-                      >
-                        <span className="hidden sm:inline">Siguiente</span>
-                        <span className="sm:hidden">Sigt.</span>
-                        <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </>
             )}
           </CardContent>
         </Card>
+
+        <ReportDialog 
+          open={reportDialogOpen} 
+          onOpenChange={setReportDialogOpen} 
+          orders={data?.items || []} 
+        />
       </div>
     </div>
   );

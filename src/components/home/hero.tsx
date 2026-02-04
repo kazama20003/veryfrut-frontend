@@ -61,10 +61,10 @@ const Hero = () => {
             w-full
             max-w-5xl
             font-semibold
-            leading-[0.95]
+            leading-[1.2]
             text-[clamp(3.2rem,9vw,5.8rem)]
-            tracking-[-0.14em]
-            md:tracking-[-0.16em]
+            tracking-[-0.02em]
+            md:tracking-[-0.04em]
             text-[var(--color-primary-text)]
           "
         >
@@ -77,9 +77,9 @@ const Hero = () => {
               w-full
               max-w-6xl
               font-semibold
-              leading-[0.92]
+              leading-[1.15]
               text-[clamp(3.8rem,10vw,6.6rem)]
-              tracking-[-0.18em]
+              tracking-[-0.04em]
               text-[#000000]
               will-change-transform
             "
@@ -93,3 +93,4 @@ const Hero = () => {
 }
 
 export default Hero
+  

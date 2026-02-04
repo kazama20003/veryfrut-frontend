@@ -1,5 +1,5 @@
 /**
- * Custom hooks para Order queries y mutations
+ * Custom hook para Order queries y mutations
  */
 
 'use client';
@@ -14,7 +14,7 @@ import orderService, {
   GetOrdersByDateRangeParams,
 } from '../services/order-service';
 import { queryKeys } from '../queryKeys';
-import { PaginatedOrdersResponse } from '@/types/order';
+import { PaginatedOrdersResponse, OrderStatus } from '@/types/order';
 
 /**
  * Query: Obtener todas las órdenes con paginación, ordenamiento y búsqueda
@@ -154,6 +154,30 @@ export function useDeleteOrderMutation(id: number) {
 
       // Invalidar lista
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.lists() });
+    },
+  });
+}
+
+/**
+ * Mutation: Actualizar estado de orden
+ */
+export function useUpdateOrderStatusMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, status }: { id: number | string; status: OrderStatus }) =>
+      orderService.update(Number(id), { status }),
+    onSuccess: (updatedOrder, variables) => {
+      // Actualizar datos específicos de la orden
+      queryClient.setQueryData(queryKeys.orders.detail(variables.id), updatedOrder);
+
+      // Invalidar lista para refrescar
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.lists() });
+
+      // Invalidar órdenes por cliente si cambió
+      if (updatedOrder?.userId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.orders.byCustomer(updatedOrder.userId) });
+      }
     },
   });
 }

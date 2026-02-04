@@ -33,16 +33,6 @@ class OrderService {
    */
   async create(data: CreateOrderDto) {
     try {
-      console.log('[OrderService] Creando orden con datos:', JSON.stringify(data, null, 2));
-      console.log('[OrderService] Estructura esperada por backend (class-validator/class-transformer)');
-      console.log('[OrderService] - userId (number, @IsPositive):', data.userId);
-      console.log('[OrderService] - areaId (number, @IsPositive):', data.areaId);
-      console.log('[OrderService] - totalAmount (number):', data.totalAmount);
-      console.log('[OrderService] - status (OrderStatus enum):', data.status);
-      console.log('[OrderService] - observation (string, @IsOptional):', data.observation);
-      console.log('[OrderService] - orderItems (CreateOrderItemDto[]):', data.orderItems.length, 'items');
-      
-      // Validar que orderItems tenga la estructura correcta
       data.orderItems.forEach((item, index) => {
         console.log(`[OrderService] - Item ${index}:`, {
           productId: item.productId,
@@ -63,7 +53,7 @@ class OrderService {
       const responseData = (response.data as ApiResponse<Order>)?.data || response.data;
       console.log('[OrderService] Create response:', responseData);
       return responseData && typeof responseData === 'object' && 'id' in responseData
-        ? responseData
+        ? (responseData as Order)
         : undefined;
     } catch (error) {
       console.error('[OrderService] Error en create:', error);
@@ -71,19 +61,18 @@ class OrderService {
         console.error('[OrderService] Error message:', error.message);
       }
       
-      // Enhanced error logging for axios errors
       if (error && typeof error === 'object' && 'response' in error) {
-        const axiosError = error as any;
-        console.error('[OrderService] Response status:', axiosError.response?.status);
-        console.error('[OrderService] Response data:', axiosError.response?.data);
-        console.error('[OrderService] Response headers:', axiosError.response?.headers);
+        const axiosError = error as Record<string, unknown>;
+        console.error('[OrderService] Response status:', (axiosError.response as Record<string, unknown>)?.status);
+        console.error('[OrderService] Response data:', (axiosError.response as Record<string, unknown>)?.data);
+        console.error('[OrderService] Response headers:', (axiosError.response as Record<string, unknown>)?.headers);
         
-        // Try to extract more detailed error message from backend response
-        if (axiosError.response?.data?.message) {
-          console.error('[OrderService] Backend error message:', axiosError.response.data.message);
+        const respData = (axiosError.response as Record<string, unknown>)?.data as Record<string, unknown>;
+        if (respData?.message) {
+          console.error('[OrderService] Backend error message:', respData.message);
         }
-        if (axiosError.response?.data?.error) {
-          console.error('[OrderService] Backend error details:', axiosError.response.data.error);
+        if (respData?.error) {
+          console.error('[OrderService] Backend error details:', respData.error);
         }
       }
       
@@ -94,7 +83,7 @@ class OrderService {
   /**
    * Obtener todas las órdenes con paginación, ordenamiento y búsqueda
    */
-  async getAll(params?: GetOrdersParams) {
+  async getAll(params?: GetOrdersParams): Promise<PaginatedOrdersResponse> {
     try {
       const response = await axiosInstance.get<
         PaginatedOrdersResponse | ApiResponse<PaginatedOrdersResponse> | Order[]
@@ -102,10 +91,8 @@ class OrderService {
       
       console.log('[OrderService] GetAll response:', response.data);
       
-      // Extraer la data de la respuesta
       let data: PaginatedOrdersResponse | undefined;
       
-      // Caso 0: Respuesta es directamente un array de Order
       if (Array.isArray(response.data)) {
         console.log('[OrderService] Caso 0: Array directo de Orders');
         const orders = response.data as Order[];
@@ -118,32 +105,29 @@ class OrderService {
           totalPages: Math.ceil(orders.length / (params?.limit ?? 10)),
         };
       }
-      // Caso 1: ApiResponse con estructura { data: Array, total, page, limit, totalPages }
-      else if (response.data && 'data' in response.data && Array.isArray(response.data.data)) {
+      
+      const respData = response.data as unknown as Record<string, unknown>;
+      
+      if (respData && 'data' in respData && Array.isArray(respData.data)) {
         console.log('[OrderService] Caso 1: ApiResponse con data array');
-        const orders = response.data.data as Order[];
-        const responseData = response.data as any;
+        const orders = (respData.data as Order[]) ?? [];
         return {
           items: orders,
-          total: responseData.total ?? orders.length,
-          page: responseData.page ?? (params?.page ?? 1),
-          limit: responseData.limit ?? (params?.limit ?? 10),
-          hasMore: (responseData.page ?? 1) < (responseData.totalPages ?? 1),
-          totalPages: responseData.totalPages ?? Math.ceil(orders.length / (responseData.limit ?? 10)),
+          total: (respData.total as number) ?? orders.length,
+          page: (respData.page as number) ?? (params?.page ?? 1),
+          limit: (respData.limit as number) ?? (params?.limit ?? 10),
+          hasMore: ((respData.page as number) ?? 1) < ((respData.totalPages as number) ?? 1),
+          totalPages: (respData.totalPages as number) ?? Math.ceil(orders.length / ((respData.limit as number) ?? 10)),
         };
       }
-      // Caso 2: PaginatedOrdersResponse directo (con items)
-      else if (response.data && 'items' in response.data) {
+      
+      if (respData && 'items' in respData) {
         console.log('[OrderService] Caso 2: PaginatedOrdersResponse directo con items');
         data = response.data as unknown as PaginatedOrdersResponse;
-      }
-      // Caso 3: ApiResponse<PaginatedOrdersResponse> (envuelto)
-      else if (response.data && 'data' in response.data && response.data.data && 'items' in response.data.data) {
+      } else if (respData && 'data' in respData && respData.data && 'items' in (respData.data as Record<string, unknown>)) {
         console.log('[OrderService] Caso 3: ApiResponse envuelto con items');
-        data = (response.data as unknown as ApiResponse<PaginatedOrdersResponse>).data;
-      }
-      // Caso 4: Respuesta envuelta en { data: {...} } sin items
-      else if (response.data && typeof response.data === 'object' && response.data !== null) {
+        data = (respData.data as unknown) as PaginatedOrdersResponse;
+      } else if (respData && typeof respData === 'object' && respData !== null) {
         console.log('[OrderService] Caso 4: Objeto sin items, usando response.data directamente');
         data = response.data as unknown as PaginatedOrdersResponse;
       }
@@ -168,36 +152,30 @@ class OrderService {
    */
   async check(data: CheckOrderDto): Promise<CheckOrderResponse> {
     try {
-      const response = await axiosInstance.get<any>('/orders/check', {
+      const response = await axiosInstance.get<CheckOrderResponse | ApiResponse<CheckOrderResponse>>('/orders/check', {
         params: data,
       });
-      const responseData = response.data;
+      const responseData = response.data as CheckOrderResponse | ApiResponse<CheckOrderResponse> | Record<string, unknown>;
       console.log('[OrderService] Check response:', responseData);
       
-      // Handle different response structures
       if (responseData && typeof responseData === 'object') {
-        // Case 1: Backend returns {exists: true, order?: Order}
         if ('exists' in responseData) {
-          return responseData;
+          return responseData as CheckOrderResponse;
         }
-        // Case 2: Backend returns the Order directly
         if ('id' in responseData) {
-          return { exists: true, order: responseData };
+          return { exists: true, order: responseData as unknown as Order };
         }
-        // Case 3: Backend returns wrapped in ApiResponse
         if ('data' in responseData && responseData.data) {
-          return { exists: true, order: responseData.data };
+          return { exists: true, order: responseData.data as Order };
         }
       }
       
-      // If no order found, return exists: false
       return { exists: false };
     } catch (error) {
       console.error('[OrderService] Error en check:', error);
-      // If it's a 404, return exists: false
       if (error && typeof error === 'object' && 'response' in error) {
-        const axiosError = error as any;
-        if (axiosError.response?.status === 404) {
+        const axiosError = error as Record<string, unknown>;
+        if ((axiosError.response as Record<string, unknown>)?.status === 404) {
           return { exists: false };
         }
       }
@@ -231,18 +209,20 @@ class OrderService {
       }
       
       if (response.data && 'data' in response.data && !('items' in response.data)) {
-        const wrapped = (response.data as unknown as ApiResponse<PaginatedOrdersResponse>).data;
+        const resp = response.data as unknown as Record<string, unknown>;
+        const wrapped = resp.data as unknown;
         if (Array.isArray(wrapped)) {
+          const items = wrapped as unknown as Order[];
           return {
-            items: wrapped as Order[],
-            total: wrapped.length,
+            items,
+            total: items.length,
             page: params?.page ?? 1,
-            limit: params?.limit ?? wrapped.length,
+            limit: params?.limit ?? items.length,
             hasMore: false,
             totalPages: 1,
           };
         }
-        data = wrapped as PaginatedOrdersResponse;
+        data = wrapped as unknown as PaginatedOrdersResponse;
       } else if (response.data && 'items' in response.data) {
         data = response.data as unknown as PaginatedOrdersResponse;
       } else if (response.data && typeof response.data === 'object' && response.data !== null) {
@@ -274,7 +254,8 @@ class OrderService {
       let data: PaginatedOrdersResponse | undefined;
       
       if (response.data && 'data' in response.data && !('items' in response.data)) {
-        data = (response.data as unknown as ApiResponse<PaginatedOrdersResponse>).data;
+        const resp = response.data as unknown as Record<string, unknown>;
+        data = resp.data as unknown as PaginatedOrdersResponse;
       } else if (response.data && 'items' in response.data) {
         data = response.data as unknown as PaginatedOrdersResponse;
       } else if (response.data && typeof response.data === 'object' && response.data !== null) {
@@ -300,7 +281,7 @@ class OrderService {
       const response = await axiosInstance.get<Order | ApiResponse<Order>>(`/orders/${id}`);
       const data = (response.data as ApiResponse<Order>)?.data || response.data;
       console.log('[OrderService] GetById response:', data);
-      return data && typeof data === 'object' && 'id' in data ? data : undefined;
+      return data && typeof data === 'object' && 'id' in data ? (data as Order) : undefined;
     } catch (error) {
       console.error('[OrderService] Error en getById:', error);
       throw error;
@@ -310,16 +291,47 @@ class OrderService {
   /**
    * Actualizar orden
    */
-  async update(id: number, data: UpdateOrderDto) {
+  async update(id: number, updateData: UpdateOrderDto) {
     try {
-      const response = await axiosInstance.patch<Order | ApiResponse<Order>>(`/orders/${id}`, data);
+      const response = await axiosInstance.patch<Order | ApiResponse<Order>>(`/orders/${id}`, updateData);
       const responseData = (response.data as ApiResponse<Order>)?.data || response.data;
       console.log('[OrderService] Update response:', responseData);
       return responseData && typeof responseData === 'object' && 'id' in responseData
-        ? responseData
+        ? (responseData as Order)
         : undefined;
     } catch (error) {
       console.error('[OrderService] Error en update:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obtener órdenes por día específico
+   * @param date Fecha en formato YYYY-MM-DD
+   */
+  async getByDay(date: string) {
+    try {
+      const response = await axiosInstance.get<Order[] | ApiResponse<Order[]>>(
+        '/orders/by-day',
+        { params: { date } }
+      );
+
+      console.log('[OrderService] GetByDay response:', response.data);
+
+      let orders: Order[] = [];
+
+      if (Array.isArray(response.data)) {
+        orders = response.data as Order[];
+      } else if (response.data && 'data' in response.data && Array.isArray((response.data as unknown as Record<string, unknown>).data)) {
+        orders = (response.data as unknown as Record<string, unknown>).data as Order[];
+      } else if (response.data && typeof response.data === 'object') {
+        orders = (response.data as unknown) as Order[];
+      }
+
+      console.log('[OrderService] GetByDay orders found:', orders.length);
+      return orders;
+    } catch (error) {
+      console.error('[OrderService] Error en getByDay:', error);
       throw error;
     }
   }

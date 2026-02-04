@@ -117,3 +117,12 @@ export const queryKeys = {
 };
 
 export default queryKeys;
+
+export const ORDERS_QUERY_KEYS = {
+  BY_DAY: 'byDay',
+  ALL: 'orders',
+  LIST: 'list',
+  DETAIL: 'detail',
+  BY_CUSTOMER: 'byCustomer',
+  BY_DATE_RANGE: 'byDateRange',
+};

@@ -9,10 +9,10 @@ export default function DashboardLayout({
 }) {
   return (
     <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>
-        {children}
-      </SidebarInset>
+            <AppSidebar />
+                 <SidebarInset className="m-2 rounded-xl border border-gray-200 overflow-hidden bg-white">
+                   {children}
+                 </SidebarInset>
     </SidebarProvider>
   )
 }
