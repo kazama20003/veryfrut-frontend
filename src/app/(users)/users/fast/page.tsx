@@ -16,7 +16,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 import { SimpleProductCombobox } from "@/components/users/simple-product-combobox"
 import { Product, ProductUnit } from "@/types/product"
 import type { User } from "@/types/users"
-import { OrderStatus, CreateOrderDto, CreateOrderItemDto, CheckOrderResponse } from "@/types/order"
+import { CreateOrderDto, CreateOrderItemDto, CheckOrderResponse } from "@/types/order"
 import {
   Dialog,
   DialogContent,
@@ -452,7 +452,7 @@ const FastOrdersPage = () => {
         userId: currentUser.id, // Validado arriba, así que siempre existe
         areaId: selectedAreaId,
         totalAmount: tableProducts.reduce((sum, tp) => sum + (tp.quantity * (tp.product.price || 0)), 0),
-        status: OrderStatus.CREATED,
+        status: "created",
         observation: orderObservations.trim() || undefined,
         orderItems: orderItems,
       };

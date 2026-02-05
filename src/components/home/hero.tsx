@@ -2,6 +2,20 @@
 
 import React, { useEffect, useState } from "react"
 import Lottie from "lottie-react"
+import Link from "next/link"
+
+const QuoteCharacter: React.FC = () => (
+  <div className="w-6 h-6 md:w-7 md:h-7 rounded-full bg-[#1A96FF] relative overflow-hidden flex-shrink-0">
+    <div className="absolute top-[28%] left-1/2 -translate-x-1/2 w-[85%] h-[6px] bg-[#1A1A1A] rounded-sm z-10 overflow-hidden flex">
+      <div className="w-1/2 border-r border-white/5"></div>
+      <div className="w-1/2"></div>
+    </div>
+    <div className="absolute bottom-[15%] left-1/2 -translate-x-1/2 w-[14px] h-[8px] bg-[#1A1A1A] rounded-b-full overflow-hidden">
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[10px] h-[2px] bg-white rounded-b-[1px]"></div>
+      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[9px] h-[3px] bg-[#FF5C5C] rounded-t-full"></div>
+    </div>
+  </div>
+)
 
 const Hero = () => {
   const [animationData, setAnimationData] =
@@ -52,45 +66,74 @@ const Hero = () => {
           items-center
           justify-center
           text-center
-          gap-6
+          gap-4
+          md:gap-5
+          pt-20
+          md:pt-24
         "
       >
-        {/* H1 */}
+        {/* H1 - Título Principal */}
         <h1
           className="
             w-full
             max-w-5xl
             font-semibold
             leading-[1.2]
-            text-[clamp(3.2rem,9vw,5.8rem)]
+            text-[clamp(2rem,7vw,3.8rem)]
             tracking-[-0.02em]
             md:tracking-[-0.04em]
             text-[var(--color-primary-text)]
           "
         >
-          Veryfrut
+          Distribución sostenible de frutas y verduras frescas
         </h1>
 
-        {/* H2 */}
-        <h2
+        {/* Descripción */}
+        <p
           className="
-              w-full
-              max-w-6xl
-              font-semibold
-              leading-[1.15]
-              text-[clamp(3.8rem,10vw,6.6rem)]
-              tracking-[-0.04em]
-              text-[#000000]
-              will-change-transform
-            "
-
+            w-full
+            max-w-2xl
+            text-sm
+            md:text-base
+            text-[var(--color-secondary-text)]
+            leading-relaxed
+            mt-2
+          "
         >
-          Distribución sostenible de frutas y verduras frescas
-        </h2>
+          Conectamos productores locales con consumidores conscientes, garantizando la máxima frescura y sostenibilidad en cada entrega
+        </p>
+
+        {/* CTA BUTTON - Estilo Header */}
+        <div className="mt-6 md:mt-8">
+          <Link
+            href="/users"
+            className="
+              inline-flex
+              bg-white
+              rounded-[10px]
+              shadow-[0_2px_12px_rgba(0,0,0,0.04)]
+              items-center
+              gap-2
+              md:gap-3
+              hover:bg-neutral-50
+              transition-colors
+              cursor-pointer
+              px-4
+              md:px-6
+              py-2.5
+              md:py-3
+              whitespace-nowrap
+            "
+          >
+            <span className="text-[#1A1A1A] text-base md:text-lg lg:text-[18px] font-normal tracking-normal leading-9">
+              Pedir ya
+            </span>
+            <QuoteCharacter />
+          </Link>
+        </div>
       </div>
     </section>
   )
 }
 
 export default Hero
-  

@@ -135,8 +135,15 @@ export function ShoppingCartDrawer({
       return
     }
 
-    try {
+     try {
       setIsSubmitting(true)
+      
+      // Get current user to obtain userId
+      const currentUser = await usersService.getMe()
+      if (!currentUser || !currentUser.id) {
+        toast.error("No se pudo obtener la información del usuario")
+        return
+      }
       
       const orderItems = cart.map((item) => ({
         productId: item.id,
@@ -146,7 +153,7 @@ export function ShoppingCartDrawer({
       }))
 
       const orderData = {
-        userId: 0, // TODO: Get actual user ID
+        userId: currentUser.id,
         areaId: parseInt(selectedAreaId, 10),
         totalAmount: totalPrice,
         status: "created" as any,
