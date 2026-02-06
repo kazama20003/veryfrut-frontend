@@ -1,4 +1,5 @@
 import { Order } from '@/types/order';
+import type * as ExcelJS from 'exceljs';
 
 interface Category {
   id: number;
@@ -26,7 +27,16 @@ interface CategoryProduct {
     name: string;
     category?: { id: number; name: string };
   };
-  quantitiesByCompany: Map<number, Array<{ quantity: number; unitName: string; areaColor: string }>>;
+  quantitiesByCompany: Map<
+    number,
+    Array<{
+      quantity: number;
+      unitName: string;
+      areaId: number;
+      areaName: string;
+      areaColor: string;
+    }>
+  >;
 }
 
 const generateExcelReport = async (
@@ -36,6 +46,7 @@ const generateExcelReport = async (
   dateRangeStr?: string,
   categoriesData?: Category[]
 ): Promise<void> => {
+  void categoriesData;
   console.log('[v0] generateExcelReport - Total orders received:', orders.length);
   console.log('[v0] Orders with observations:', orders.filter(o => o.observation && o.observation !== null).map(o => ({ id: o.id, observation: o.observation })));
   
@@ -108,6 +119,8 @@ const generateExcelReport = async (
       productEntry.quantitiesByCompany.get(company.id)!.push({
         quantity: item.quantity || 0,
         unitName,
+        areaId: area.id,
+        areaName: area.name,
         areaColor: area.color || '#000000',
       });
     });
@@ -209,8 +222,6 @@ const generateExcelReport = async (
     });
 
     // Guardar índice de inicio para calcular totales
-    const categoryStartRow = currentRow;
-
     sortedProducts.forEach(({ product, quantitiesByCompany }) => {
       if (!product) return;
 
@@ -229,15 +240,49 @@ const generateExcelReport = async (
 
         if (quantities && quantities.length > 0) {
           // Agrupar cantidades por área y unidad
-          const groupedQties = quantities.map((q) => `${q.quantity}${q.unitName}`).join(' + ');
-          cell.value = groupedQties;
-          
-          // Aplicar color de fuente según la primera área - tamaño 16, CON NEGRITA
-          if (quantities.length > 0) {
-            cell.font = { name: 'Calibri', size: 16, bold: true, color: { argb: hexToArgb(quantities[0].areaColor) } };
-          } else {
-            cell.font = { name: 'Calibri', size: 16, bold: true, color: { argb: 'FF000000' } };
-          }
+          const groupedByAreaAndUnit = new Map<
+            string,
+            { quantity: number; unitName: string; areaName: string; areaColor: string }
+          >();
+
+          quantities.forEach((q) => {
+            const key = `${q.areaId}__${q.unitName}`;
+            const current = groupedByAreaAndUnit.get(key);
+            if (current) {
+              current.quantity += q.quantity;
+              return;
+            }
+            groupedByAreaAndUnit.set(key, {
+              quantity: q.quantity,
+              unitName: q.unitName,
+              areaName: q.areaName,
+              areaColor: q.areaColor,
+            });
+          });
+
+          const groups = Array.from(groupedByAreaAndUnit.values()).sort((a, b) => {
+            const areaNameCmp = a.areaName.localeCompare(b.areaName, 'es-ES', { sensitivity: 'base' });
+            if (areaNameCmp !== 0) return areaNameCmp;
+            return a.unitName.localeCompare(b.unitName, 'es-ES', { sensitivity: 'base' });
+          });
+
+          const richText: ExcelJS.RichText[] = groups.flatMap((g, idx) => {
+            const parts: ExcelJS.RichText[] = [];
+            if (idx > 0) {
+              parts.push({
+                text: ' + ',
+                font: { name: 'Calibri', size: 16, bold: true, color: { argb: 'FF000000' } },
+              });
+            }
+            parts.push({
+              text: `${g.quantity}${g.unitName}`,
+              font: { name: 'Calibri', size: 16, bold: true, color: { argb: hexToArgb(g.areaColor) } },
+            });
+            return parts;
+          });
+
+          const richTextValue: ExcelJS.CellRichTextValue = { richText };
+          cell.value = richTextValue;
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
         } else {
           cell.value = '';
@@ -245,7 +290,7 @@ const generateExcelReport = async (
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
         }
 
-        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
         cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
       });
 

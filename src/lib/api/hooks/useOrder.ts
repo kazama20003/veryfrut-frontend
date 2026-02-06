@@ -14,7 +14,7 @@ import orderService, {
   GetOrdersByDateRangeParams,
 } from '../services/order-service';
 import { queryKeys } from '../queryKeys';
-import { PaginatedOrdersResponse, OrderStatus } from '@/types/order';
+import { Order, PaginatedOrdersResponse, OrderStatus } from '@/types/order';
 
 /**
  * Query: Obtener todas las órdenes con paginación, ordenamiento y búsqueda
@@ -143,17 +143,25 @@ export function useUpdateOrderMutation(id: number) {
 /**
  * Mutation: Eliminar orden
  */
-export function useDeleteOrderMutation(id: number) {
+export function useDeleteOrderMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: () => orderService.delete(id),
-    onSuccess: () => {
+    mutationFn: (id: number) => orderService.delete(id),
+    onMutate: (id) => {
+      const cachedOrder = queryClient.getQueryData<Order>(queryKeys.orders.detail(id));
+      return { userId: cachedOrder?.userId };
+    },
+    onSuccess: (_deletedOrder, id, context) => {
       // Remover del cache
       queryClient.removeQueries({ queryKey: queryKeys.orders.detail(id) });
 
       // Invalidar lista
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.lists() });
+
+      if (context?.userId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.orders.byCustomer(context.userId) });
+      }
     },
   });
 }

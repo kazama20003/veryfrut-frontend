@@ -54,6 +54,21 @@ const data = {
       ],
     },
     {
+      title: "Proveedores",
+      url: "/dashboard/supliers",
+      icon: Apple,
+      items: [
+        {
+          title: "Compras",
+          url: "/dashboard/supliers",
+        },
+        {
+          title: "Reportes",
+          url: "/dashboard/supliers",
+        },
+      ],
+    },
+    {
       title: "Clientes",
       url: "/dashboard/users",
       icon: Users,

@@ -101,7 +101,7 @@ export const queryKeys = {
       [...queryKeys.products.all, 'byCategory', categoryId] as const,
   },
 
-  // Orders
+// Orders
   orders: {
     all: ['orders'] as const,
     lists: () => [...queryKeys.orders.all, 'list'] as const,
@@ -113,6 +113,24 @@ export const queryKeys = {
       [...queryKeys.orders.all, 'byCustomer', customerId] as const,
     byDateRange: (startDate: string, endDate: string) =>
       [...queryKeys.orders.all, 'byDateRange', startDate, endDate] as const,
+  },
+
+  // Suppliers (Proveedores)
+  suppliers: {
+    all: ['suppliers'] as const,
+    lists: () => [...queryKeys.suppliers.all, 'list'] as const,
+    list: (filters?: Record<string, unknown>) =>
+      [...queryKeys.suppliers.lists(), { ...filters }] as const,
+    details: () => [...queryKeys.suppliers.all, 'detail'] as const,
+    detail: (id: string | number) => [...queryKeys.suppliers.details(), id] as const,
+    purchases: (suplierId: string | number) =>
+      [...queryKeys.suppliers.all, 'purchases', suplierId] as const,
+    purchaseLists: (suplierId: string | number) =>
+      [...queryKeys.suppliers.purchases(suplierId), 'list'] as const,
+    purchaseList: (suplierId: string | number, filters?: Record<string, unknown>) =>
+      [...queryKeys.suppliers.purchaseLists(suplierId), { ...filters }] as const,
+    purchaseDetail: (purchaseId: string | number) =>
+      [...queryKeys.suppliers.all, 'purchases', 'detail', purchaseId] as const,
   },
 };
 

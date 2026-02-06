@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useOrdersQuery } from '@/lib/api';
+import { useDeleteOrderMutation, useOrdersQuery } from '@/lib/api';
 import { Order } from '@/types/order';
 import { ReportDialog } from './report-dialog';
 import {
@@ -20,7 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Loader2, AlertCircle, Plus, FileDown } from 'lucide-react';
+import { Loader2, AlertCircle, Plus, FileDown, Trash2, Eye } from 'lucide-react';
 
 const statusColorMap: Record<string, { bg: string; text: string }> = {
   created: { bg: 'bg-blue-100', text: 'text-blue-800' },
@@ -43,10 +43,12 @@ const statusLabels: Record<string, string> = {
 export default function OrdersPage() {
   const [pagination, setPagination] = useState({ page: 1, limit: 100 });
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const { data, isLoading, error } = useOrdersQuery({
     page: pagination.page,
     limit: pagination.limit,
   });
+  const deleteMutation = useDeleteOrderMutation();
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'N/A';
@@ -70,6 +72,20 @@ export default function OrdersPage() {
 
   const handleGenerateReport = () => {
     setReportDialogOpen(true);
+  };
+
+  const handleDelete = async (order: Order) => {
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar la orden #${order.id}?`)) return;
+
+    try {
+      setDeletingId(order.id);
+      await deleteMutation.mutateAsync(order.id);
+    } catch (err) {
+      console.error('[OrdersPage] Error deleting order:', err);
+      alert('Error al eliminar la orden');
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
@@ -179,32 +195,34 @@ export default function OrdersPage() {
               </div>
             ) : data?.items && data.items.length > 0 ? (
               <>
-                <div className='overflow-x-auto'>
-                  <Table className='text-sm'>
+                <div className='relative overflow-x-auto'>
+                  <Table className='w-full table-fixed text-sm'>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className='w-12 text-xs'>ID</TableHead>
-                        <TableHead className='text-xs'>Cliente</TableHead>
-                        <TableHead className='text-xs'>Área</TableHead>
-                        <TableHead className='text-xs'>Productos</TableHead>
-                        <TableHead className='text-xs'>Estado</TableHead>
-                        <TableHead className='text-xs'>Fecha y Hora</TableHead>
-                        <TableHead className='w-16 text-right text-xs'>Acciones</TableHead>
+                        <TableHead className='w-14 text-xs px-2'>ID</TableHead>
+                        <TableHead className='w-[220px] text-xs px-2'>Cliente</TableHead>
+                        <TableHead className='w-[120px] text-xs px-2'>Área</TableHead>
+                        <TableHead className='w-[280px] text-xs px-2'>Productos</TableHead>
+                        <TableHead className='w-[120px] text-xs px-2'>Estado</TableHead>
+                        <TableHead className='w-[160px] text-xs px-2'>Fecha</TableHead>
+                        <TableHead className='sticky right-0 z-10 w-[92px] bg-background text-right text-xs px-2 border-l border-border'>
+                          Acciones
+                        </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {data.items.map((order: Order) => (
-                        <TableRow key={order.id} className='hover:bg-muted/50'>
-                          <TableCell className='font-semibold text-primary text-xs'>#{order.id}</TableCell>
-                          <TableCell>
-                            <div>
-                              <p className='font-medium text-xs'>
+                        <TableRow key={order.id} className='group hover:bg-muted/50'>
+                          <TableCell className='font-semibold text-primary text-xs px-2'>#{order.id}</TableCell>
+                          <TableCell className='px-2'>
+                            <div className='min-w-0'>
+                              <p className='font-medium text-xs truncate'>
                                 {order.User?.firstName} {order.User?.lastName}
                               </p>
-                              <p className='text-xs text-muted-foreground'>{order.User?.email || 'N/A'}</p>
+                              <p className='text-xs text-muted-foreground truncate'>{order.User?.email || 'N/A'}</p>
                             </div>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className='px-2'>
                             <div
                               className='px-2 py-1 rounded-full text-xs font-semibold text-white w-fit'
                               style={{ backgroundColor: order.area?.color || '#666' }}
@@ -212,11 +230,11 @@ export default function OrdersPage() {
                               {order.area?.name || 'N/A'}
                             </div>
                           </TableCell>
-                          <TableCell>
-                            <div className='text-xs'>
+                          <TableCell className='px-2'>
+                            <div className='text-xs min-w-0'>
                               <p className='font-medium'>{order.orderItems?.length || 0}</p>
                               {order.orderItems && order.orderItems.length > 0 && (
-                                <p className='text-xs text-muted-foreground line-clamp-1'>
+                                <p className='text-xs text-muted-foreground truncate'>
                                   {order.orderItems
                                     .map((item) => `${item.quantity} ${item.product?.name}`)
                                     .join(', ')}
@@ -224,7 +242,7 @@ export default function OrdersPage() {
                               )}
                             </div>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className='px-2'>
                             <div
                               className={`px-2 py-1 rounded-full text-xs font-semibold w-fit ${
                                 statusColorMap[order.status]?.bg || 'bg-gray-100'
@@ -233,13 +251,36 @@ export default function OrdersPage() {
                               {statusLabels[order.status] || order.status}
                             </div>
                           </TableCell>
-                          <TableCell className='text-xs text-muted-foreground whitespace-nowrap'>
+                          <TableCell className='text-xs text-muted-foreground whitespace-nowrap px-2'>
                             {formatDate(order.createdAt || '')}
                           </TableCell>
-                          <TableCell className='text-right'>
-                            <Button variant='ghost' size='sm' className='text-xs h-7'>
-                              Ver
-                            </Button>
+                          <TableCell className='sticky right-0 bg-background group-hover:bg-muted/50 text-right px-2 border-l border-border'>
+                            <div className='flex justify-end gap-1'>
+                              <Button
+                                variant='ghost'
+                                size='sm'
+                                className='h-7 w-7 p-0'
+                                title='Ver'
+                                aria-label='Ver'
+                              >
+                                <Eye className='w-3.5 h-3.5' />
+                              </Button>
+                              <Button
+                                variant='ghost'
+                                size='sm'
+                                className='h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50'
+                                onClick={() => handleDelete(order)}
+                                disabled={deleteMutation.isPending && deletingId === order.id}
+                                title='Eliminar'
+                                aria-label='Eliminar'
+                              >
+                                {deleteMutation.isPending && deletingId === order.id ? (
+                                  <Loader2 className='w-3.5 h-3.5 animate-spin' />
+                                ) : (
+                                  <Trash2 className='w-3.5 h-3.5' />
+                                )}
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}

@@ -10,4 +10,5 @@ export * from './useCategory';
 export * from './useUnitMeasurement';
 export * from './useProduct';
 export * from './useOrder';
+export * from './useSuppliers';
 export * from './useAuth';
