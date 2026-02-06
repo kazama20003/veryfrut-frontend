@@ -2,9 +2,10 @@
 
 import type { FormEvent } from "react"
 import { useMemo, useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Space_Grotesk, Inter } from "next/font/google"
-import { Loader2, Lock, Mail, Phone, ArrowRight } from "lucide-react"
+import { Loader2, Lock, Mail, Phone, ArrowLeft, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useLoginMutation } from "@/lib/api"
@@ -139,6 +140,16 @@ export default function LoginPage() {
 
           {/* Right section - Form */}
           <div className="w-full max-w-md mx-auto lg:mx-0">
+            <div className="mb-4">
+              <Link
+                href="/"
+                className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white/70 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:border-[#8ed765] hover:text-[#5ea437]"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                Volver
+              </Link>
+            </div>
+
             {/* Mobile header */}
             <div className="lg:hidden mb-8">
               <div className="text-2xl font-bold text-gray-900 mb-1">VeryFrut</div>

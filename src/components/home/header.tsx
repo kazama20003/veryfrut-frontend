@@ -3,6 +3,7 @@ import type React from "react"
 import { useRef, useState, useEffect } from "react"
 import { ChevronDown, X, ChevronRight } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import gsap from "gsap"
 
 interface DropdownItem {
@@ -105,11 +106,16 @@ const MenuIcon: React.FC = () => (
 )
 
 const Header: React.FC = () => {
+  const router = useRouter()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
   const navRef = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const mainBarRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    router.prefetch("/users")
+  }, [router])
 
   useEffect(() => {
     if (openDropdown && dropdownRef.current) {
@@ -170,12 +176,16 @@ const Header: React.FC = () => {
           </div>
 
           {/* Quote Button */}
-          <button className="hidden md:flex bg-white rounded-[10px] shadow-[0_2px_12px_rgba(0,0,0,0.04)] items-center gap-2 md:gap-3 min-h-[68px] hover:bg-neutral-50 transition-colors cursor-pointer shrink-0 px-4 md:px-6 py-0 mr-0 ml-1 mt-1 mb-1 whitespace-nowrap">
+          <Link
+            href="/users"
+            onMouseEnter={() => router.prefetch("/users")}
+            className="hidden md:flex bg-white rounded-[10px] shadow-[0_2px_12px_rgba(0,0,0,0.04)] items-center gap-2 md:gap-3 min-h-[68px] hover:bg-neutral-50 transition-colors cursor-pointer shrink-0 px-4 md:px-6 py-0 mr-0 ml-1 mt-1 mb-1 whitespace-nowrap"
+          >
             <span className="text-[#1A1A1A] text-base md:text-lg lg:text-[18px] font-normal tracking-normal leading-9">
-              <Link href="/users">Pedir ya</Link>
+              Pedir ya
             </span>
             <QuoteCharacter />
-          </button>
+          </Link>
         </div>
       </nav>
 
@@ -283,10 +293,15 @@ const Header: React.FC = () => {
                 </div>
               ))}
               <hr className="border-gray-50" />
-              <button className="w-full bg-[#1A96FF] text-white rounded-[10px] py-2.5 sm:py-3.5 px-4 sm:px-6 font-bold flex items-center justify-between text-sm sm:text-base">
+              <Link
+                href="/users"
+                onClick={() => setIsMobileMenuOpen(false)}
+                onMouseEnter={() => router.prefetch("/users")}
+                className="w-full bg-[#1A96FF] text-white rounded-[10px] py-2.5 sm:py-3.5 px-4 sm:px-6 font-bold flex items-center justify-between text-sm sm:text-base"
+              >
                 <span>Pedir ya</span>
                 <QuoteCharacter />
-              </button>
+              </Link>
             </div>
           </div>
         </div>

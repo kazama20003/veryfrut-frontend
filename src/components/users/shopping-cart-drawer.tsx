@@ -3,10 +3,11 @@
 import type React from "react"
 import Image from "next/image"
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Minus, Plus, ShoppingCart, Trash2, Loader2 } from "lucide-react"
+import { Minus, Plus, ShoppingCart, Trash2, Loader2, Printer } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 import { areaService, orderService, useCreateOrderMutation, usersService } from "@/lib/api"
@@ -59,6 +60,12 @@ interface ShoppingCartDrawerProps {
   totalPrice: number
 }
 
+const QUANTITY_LIMITS = {
+  MIN: 0.001,
+  MAX: 9999,
+  STEP: 0.25,
+} as const
+
 function formatQuantity(quantity: number): string {
   if (quantity % 1 === 0) {
     return quantity.toFixed(0)
@@ -76,14 +83,26 @@ export function ShoppingCartDrawer({
   totalPrice,
 }: ShoppingCartDrawerProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isPrinting, setIsPrinting] = useState(false)
   const [areas, setAreas] = useState<Area[]>([])
   const [blockedAreaIds, setBlockedAreaIds] = useState<Set<number>>(new Set())
   const [selectedAreaId, setSelectedAreaId] = useState<string>("")
+  const [quantityInputs, setQuantityInputs] = useState<Record<string, string>>({})
+  const [editingQuantityKey, setEditingQuantityKey] = useState<string | null>(null)
   const [observation, setObservation] = useState("")
   const [isLoadingAreas, setIsLoadingAreas] = useState(false)
   const [isCheckingAreas, setIsCheckingAreas] = useState(false)
   const createOrderMutation = useCreateOrderMutation()
   const todayDate = useMemo(() => new Date().toISOString().split("T")[0], [])
+  const allAreasBlocked = useMemo(
+    () => areas.length > 0 && areas.every((a) => blockedAreaIds.has(a.id)),
+    [areas, blockedAreaIds],
+  )
+
+  const getCartItemKey = useCallback(
+    (item: Product) => item.cartItemId || `${item.id}-${item.selectedUnitId}`,
+    [],
+  )
 
   const fetchAreas = useCallback(async () => {
     try {
@@ -156,6 +175,18 @@ export function ShoppingCartDrawer({
   }, [fetchAreas, isOpen, areas.length])
 
   useEffect(() => {
+    setQuantityInputs((prev) => {
+      const next: Record<string, string> = {}
+      for (const item of cart) {
+        const key = getCartItemKey(item)
+        const isEditingThisItem = editingQuantityKey === key
+        next[key] = isEditingThisItem && prev[key] !== undefined ? prev[key] : formatQuantity(item.quantity)
+      }
+      return next
+    })
+  }, [cart, editingQuantityKey, getCartItemKey])
+
+  useEffect(() => {
     if (!selectedAreaId) return
     const asNumber = Number(selectedAreaId)
     if (!Number.isFinite(asNumber)) return
@@ -168,6 +199,110 @@ export function ShoppingCartDrawer({
       }
     }
   }, [areas, blockedAreaIds, selectedAreaId])
+
+  const handleQuantityInputChange = useCallback(
+    (item: Product, value: string) => {
+      const key = getCartItemKey(item)
+      const normalizedValue = value.replace(",", ".")
+      const regex = /^\d*([.,]\d{0,3})?$/
+      if (!regex.test(value) && value !== "") return
+
+      setQuantityInputs((prev) => ({ ...prev, [key]: value }))
+
+      if (normalizedValue === "") return
+      const parsed = Number.parseFloat(normalizedValue)
+      if (!Number.isFinite(parsed) || parsed <= 0) return
+
+      const rounded = Math.round(parsed * 1000) / 1000
+      onUpdateQuantity(
+        item.id,
+        item.selectedUnitId,
+        Math.min(QUANTITY_LIMITS.MAX, Math.max(QUANTITY_LIMITS.MIN, rounded)),
+        item.cartItemId,
+      )
+    },
+    [getCartItemKey, onUpdateQuantity],
+  )
+
+  const handleQuantityInputBlur = useCallback(
+    (item: Product) => {
+      const key = getCartItemKey(item)
+      const raw = quantityInputs[key] ?? ""
+      const parsed = Number.parseFloat(raw.replace(",", "."))
+      setEditingQuantityKey((current) => (current === key ? null : current))
+
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        setQuantityInputs((prev) => ({ ...prev, [key]: formatQuantity(item.quantity) }))
+        return
+      }
+
+      const rounded = Math.round(parsed * 1000) / 1000
+      const clamped = Math.min(QUANTITY_LIMITS.MAX, Math.max(QUANTITY_LIMITS.MIN, rounded))
+      onUpdateQuantity(item.id, item.selectedUnitId, clamped, item.cartItemId)
+      setQuantityInputs((prev) => ({ ...prev, [key]: formatQuantity(clamped) }))
+    },
+    [getCartItemKey, onUpdateQuantity, quantityInputs],
+  )
+
+  const handlePrint = useCallback(async () => {
+    if (cart.length === 0) {
+      toast.error("El carrito esta vacio")
+      return
+    }
+
+    if (!selectedAreaId) {
+      toast.error("Selecciona un area para imprimir")
+      return
+    }
+
+    try {
+      setIsPrinting(true)
+
+      const selectedArea = areas.find((area) => area.id.toString() === selectedAreaId)
+      const payload = {
+        areaName: selectedArea?.name ?? "Area no especificada",
+        observation: observation || "",
+        items: cart.map((item) => ({
+          productName: item.name,
+          quantity: item.quantity,
+          unitName:
+            item.productUnits.find((unit) => unit.unitMeasurement.id === item.selectedUnitId)?.unitMeasurement.name ??
+            "Unidad",
+        })),
+      }
+
+      const response = await fetch("/api/orders/print", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        throw new Error("No se pudo generar la impresion")
+      }
+
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const win = window.open(url, "_blank", "noopener,noreferrer")
+
+      if (!win) {
+        const tempLink = document.createElement("a")
+        tempLink.href = url
+        tempLink.target = "_blank"
+        tempLink.rel = "noopener noreferrer"
+        tempLink.click()
+      }
+
+      setTimeout(() => URL.revokeObjectURL(url), 30000)
+      toast.success("Impresion lista")
+    } catch (error) {
+      console.error("[shopping-cart-drawer] Error al imprimir:", error)
+      toast.error("Error al generar la impresion")
+    } finally {
+      setIsPrinting(false)
+    }
+  }, [areas, cart, observation, selectedAreaId])
+
   const handleSubmit = async () => {
     if (!selectedAreaId) {
       toast.error("Por favor selecciona un área")
@@ -281,25 +416,41 @@ export function ShoppingCartDrawer({
                         onUpdateQuantity(
                           item.id,
                           item.selectedUnitId,
-                          Math.max(0.001, item.quantity - 0.001),
+                          Math.max(QUANTITY_LIMITS.MIN, item.quantity - QUANTITY_LIMITS.STEP),
                           item.cartItemId,
                         )
                       }
-                      disabled={item.quantity <= 0.001}
+                      disabled={item.quantity <= QUANTITY_LIMITS.MIN}
                     >
                       <Minus className="h-3 w-3" />
                     </Button>
-                    <div className="w-20 text-center">
-                      <span className="inline-block text-sm font-semibold px-2 py-1 border rounded">
-                        {formatQuantity(item.quantity)}
-                      </span>
+                    <div className="w-24 text-center">
+                      <Input
+                        type="text"
+                        inputMode="decimal"
+                        value={quantityInputs[getCartItemKey(item)] ?? formatQuantity(item.quantity)}
+                        onFocus={() => setEditingQuantityKey(getCartItemKey(item))}
+                        onChange={(event) => handleQuantityInputChange(item, event.target.value)}
+                        onBlur={() => handleQuantityInputBlur(item)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.currentTarget.blur()
+                          }
+                        }}
+                        className="h-8 text-center text-sm font-semibold"
+                      />
                     </div>
                     <Button
                       variant="outline"
                       size="icon"
                       className="h-8 w-8 rounded-full bg-transparent"
                       onClick={() =>
-                        onUpdateQuantity(item.id, item.selectedUnitId, item.quantity + 0.001, item.cartItemId)
+                        onUpdateQuantity(
+                          item.id,
+                          item.selectedUnitId,
+                          Math.min(QUANTITY_LIMITS.MAX, item.quantity + QUANTITY_LIMITS.STEP),
+                          item.cartItemId,
+                        )
                       }
                     >
                       <Plus className="h-3 w-3" />
@@ -339,7 +490,7 @@ export function ShoppingCartDrawer({
                             />
                             <span className="truncate">
                               {area.name}
-                              {blockedAreaIds.has(area.id) ? " (bloqueada)" : ""}
+                              {blockedAreaIds.has(area.id) ? " (Bloqueado: ya se hizo un pedido de esta area)" : ""}
                             </span>
                           </div>
                         </SelectItem>
@@ -349,8 +500,11 @@ export function ShoppingCartDrawer({
                     )}
                   </SelectContent>
                 </Select>
-                {areas.length > 0 && areas.every((a) => blockedAreaIds.has(a.id)) && (
-                  <p className="text-xs text-red-600">Todas tus áreas están bloqueadas hoy por pedidos existentes.</p>
+                {selectedAreaId && blockedAreaIds.has(Number(selectedAreaId)) && (
+                  <p className="text-xs text-red-600">Bloqueado: ya se hizo un pedido de esta area.</p>
+                )}
+                {allAreasBlocked && (
+                  <p className="text-xs text-red-600">Todas tus areas estan bloqueadas hoy por pedidos existentes.</p>
                 )}
               </div>
 
@@ -366,9 +520,22 @@ export function ShoppingCartDrawer({
               </div>
 
               {/* Botones */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <Button variant="outline" onClick={onClearCart}>
                   Vaciar
+                </Button>
+                <Button variant="outline" onClick={handlePrint} disabled={isPrinting || isLoadingAreas}>
+                  {isPrinting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generando...
+                    </>
+                  ) : (
+                    <>
+                      <Printer className="mr-2 h-4 w-4" />
+                      Imprimir
+                    </>
+                  )}
                 </Button>
                 <Button
                   className="bg-green-600 hover:bg-green-700 text-white"
@@ -376,9 +543,10 @@ export function ShoppingCartDrawer({
                   disabled={
                     isSubmitting ||
                     !selectedAreaId ||
+                    blockedAreaIds.has(Number(selectedAreaId)) ||
                     isLoadingAreas ||
                     isCheckingAreas ||
-                    (areas.length > 0 && areas.every((a) => blockedAreaIds.has(a.id)))
+                    allAreasBlocked
                   }
                 >
                   {isSubmitting ? (
@@ -398,3 +566,4 @@ export function ShoppingCartDrawer({
     </Dialog>
   )
 }
+
