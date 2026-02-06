@@ -27,10 +27,13 @@ import { toast } from 'sonner';
 import type { CreatePurchaseInput, PurchaseItem, Purchase } from '@/types/supplier';
 import { useProductsQuery, useSuppliersQuery, useUnitMeasurementsQuery } from '@/lib/api';
 import suppliersService from '@/lib/api/services/suppliers-service';
+import { useQueryClient } from '@tanstack/react-query';
+import queryKeys from '@/lib/api/queryKeys';
 
 export default function RegisterPurchasesPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const queryClient = useQueryClient();
   const { data: suppliersData, isLoading: loadingSuppliers } = useSuppliersQuery();
   const { data: productsData } = useProductsQuery();
   const { data: unitMeasurements = [] } = useUnitMeasurementsQuery();
@@ -234,6 +237,10 @@ export default function RegisterPurchasesPage() {
         }
 
         setPurchases((prev) => [newPurchase, ...prev]);
+        await queryClient.invalidateQueries({ queryKey: queryKeys.suppliers.lists() });
+        await queryClient.invalidateQueries({
+          queryKey: queryKeys.suppliers.purchaseLists(Number(selectedSupplier)),
+        });
         toast.success('Compra registrada');
 
         setFormData({
@@ -260,6 +267,7 @@ export default function RegisterPurchasesPage() {
         const result = await suppliersService.deletePurchase(id);
         if (result.success) {
           setPurchases((prev) => prev.filter((p) => p.id !== id));
+          await queryClient.invalidateQueries({ queryKey: queryKeys.suppliers.lists() });
           toast.success('Compra eliminada');
         } else {
           toast.error('Error al eliminar');

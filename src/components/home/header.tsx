@@ -5,65 +5,7 @@ import { ChevronDown, X, ChevronRight } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import gsap from "gsap"
-
-interface DropdownItem {
-  label: string
-  href: string
-}
-
-interface NavItem {
-  label: string
-  href: string
-  hasDropdown?: boolean
-  dropdownTitle?: string
-  dropdownImage?: string
-  dropdownItems?: DropdownItem[]
-}
-
-const NAV_ITEMS: NavItem[] = [
-  { label: "Servicios", href: "/services" },
-  {
-    label: "Nosotros",
-    href: "#",
-    hasDropdown: true,
-    dropdownTitle: "Nosotros",
-    dropdownImage: "https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=400&h=500&fit=crop",
-    dropdownItems: [
-      { label: "Quiénes Somos", href: "/quienes-somos" },
-      { label: "Nuestra Historia", href: "/historia" },
-      { label: "Misión y Visión", href: "/mision-vision" },
-      { label: "Equipo", href: "/equipo" },
-      { label: "Valores", href: "/valores" },
-      { label: "Responsabilidad Social", href: "/responsabilidad" },
-      { label: "Certificaciones", href: "/certificaciones" },
-      { label: "Premios", href: "/premios" },
-      { label: "Alianzas", href: "/alianzas" },
-      { label: "Trabaja con Nosotros", href: "/trabaja" },
-    ],
-  },
-  {
-    label: "Industry Sectors",
-    href: "#",
-    hasDropdown: true,
-    dropdownTitle: "Methodology",
-    dropdownImage: "https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=400&h=500&fit=crop",
-    dropdownItems: [
-      { label: "Online Bulletin Boards", href: "/online-bulletin" },
-      { label: "Taste Testing", href: "/taste-testing" },
-      { label: "Customer Intercept", href: "/customer-intercept" },
-      { label: "Mystery Shopping", href: "/mystery-shopping" },
-      { label: "UX Research", href: "/ux-research" },
-      { label: "Ethnographic Research", href: "/ethnographic" },
-      { label: "Focus Groups, Dyads & Triads", href: "/focus-groups" },
-      { label: "Central Location Testing", href: "/central-location" },
-      { label: "Online Diary", href: "/online-diary" },
-      { label: "Shop-Along", href: "/shop-along" },
-      { label: "In-depth Interviews", href: "/interviews" },
-    ],
-  },
-  { label: "Contactanos", href: "#" },
-]
-
+import { NAV_ITEMS } from "@/components/home/nav-items"
 const LogoIcon: React.FC = () => (
   <svg width="30" height="30" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
     <path
@@ -311,3 +253,4 @@ const Header: React.FC = () => {
 }
 
 export default Header
+
