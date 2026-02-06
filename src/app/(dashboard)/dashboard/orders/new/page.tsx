@@ -17,7 +17,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 import { SimpleProductCombobox } from "@/components/users/simple-product-combobox"
 import { Product, ProductUnit } from "@/types/product"
 import type { User } from "@/types/users"
-import { OrderStatus, CreateOrderDto, CreateOrderItemDto, CheckOrderResponse } from "@/types/order"
+import { CreateOrderDto, CreateOrderItemDto, CheckOrderResponse } from "@/types/order"
 import {
   Dialog,
   DialogContent,
@@ -382,10 +382,7 @@ const AdminFastOrdersPage = () => {
 
   // Remove product from table
   const handleRemoveProduct = useCallback((tableProductId: string) => {
-    setTableProducts(prev => {
-      const product = prev.find(tp => tp.id === tableProductId)
-      return prev.filter(tp => tp.id !== tableProductId)
-    })
+    setTableProducts(prev => prev.filter(tp => tp.id !== tableProductId))
   }, [])
 
   // Clear all products
@@ -461,7 +458,7 @@ const AdminFastOrdersPage = () => {
         userId: selectedUserId,
         areaId: selectedAreaId,
         totalAmount: tableProducts.reduce((sum, tp) => sum + (tp.quantity * (tp.product.price || 0)), 0),
-        status: OrderStatus.CREATED,
+        status: 'created',
         observation: orderObservations.trim() || undefined,
         orderItems: orderItems,
       };
