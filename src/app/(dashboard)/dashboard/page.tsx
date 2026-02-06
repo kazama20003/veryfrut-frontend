@@ -1,242 +1,260 @@
-'use client';
+﻿'use client'
 
-import React, { useState } from 'react';
-import { Users, Mail, Phone, MapPin, Calendar, ArrowUpRight, MoreVertical, Plus, Search } from 'lucide-react';
-import { Separator } from '@/components/ui/separator';
-import { SidebarTrigger } from '@/components/ui/sidebar';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { useUsersQuery } from '@/lib/api/hooks/useUsers';
+import { useMemo, useState } from 'react'
+import { BarChart3, Boxes, ShoppingCart, TrendingUp, Trophy, UserRound } from 'lucide-react'
+import { Separator } from '@/components/ui/separator'
+import { SidebarTrigger } from '@/components/ui/sidebar'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { useDashboardQuery } from '@/lib/api/hooks/useDashboard'
+import type { GetDashboardParams } from '@/types/dashboard'
 
-interface User {
-  id: number;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone?: string;
-  address?: string;
-  createdAt: string;
-}
+const RANGES: Array<{ label: string; value: NonNullable<GetDashboardParams['dateRange']> }> = [
+  { label: 'Hoy', value: 'today' },
+  { label: 'Semana', value: 'week' },
+  { label: 'Mes', value: 'month' },
+  { label: 'Ano', value: 'year' },
+]
 
-export default function UsersPage() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
+export default function DashboardPage() {
+  const [dateRange, setDateRange] = useState<NonNullable<GetDashboardParams['dateRange']>>('week')
 
-  const { data: users = [], error } = useUsersQuery({ 
-    page: currentPage,
+  const { data, isLoading, error } = useDashboardQuery({
+    dateRange,
     limit: 10,
-    q: searchTerm 
-  });
+  })
 
-  const filteredUsers = Array.isArray(users) ? users.filter((user: User) =>
-    user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
-  ) : [];
+  const totals = useMemo(
+    () =>
+      data?.totals ?? {
+        products: 0,
+        orders: 0,
+        sales: 0,
+      },
+    [data?.totals],
+  )
+
+  const ordersChart = useMemo(() => {
+    const points = data?.analytics?.recentOrders ?? []
+    const maxCount = Math.max(1, ...points.map((p) => p.count))
+    const maxTotal = Math.max(1, ...points.map((p) => p.total))
+    return { points, maxCount, maxTotal }
+  }, [data?.analytics?.recentOrders])
 
   return (
     <div className="flex flex-col gap-6 bg-background">
-      <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 bg-white border-b border-border">
+      <header className="flex h-16 shrink-0 items-center gap-2 bg-white border-b border-border">
         <div className="flex items-center gap-2 px-6 w-full justify-between">
           <div className="flex items-center gap-2">
             <SidebarTrigger className="-ml-1" />
             <Separator orientation="vertical" className="mr-2 data-[orientation=vertical]:h-4" />
-            <h1 className="text-base font-semibold">Usuarios</h1>
+            <h1 className="text-base font-semibold">Dashboard</h1>
           </div>
-          <Button className="gap-2">
-            <Plus className="w-4 h-4" />
-            Nuevo Usuario
-          </Button>
+
+          <div className="flex items-center gap-2">
+            {RANGES.map((range) => (
+              <Button
+                key={range.value}
+                variant={dateRange === range.value ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setDateRange(range.value)}
+              >
+                {range.label}
+              </Button>
+            ))}
+          </div>
         </div>
       </header>
 
-      <div className="flex flex-1 flex-col gap-8 p-8 bg-background">
-        {/* Error Display */}
+      <div className="flex flex-1 flex-col gap-6 p-6 bg-background">
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
-            <p className="font-semibold">Error cargando datos</p>
+            <p className="font-semibold">Error cargando dashboard</p>
             <p className="text-sm">{error instanceof Error ? error.message : 'Error desconocido'}</p>
           </div>
         )}
 
-        {/* Welcome Header */}
-        <div className="space-y-2">
-          <h2 className="text-4xl font-bold text-foreground">Gestión de Usuarios</h2>
-          <p className="text-lg text-muted-foreground">Administra y controla todos los usuarios del sistema</p>
+        <div className="space-y-1">
+          <h2 className="text-2xl font-bold text-foreground">Resumen General</h2>
+          <p className="text-sm text-muted-foreground">Datos consolidados por rango de fecha seleccionado.</p>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-          {/* Total de Usuarios */}
-          <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Total de Usuarios
-              </CardTitle>
-              <div className="p-3 bg-blue-100 rounded-full">
-                <Users className="w-5 h-5 text-chart-1" />
-              </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Productos</CardTitle>
+              <Boxes className="w-4 h-4 text-muted-foreground" />
             </CardHeader>
-            <CardContent className="space-y-2">
-              <div className="text-3xl font-bold text-foreground">{filteredUsers.length}</div>
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <ArrowUpRight className="w-3 h-3 text-green-600" /> Activos en el sistema
-              </p>
+            <CardContent>
+              <div className="text-2xl font-bold">{isLoading ? '...' : totals.products}</div>
             </CardContent>
           </Card>
 
-          {/* Usuarios Activos */}
-          <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Activos Hoy
-              </CardTitle>
-              <div className="p-3 bg-green-100 rounded-full">
-                <Users className="w-5 h-5 text-green-600" />
-              </div>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Ordenes</CardTitle>
+              <ShoppingCart className="w-4 h-4 text-muted-foreground" />
             </CardHeader>
-            <CardContent className="space-y-2">
-              <div className="text-3xl font-bold text-foreground">{Math.floor(filteredUsers.length * 0.7)}</div>
-              <p className="text-xs text-muted-foreground">En última sesión</p>
+            <CardContent>
+              <div className="text-2xl font-bold">{isLoading ? '...' : totals.orders}</div>
             </CardContent>
           </Card>
 
-          {/* Nuevos Esta Semana */}
-          <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Nuevos Esta Semana
-              </CardTitle>
-              <div className="p-3 bg-purple-100 rounded-full">
-                <Plus className="w-5 h-5 text-purple-600" />
-              </div>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Ventas</CardTitle>
+              <TrendingUp className="w-4 h-4 text-muted-foreground" />
             </CardHeader>
-            <CardContent className="space-y-2">
-              <div className="text-3xl font-bold text-foreground">{Math.floor(filteredUsers.length * 0.15)}</div>
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <ArrowUpRight className="w-3 h-3 text-green-600" /> Registrados
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Tasa de Retención */}
-          <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Retención
-              </CardTitle>
-              <div className="p-3 bg-orange-100 rounded-full">
-                <MapPin className="w-5 h-5 text-vibrant-orange" />
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <div className="text-3xl font-bold text-foreground">94%</div>
-              <p className="text-xs text-muted-foreground">Usuarios activos</p>
+            <CardContent>
+              <div className="text-2xl font-bold">{isLoading ? '...' : totals.sales}</div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Search and Filter */}
-        <div className="flex gap-4 items-center">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por nombre, email..."
-              className="pl-10"
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setCurrentPage(1);
-              }}
-            />
-          </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="w-4 h-4" />
+                Grafica de ordenes
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {isLoading ? (
+                <p className="text-sm text-muted-foreground">Cargando...</p>
+              ) : ordersChart.points.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Sin datos para graficar.</p>
+              ) : (
+                <div className="space-y-3">
+                  {ordersChart.points.map((item) => (
+                    <div key={`${item.date}-${item.count}`} className="space-y-2 border rounded-md px-3 py-3">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium">{item.date}</span>
+                        <span className="text-muted-foreground">
+                          {item.count} ordenes | Total: {item.total}
+                        </span>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="h-2 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className="h-full bg-blue-500"
+                            style={{ width: `${(item.count / ordersChart.maxCount) * 100}%` }}
+                          />
+                        </div>
+                        <div className="h-2 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className="h-full bg-emerald-500"
+                            style={{ width: `${(item.total / ordersChart.maxTotal) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground pt-1">
+                    <span className="flex items-center gap-1">
+                      <span className="inline-block w-3 h-3 rounded-sm bg-blue-500" />
+                      Cantidad de ordenes
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="inline-block w-3 h-3 rounded-sm bg-emerald-500" />
+                      Total vendido
+                    </span>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Trophy className="w-4 h-4" />
+                Top Productos
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {isLoading ? (
+                <p className="text-sm text-muted-foreground">Cargando...</p>
+              ) : (data?.topProducts?.length ?? 0) === 0 ? (
+                <p className="text-sm text-muted-foreground">Sin productos destacados.</p>
+              ) : (
+                data?.topProducts.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between border rounded-md px-3 py-2">
+                    <p className="text-sm font-medium">{item.name}</p>
+                    <Badge variant="secondary">{item.quantityOrdered}</Badge>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Users Table */}
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="border-b border-border pb-4">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-xl font-semibold">Lista de Usuarios</CardTitle>
-              <span className="text-sm text-muted-foreground">{filteredUsers.length} registros</span>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-muted-foreground">Usuario</th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-muted-foreground">Email</th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-muted-foreground">Teléfono</th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-muted-foreground">Fecha Registro</th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-muted-foreground">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredUsers.length === 0 ? (
-                    <tr className="border-b border-border">
-                      <td colSpan={5} className="py-12 px-4 text-center text-sm text-muted-foreground">
-                        No hay usuarios disponibles
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredUsers.map((user: User) => (
-                      <tr key={user.id} className="border-b border-border hover:bg-muted/50 transition-colors">
-                        <td className="py-4 px-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center text-white font-semibold text-sm">
-                              {user.firstName[0]}{user.lastName[0]}
-                            </div>
-                            <div className="flex-1">
-                              <p className="text-sm font-medium text-foreground">
-                                {user.firstName} {user.lastName}
-                              </p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-4 px-4">
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Mail className="w-4 h-4" />
-                            {user.email}
-                          </div>
-                        </td>
-                        <td className="py-4 px-4">
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            {user.phone ? (
-                              <>
-                                <Phone className="w-4 h-4" />
-                                {user.phone}
-                              </>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">-</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-4 px-4">
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Calendar className="w-4 h-4" />
-                            {new Date(user.createdAt).toLocaleDateString('es-ES', {
-                              year: 'numeric',
-                              month: 'short',
-                              day: 'numeric'
-                            })}
-                          </div>
-                        </td>
-                        <td className="py-4 px-4 text-right">
-                          <button className="p-2 hover:bg-muted rounded-lg transition-colors">
-                            <MoreVertical className="w-4 h-4 text-muted-foreground" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <UserRound className="w-4 h-4" />
+                Top Usuarios
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {isLoading ? (
+                <p className="text-sm text-muted-foreground">Cargando...</p>
+              ) : (data?.topUsers?.length ?? 0) === 0 ? (
+                <p className="text-sm text-muted-foreground">Sin usuarios destacados.</p>
+              ) : (
+                data?.topUsers.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between border rounded-md px-3 py-2">
+                    <div>
+                      <p className="text-sm font-medium">{item.firstName} {item.lastName}</p>
+                      <p className="text-xs text-muted-foreground">{item.email}</p>
+                    </div>
+                    <Badge>{item.orderCount}</Badge>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Ultimos Registros</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <p className="text-xs uppercase text-muted-foreground mb-2">Usuarios</p>
+                <div className="space-y-2">
+                  {(data?.latestUsers ?? []).slice(0, 3).map((item) => (
+                    <div key={item.id} className="text-sm border rounded-md px-3 py-2">
+                      <p className="font-medium">{item.firstName} {item.lastName}</p>
+                      <p className="text-xs text-muted-foreground">{item.email}</p>
+                    </div>
+                  ))}
+                  {!isLoading && (data?.latestUsers?.length ?? 0) === 0 && (
+                    <p className="text-sm text-muted-foreground">Sin usuarios recientes.</p>
                   )}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs uppercase text-muted-foreground mb-2">Productos</p>
+                <div className="space-y-2">
+                  {(data?.latestProducts ?? []).slice(0, 3).map((item) => (
+                    <div key={item.id} className="text-sm border rounded-md px-3 py-2">
+                      <p className="font-medium">{item.name}</p>
+                      <p className="text-xs text-muted-foreground">{item.createdAt}</p>
+                    </div>
+                  ))}
+                  {!isLoading && (data?.latestProducts?.length ?? 0) === 0 && (
+                    <p className="text-sm text-muted-foreground">Sin productos recientes.</p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
-  );
+  )
 }

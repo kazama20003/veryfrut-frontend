@@ -2,6 +2,8 @@
 
 import { useState, useCallback, useMemo, useRef, useEffect } from "react"
 import { Package, Plus, X, Trash2, Edit, Save, XCircle, Send, Users } from "lucide-react"
+import { ArrowLeft } from "lucide-react"
+import Link from "next/link"
 import { useProductsQuery } from "@/lib/api/hooks/useProduct"
 import { useCreateOrderMutation, useCheckOrderQuery, useOrdersQuery } from "@/lib/api/hooks/useOrder"
 import { useUsersQuery } from "@/lib/api/hooks/useUsers"
@@ -80,49 +82,39 @@ const AdminFastOrdersPage = () => {
     return users.find(u => u.id === selectedUserId)
   }, [users, selectedUserId])
 
-  // Load areas when user is selected
+  // Load areas when user changes
   useEffect(() => {
     console.log("[AdminFastOrdersPage] selectedUserId:", selectedUserId)
     console.log("[AdminFastOrdersPage] selectedUser:", selectedUser)
-    
+
+    let nextAreas: Array<{ id: number; name: string }> = []
+
     if (selectedUser) {
-      // Check if user has areas embedded in the response
-      const userAreas = (selectedUser as User & {areas?: Array<{id: number; name: string}>})?.areas || []
+      const embeddedAreas = (selectedUser as User & { areas?: Array<{ id: number; name: string }> })?.areas || []
       const userAreaIds = selectedUser.areaIds || []
-      
-      console.log("[AdminFastOrdersPage] userAreas (embedded):", userAreas)
+
+      console.log("[AdminFastOrdersPage] userAreas (embedded):", embeddedAreas)
       console.log("[AdminFastOrdersPage] userAreaIds:", userAreaIds)
-      
-      if (userAreas.length > 0) {
-        // Use embedded areas if available
-        console.log("[AdminFastOrdersPage] Using embedded areas:", userAreas)
-        setAreas(userAreas)
-        
-        // Auto-select the first area if none selected
-        if (!selectedAreaId && userAreas[0]) {
-          setSelectedAreaId(userAreas[0].id)
-          console.log("[AdminFastOrdersPage] Auto-selected area:", userAreas[0].id)
-        }
+
+      if (embeddedAreas.length > 0) {
+        nextAreas = embeddedAreas
       } else if (userAreaIds.length > 0) {
-        // Filter areas from all areas based on user's areaIds
-        const userAreas = allAreas.filter(area => userAreaIds.includes(area.id))
-        console.log("[AdminFastOrdersPage] Filtered areas from allAreas:", userAreas)
-        
-        setAreas(userAreas)
-        
-        if (!selectedAreaId && userAreas[0]) {
-          setSelectedAreaId(userAreas[0].id)
-        }
-      } else {
-        console.log("[AdminFastOrdersPage] No areas found for user")
-        setAreas([])
-        setSelectedAreaId(undefined)
+        nextAreas = allAreas.filter((area) => userAreaIds.includes(area.id))
       }
-    } else {
-      setAreas([])
-      setSelectedAreaId(undefined)
     }
-  }, [selectedUser, selectedAreaId, allAreas, selectedUserId])
+
+    setAreas((prev) => {
+      const sameLength = prev.length === nextAreas.length
+      const sameValues = sameLength && prev.every((item, index) => item.id === nextAreas[index]?.id && item.name === nextAreas[index]?.name)
+      return sameValues ? prev : nextAreas
+    })
+
+    setSelectedAreaId((prev) => {
+      if (!nextAreas.length) return undefined
+      if (prev && nextAreas.some((area) => area.id === prev)) return prev
+      return nextAreas[0]?.id
+    })
+  }, [allAreas, selectedUser, selectedUserId])
 
   // Check for existing order when user and area are selected
   const checkOrderData = useMemo(() => {
@@ -503,7 +495,7 @@ const AdminFastOrdersPage = () => {
 
   if (!isMounted) {
     return (
-      <div className="flex min-h-screen flex-col bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="flex min-h-screen flex-col bg-background">
         <div className="flex-1 flex items-center justify-center">
           <Loading />
         </div>
@@ -513,32 +505,39 @@ const AdminFastOrdersPage = () => {
 
   return (
     <Suspense fallback={<Loading />}>
-      <div className="flex min-h-screen flex-col bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="flex min-h-screen flex-col bg-background">
         {/* Header */}
-        <header className="sticky top-0 z-40 border-b bg-white border-gray-200 shadow-md">
-          <div className="flex flex-col gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <header className="sticky top-0 z-40 border-b bg-white">
+          <div className="flex flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div className="flex items-center gap-4">
-              <SidebarTrigger className="h-9 w-9 rounded-full border border-gray-300 hover:bg-gray-100 transition-colors" />
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 text-white shadow-md">
-                <Package className="h-6 w-6" />
+              <SidebarTrigger className="h-9 w-9 rounded-full border border-gray-200" />
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-100 text-blue-700">
+                <Package className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Administración</p>
-                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Pedidos Rápidos (Admin)</h1>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">Ordenes</p>
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Nueva orden</h1>
+                <p className="text-sm text-gray-500">Crea pedidos para usuarios y areas.</p>
               </div>
               {stats.totalProducts > 0 && (
-                <Badge variant="default" className="hidden sm:inline-flex bg-gradient-to-r from-green-600 to-green-700 shadow-md">
+                <Badge variant="secondary" className="hidden sm:inline-flex">
                   {stats.totalProducts} producto{stats.totalProducts !== 1 ? "s" : ""}
                 </Badge>
               )}
             </div>
 
             <div className="flex items-center gap-2">
+              <Button asChild variant="outline" className="h-10 px-4 gap-2">
+                <Link href="/dashboard/orders">
+                  <ArrowLeft className="w-4 h-4" />
+                  Volver
+                </Link>
+              </Button>
               {stats.totalProducts > 0 && (
                 <Button
                   variant="outline"
                   onClick={handleClearAll}
-                  className="h-10 px-4 text-red-700 hover:text-white hover:bg-red-600 border-red-300 hover:border-red-600 bg-red-50 font-medium transition-all duration-200 shadow-sm hover:shadow-md"
+                  className="h-10 px-4"
                 >
                   Limpiar Todo
                 </Button>
@@ -551,8 +550,8 @@ const AdminFastOrdersPage = () => {
           {/* User, Area and Product Selection */}
           <div className="mb-6 grid gap-5 grid-cols-1 sm:grid-cols-3">
             {/* User Selection */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-lg hover:shadow-xl transition-shadow">
-              <label className="text-sm font-bold text-gray-800 block mb-3 uppercase tracking-wide flex items-center gap-2">
+            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+              <label className="text-sm font-semibold text-gray-700 block mb-3 flex items-center gap-2">
                 <Users className="h-4 w-4 text-blue-600" />
                 Usuario
               </label>
@@ -564,7 +563,7 @@ const AdminFastOrdersPage = () => {
                   setExistingOrder(undefined) // Reset existing order
                 }}
               >
-                <SelectTrigger className="rounded-xl border-gray-300 hover:border-gray-400 focus:ring-2 focus:ring-blue-500 transition-all" data-testid="user-select">
+                <SelectTrigger className="rounded-lg border-gray-300" data-testid="user-select">
                   <SelectValue placeholder="Selecciona un usuario..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -588,14 +587,14 @@ const AdminFastOrdersPage = () => {
             </div>
 
             {/* Area Selection */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-lg hover:shadow-xl transition-shadow">
-              <label className="text-sm font-bold text-gray-800 block mb-3 uppercase tracking-wide">Área</label>
+            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+              <label className="text-sm font-semibold text-gray-700 block mb-3">Área</label>
               <Select 
                 value={selectedAreaId?.toString()} 
                 onValueChange={(value) => setSelectedAreaId(parseInt(value))}
                 disabled={!selectedUserId}
               >
-                <SelectTrigger className="rounded-xl border-gray-300 hover:border-gray-400 focus:ring-2 focus:ring-blue-500 transition-all">
+                <SelectTrigger className="rounded-lg border-gray-300">
                   <SelectValue placeholder={selectedUserId ? "Selecciona un área..." : "Selecciona un usuario primero..."} />
                 </SelectTrigger>
                 <SelectContent>
@@ -651,8 +650,8 @@ const AdminFastOrdersPage = () => {
             </div>
 
             {/* Product Selection */}
-            <div ref={comboboxRef} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-lg hover:shadow-xl transition-shadow">
-              <label className="text-sm font-bold text-gray-800 block mb-3 uppercase tracking-wide">Producto</label>
+            <div ref={comboboxRef} className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+              <label className="text-sm font-semibold text-gray-700 block mb-3">Producto</label>
               <SimpleProductCombobox
                 products={products}
                 selectedProductId={selectedProductId}
@@ -666,21 +665,21 @@ const AdminFastOrdersPage = () => {
           </div>
 
           {/* Products Table */}
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-lg overflow-hidden">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gradient-to-r from-gray-800 to-gray-900 border-b-2 border-gray-300">
+                <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                       Producto
                     </th>
-                     <th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
+                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                        Presentación
                      </th>
-                      <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">
+                      <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
                         Cantidad
                       </th>
-                     <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider">
+                     <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
                        Acciones
                      </th>
                   </tr>
@@ -723,7 +722,7 @@ const AdminFastOrdersPage = () => {
                       const { product, quantity, id, selectedUnit, isEditing } = tableProduct
 
                       return (
-                        <tr key={id} className="hover:bg-blue-50 transition-colors duration-150 border-l-4 border-l-transparent hover:border-l-blue-400">
+                        <tr key={id} className="hover:bg-muted/40 transition-colors">
                           {/* Producto */}
                           <td className="px-6 py-4">
                              <div>
@@ -739,7 +738,7 @@ const AdminFastOrdersPage = () => {
                                 value={tableProduct.selectedUnitId.toString()}
                                 onValueChange={(value) => handleUpdateUnit(id, parseInt(value))}
                               >
-                                <SelectTrigger className="h-10 w-48 border-2 border-gray-400 bg-white rounded-lg font-semibold hover:border-blue-400 focus:ring-2 focus:ring-blue-500 transition-all shadow-sm">
+                                <SelectTrigger className="h-10 w-48 border border-gray-300 bg-white rounded-lg font-medium">
                                   <SelectValue placeholder="Selecciona presentación" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -752,7 +751,7 @@ const AdminFastOrdersPage = () => {
                               </Select>
                             ) : (
                               <div className="inline-block">
-                                <Badge className="bg-gradient-to-r from-purple-500 to-purple-600 text-white px-5 py-2 text-sm font-bold rounded-lg shadow-md hover:shadow-lg transition-all duration-150 cursor-default">
+                                <Badge className="bg-muted text-foreground px-4 py-1.5 text-sm font-medium rounded-lg cursor-default">
                                   {selectedUnit.name}
                                 </Badge>
                               </div>
@@ -830,7 +829,7 @@ const AdminFastOrdersPage = () => {
                                     variant="outline"
                                     size="sm"
                                     onClick={() => handleToggleEdit(id, false)}
-                                    className="h-8 px-3 text-green-700 hover:text-green-800 hover:bg-green-100 border-green-200 bg-green-50 font-medium transition-all duration-200"
+                                    className="h-8 px-3 text-green-700 hover:text-green-800 hover:bg-green-100 border-green-200 bg-green-50 font-medium"
                                   >
                                     <Save className="h-4 w-4 mr-1" />
                                     Guardar
@@ -839,7 +838,7 @@ const AdminFastOrdersPage = () => {
                                      variant="outline"
                                      size="sm"
                                      onClick={() => handleToggleEdit(id, false)}
-                                     className="h-8 px-3 text-gray-600 hover:text-gray-700 hover:bg-gray-100 border-gray-200 transition-all duration-200"
+                                     className="h-8 px-3 text-gray-600 hover:text-gray-700 hover:bg-gray-100 border-gray-200"
                                    >
                                      <XCircle className="h-4 w-4 mr-1" />
                                      Cancelar
@@ -851,7 +850,7 @@ const AdminFastOrdersPage = () => {
                                     variant="outline"
                                     size="sm"
                                     onClick={() => handleToggleEdit(id, true)}
-                                    className="h-8 px-3 text-blue-700 hover:text-blue-800 hover:bg-blue-100 border-blue-200 bg-blue-50 font-medium transition-all duration-200"
+                                    className="h-8 px-3 text-blue-700 hover:text-blue-800 hover:bg-blue-100 border-blue-200 bg-blue-50 font-medium"
                                   >
                                     <Edit className="h-4 w-4 mr-1" />
                                     Editar
@@ -860,7 +859,7 @@ const AdminFastOrdersPage = () => {
                                     variant="outline"
                                     size="sm"
                                     onClick={() => handleRemoveProduct(id)}
-                                    className="h-8 px-3 text-red-700 hover:text-white hover:bg-red-600 border-red-300 hover:border-red-600 bg-red-50 font-medium transition-all duration-200 shadow-sm hover:shadow-md"
+                                    className="h-8 px-3 text-red-700 hover:text-white hover:bg-red-600 border-red-300 hover:border-red-600 bg-red-50 font-medium"
                                   >
                                     <Trash2 className="h-4 w-4 mr-1" />
                                     Eliminar
@@ -880,16 +879,16 @@ const AdminFastOrdersPage = () => {
 
           {/* Summary */}
           {tableProducts.length > 0 && (
-            <div className="mt-6 bg-gradient-to-r from-white to-blue-50 rounded-2xl border border-gray-200 p-5 shadow-lg">
+            <div className="mt-6 bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="text-sm text-gray-700">
-                  <span className="font-bold">Productos:</span> <span className="font-semibold text-lg text-blue-600">{stats.totalProducts}</span>
+                  <span className="font-bold">Productos:</span> <span className="font-semibold text-lg text-primary">{stats.totalProducts}</span>
                   <span className="mx-2 text-gray-400">•</span>
-                  <span className="font-bold">Unidades:</span> <span className="font-semibold text-lg text-blue-600">{stats.totalItems}</span>
+                  <span className="font-bold">Unidades:</span> <span className="font-semibold text-lg text-primary">{stats.totalItems}</span>
                   {selectedUser && (
                     <>
                       <span className="mx-2 text-gray-400">•</span>
-                      <span className="font-bold">Usuario:</span> <span className="font-semibold text-lg text-blue-600">{selectedUser.firstName} {selectedUser.lastName}</span>
+                      <span className="font-bold">Usuario:</span> <span className="font-semibold text-lg text-primary">{selectedUser.firstName} {selectedUser.lastName}</span>
                     </>
                   )}
                 </div>
@@ -897,7 +896,7 @@ const AdminFastOrdersPage = () => {
                     <Button
                       onClick={() => setIsConfirmDialogOpen(true)}
                       disabled={!selectedUserId || !selectedAreaId || isCreatingOrder || (existingOrder && existingOrder.status !== 'created')}
-                      className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold px-6 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200"
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-6 py-2 rounded-lg"
                     >
                       <Send className="h-4 w-4 mr-2" />
                       {isCreatingOrder 
@@ -931,11 +930,11 @@ const AdminFastOrdersPage = () => {
              
               <div className="space-y-4">
                 {selectedUser && (
-                  <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
-                    <p className="text-sm font-semibold text-blue-700 mb-1">Pedido para:</p>
-                    <p className="text-sm text-blue-900">{selectedUser.firstName} {selectedUser.lastName}</p>
+                  <div className="bg-muted/40 rounded-lg p-3 border border-border">
+                    <p className="text-sm font-semibold text-foreground mb-1">Pedido para:</p>
+                    <p className="text-sm text-foreground">{selectedUser.firstName} {selectedUser.lastName}</p>
                     {areas.find(a => a.id === selectedAreaId) && (
-                      <p className="text-sm text-blue-700">Área: {areas.find(a => a.id === selectedAreaId)?.name}</p>
+                      <p className="text-sm text-muted-foreground">Área: {areas.find(a => a.id === selectedAreaId)?.name}</p>
                     )}
                   </div>
                 )}
@@ -960,7 +959,7 @@ const AdminFastOrdersPage = () => {
                     value={orderObservations}
                     onChange={(e) => setOrderObservations(e.target.value)}
                     placeholder="Notas especiales..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
                     rows={2}
                   />
                 </div>
@@ -990,3 +989,6 @@ const AdminFastOrdersPage = () => {
 }
 
 export default AdminFastOrdersPage
+
+
+

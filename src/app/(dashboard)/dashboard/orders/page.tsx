@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useDeleteOrderMutation, useOrdersQuery } from '@/lib/api';
 import { Order } from '@/types/order';
 import { ReportDialog } from './report-dialog';
@@ -41,6 +42,7 @@ const statusLabels: Record<string, string> = {
 };
 
 export default function OrdersPage() {
+  const router = useRouter();
   const [pagination, setPagination] = useState({ page: 1, limit: 100 });
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -67,7 +69,7 @@ export default function OrdersPage() {
   };
 
   const handleNewOrder = () => {
-    console.log('[v0] Navigating to create new order');
+    router.push('/dashboard/orders/new');
   };
 
   const handleGenerateReport = () => {
