@@ -2,16 +2,17 @@
 
 import type React from "react"
 import Image from "next/image"
-import { useState, useEffect } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Minus, Plus, ShoppingCart, Trash2, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
-import { areaService, useCreateOrderMutation, usersService } from "@/lib/api"
+import { areaService, orderService, useCreateOrderMutation, usersService } from "@/lib/api"
 import type { Area } from "@/types/area"
 import type { User } from "@/types/users"
+import type { CreateOrderDto } from "@/types/order"
 
 // Alternative user interface with areas instead of areaIds
 interface UserWithAreas extends Omit<User, 'areaIds'> {
@@ -76,19 +77,15 @@ export function ShoppingCartDrawer({
 }: ShoppingCartDrawerProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [areas, setAreas] = useState<Area[]>([])
+  const [blockedAreaIds, setBlockedAreaIds] = useState<Set<number>>(new Set())
   const [selectedAreaId, setSelectedAreaId] = useState<string>("")
   const [observation, setObservation] = useState("")
   const [isLoadingAreas, setIsLoadingAreas] = useState(false)
+  const [isCheckingAreas, setIsCheckingAreas] = useState(false)
   const createOrderMutation = useCreateOrderMutation()
+  const todayDate = useMemo(() => new Date().toISOString().split("T")[0], [])
 
-  // Cargar áreas disponibles
-  useEffect(() => {
-    if (isOpen && areas.length === 0) {
-      fetchAreas()
-    }
-  }, [isOpen, areas.length])
-
-  const fetchAreas = async () => {
+  const fetchAreas = useCallback(async () => {
     try {
       setIsLoadingAreas(true)
 
@@ -116,6 +113,32 @@ export function ShoppingCartDrawer({
       if (userAreas.length > 0) {
         setSelectedAreaId(userAreas[0].id.toString())
       }
+
+      // Block areas that already have an order today
+      setIsCheckingAreas(true)
+      try {
+        const blockedIds = await Promise.all(
+          userAreas.map(async (area) => {
+            try {
+              const check = await orderService.check({ areaId: area.id.toString(), date: todayDate })
+              return check.exists ? area.id : null
+            } catch (error) {
+              console.warn("[shopping-cart-drawer] Error checking order for area:", area.id, error)
+              return null
+            }
+          }),
+        )
+
+        const blocked = new Set<number>(blockedIds.filter((id): id is number => typeof id === "number"))
+        setBlockedAreaIds(blocked)
+
+        const firstAvailable = userAreas.find((a) => !blocked.has(a.id))
+        if (firstAvailable) {
+          setSelectedAreaId(firstAvailable.id.toString())
+        }
+      } finally {
+        setIsCheckingAreas(false)
+      }
     } catch (error) {
       console.warn("[v0] Error cargando usuario, no se cargaran areas:", error)
       toast.error("Error al cargar el usuario actual")
@@ -123,7 +146,28 @@ export function ShoppingCartDrawer({
     } finally {
       setIsLoadingAreas(false)
     }
-  }
+  }, [todayDate])
+
+  // Cargar áreas disponibles
+  useEffect(() => {
+    if (isOpen && areas.length === 0) {
+      fetchAreas()
+    }
+  }, [fetchAreas, isOpen, areas.length])
+
+  useEffect(() => {
+    if (!selectedAreaId) return
+    const asNumber = Number(selectedAreaId)
+    if (!Number.isFinite(asNumber)) return
+
+    if (blockedAreaIds.has(asNumber)) {
+      const firstAvailable = areas.find((a) => !blockedAreaIds.has(a.id))
+      if (firstAvailable) {
+        setSelectedAreaId(firstAvailable.id.toString())
+        toast.error("Esa área ya tiene un pedido hoy. Selecciona otra área.")
+      }
+    }
+  }, [areas, blockedAreaIds, selectedAreaId])
   const handleSubmit = async () => {
     if (!selectedAreaId) {
       toast.error("Por favor selecciona un área")
@@ -137,7 +181,14 @@ export function ShoppingCartDrawer({
 
      try {
       setIsSubmitting(true)
-      
+
+      // Final guard: don't allow creating a second order for the same area/day
+      const check = await orderService.check({ areaId: selectedAreaId, date: todayDate })
+      if (check.exists) {
+        toast.error("Ya existe un pedido para esta área hoy. No se puede crear otro.")
+        return
+      }
+
       // Get current user to obtain userId
       const currentUser = await usersService.getMe()
       if (!currentUser || !currentUser.id) {
@@ -152,11 +203,11 @@ export function ShoppingCartDrawer({
         unitMeasurementId: item.selectedUnitId,
       }))
 
-      const orderData = {
+      const orderData: CreateOrderDto = {
         userId: currentUser.id,
         areaId: parseInt(selectedAreaId, 10),
         totalAmount: totalPrice,
-        status: "created" as any,
+        status: "created",
         observation: observation || undefined,
         orderItems,
       }
@@ -166,6 +217,12 @@ export function ShoppingCartDrawer({
       await createOrderMutation.mutateAsync(orderData)
       
       toast.success("✓ Orden creada exitosamente")
+      setBlockedAreaIds((prev) => {
+        const next = new Set(prev)
+        const asNumber = Number(selectedAreaId)
+        if (Number.isFinite(asNumber)) next.add(asNumber)
+        return next
+      })
       onClearCart()
       setObservation("")
       onClose()
@@ -265,7 +322,7 @@ export function ShoppingCartDrawer({
               {/* Seleccionar Área */}
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-gray-700">Área de entrega *</label>
-                <Select value={selectedAreaId} onValueChange={setSelectedAreaId} disabled={isLoadingAreas}>
+                <Select value={selectedAreaId} onValueChange={setSelectedAreaId} disabled={isLoadingAreas || isCheckingAreas}>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Selecciona un área" />
                   </SelectTrigger>
@@ -274,13 +331,16 @@ export function ShoppingCartDrawer({
                       <div className="p-2 text-center text-sm text-gray-500">Cargando áreas...</div>
                     ) : areas.length > 0 ? (
                       areas.map((area) => (
-                        <SelectItem key={area.id} value={area.id.toString()}>
+                        <SelectItem key={area.id} value={area.id.toString()} disabled={blockedAreaIds.has(area.id)}>
                           <div className="flex items-center gap-2">
                             <div
                               className="w-3 h-3 rounded-full"
                               style={{ backgroundColor: area.color }}
                             />
-                            {area.name}
+                            <span className="truncate">
+                              {area.name}
+                              {blockedAreaIds.has(area.id) ? " (bloqueada)" : ""}
+                            </span>
                           </div>
                         </SelectItem>
                       ))
@@ -289,6 +349,9 @@ export function ShoppingCartDrawer({
                     )}
                   </SelectContent>
                 </Select>
+                {areas.length > 0 && areas.every((a) => blockedAreaIds.has(a.id)) && (
+                  <p className="text-xs text-red-600">Todas tus áreas están bloqueadas hoy por pedidos existentes.</p>
+                )}
               </div>
 
               {/* Observaciones */}
@@ -302,16 +365,6 @@ export function ShoppingCartDrawer({
                 />
               </div>
 
-              {/* Total */}
-              <div className="bg-gray-50 p-3 rounded-lg">
-                <div className="flex justify-between items-center">
-                  <span className="font-semibold text-gray-700">Total:</span>
-                  <span className="text-lg font-bold text-green-600">
-                    ${totalPrice.toFixed(2)}
-                  </span>
-                </div>
-              </div>
-
               {/* Botones */}
               <div className="grid grid-cols-2 gap-3">
                 <Button variant="outline" onClick={onClearCart}>
@@ -320,7 +373,13 @@ export function ShoppingCartDrawer({
                 <Button
                   className="bg-green-600 hover:bg-green-700 text-white"
                   onClick={handleSubmit}
-                  disabled={isSubmitting || !selectedAreaId || isLoadingAreas}
+                  disabled={
+                    isSubmitting ||
+                    !selectedAreaId ||
+                    isLoadingAreas ||
+                    isCheckingAreas ||
+                    (areas.length > 0 && areas.every((a) => blockedAreaIds.has(a.id)))
+                  }
                 >
                   {isSubmitting ? (
                     <>

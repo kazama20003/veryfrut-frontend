@@ -14,10 +14,12 @@ function decodeJwtPayload(token: string): AuthPayload | null {
   if (parts.length < 2) {
     return null;
   }
+
   const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
   const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
+
   try {
-    const json = atob(padded);
+    const json = Buffer.from(padded, 'base64').toString('utf8');
     return JSON.parse(json) as AuthPayload;
   } catch {
     return null;
@@ -30,7 +32,7 @@ function redirectTo(request: NextRequest, pathname: string) {
   return NextResponse.redirect(url);
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get(TOKEN_KEY)?.value;
 
@@ -71,3 +73,4 @@ export function middleware(request: NextRequest) {
 export const config = {
   matcher: ['/login', '/users/:path*', '/dashboard/:path*'],
 };
+

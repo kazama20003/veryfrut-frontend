@@ -49,7 +49,18 @@ export default function SuppliersPage() {
   const [editStatus, setEditStatus] = useState<'created' | 'processing' | 'completed' | 'cancelled'>('created');
   const [editPaid, setEditPaid] = useState(false);
 
-  // Calcular estadÃ­sticas
+  const parseDateFromInput = (value: string, boundary: 'start' | 'end'): Date | undefined => {
+    if (!value) return undefined;
+    const [yearRaw, monthRaw, dayRaw] = value.split('-');
+    const year = Number(yearRaw);
+    const month = Number(monthRaw);
+    const day = Number(dayRaw);
+    if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return undefined;
+    if (boundary === 'start') return new Date(year, month - 1, day, 0, 0, 0, 0);
+    return new Date(year, month - 1, day, 23, 59, 59, 999);
+  };
+
+  // Calcular estadísticas
   const suppliers = suppliersData?.data || [];
   const totalSuppliers = suppliers.length;
 
@@ -108,10 +119,24 @@ export default function SuppliersPage() {
   };
 
   const handleDailyReport = async () => {
+    const start = startDate ? parseDateFromInput(startDate, 'start') : undefined;
+    const end = endDate ? parseDateFromInput(endDate, 'end') : undefined;
+
+    if (startDate && !start) {
+      toast.error('Fecha inicio invalida');
+      return;
+    }
+    if (endDate && !end) {
+      toast.error('Fecha fin invalida');
+      return;
+    }
+    if (start && end && start > end) {
+      toast.error('La fecha fin debe ser mayor o igual a la fecha inicio');
+      return;
+    }
+
     try {
       setReportLoading(true);
-      const start = startDate ? new Date(startDate) : undefined;
-      const end = endDate ? new Date(endDate) : undefined;
 
       const filename = `reporte_diario_${new Date().toISOString().split('T')[0]}.xlsx`;
       await generateDailyReportByClient({
@@ -130,10 +155,24 @@ export default function SuppliersPage() {
   };
 
   const handleProductReport = async () => {
+    const start = startDate ? parseDateFromInput(startDate, 'start') : undefined;
+    const end = endDate ? parseDateFromInput(endDate, 'end') : undefined;
+
+    if (startDate && !start) {
+      toast.error('Fecha inicio invalida');
+      return;
+    }
+    if (endDate && !end) {
+      toast.error('Fecha fin invalida');
+      return;
+    }
+    if (start && end && start > end) {
+      toast.error('La fecha fin debe ser mayor o igual a la fecha inicio');
+      return;
+    }
+
     try {
       setReportLoading(true);
-      const start = startDate ? new Date(startDate) : undefined;
-      const end = endDate ? new Date(endDate) : undefined;
 
       const filename = `reporte_productos_${new Date().toISOString().split('T')[0]}.xlsx`;
       await generateReportByProductUnit({
@@ -171,7 +210,7 @@ export default function SuppliersPage() {
       color: 'from-emerald-500 to-emerald-600',
     },
     {
-      title: 'Productos Ãšnicos',
+      title: 'Productos Únicos',
       value: suppliers.reduce((sum, supplier) => {
         return sum + (supplier.purchases?.reduce((itemSum, purchase) => itemSum + (purchase.purchaseItems?.length || 0), 0) || 0);
       }, 0).toString(),
@@ -180,7 +219,7 @@ export default function SuppliersPage() {
       color: 'from-purple-500 to-purple-600',
     },
     {
-      title: 'InversiÃ³n Total',
+      title: 'Inversión Total',
       value: `$${totalAmount.toLocaleString('es-ES', { maximumFractionDigits: 0 })}`,
       description: 'Monto invertido en compras',
       icon: TrendingUp,
@@ -193,7 +232,7 @@ export default function SuppliersPage() {
       {/* Hero Section */}
       <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white px-6 py-16">
         <div className="max-w-7xl mx-auto">
-          <h1 className="text-5xl font-bold mb-4">GestiÃ³n de Proveedores</h1>
+          <h1 className="text-5xl font-bold mb-4">Gestión de Proveedores</h1>
           <p className="text-xl text-slate-300 mb-8 max-w-2xl">
             Administra proveedores, registra compras y controla tu inventario de forma eficiente.
           </p>
@@ -347,13 +386,13 @@ export default function SuppliersPage() {
             </CardHeader>
             <CardContent>
               <CardDescription className="text-slate-600 mb-4">
-                Registra nuevos proveedores con todos sus datos de contacto e informaciÃ³n adicional.
+                Registra nuevos proveedores con todos sus datos de contacto e información adicional.
               </CardDescription>
               <div className="space-y-2 mb-6">
-                <p className="text-sm text-slate-700">âœ“ Datos de contacto completos</p>
-                <p className="text-sm text-slate-700">âœ“ InformaciÃ³n de empresa</p>
-                <p className="text-sm text-slate-700">âœ“ DirecciÃ³n y ubicaciÃ³n</p>
-                <p className="text-sm text-slate-700">âœ“ Historial de cambios</p>
+                <p className="text-sm text-slate-700">✓ Datos de contacto completos</p>
+                <p className="text-sm text-slate-700">✓ Información de empresa</p>
+                <p className="text-sm text-slate-700">✓ Dirección y ubicación</p>
+                <p className="text-sm text-slate-700">✓ Historial de cambios</p>
               </div>
               <Link href="/dashboard/supliers/create">
                 <Button className="w-full bg-blue-600 hover:bg-blue-700">
@@ -378,10 +417,10 @@ export default function SuppliersPage() {
                 Registra compras a proveedores con detalles de productos y costos.
               </CardDescription>
               <div className="space-y-2 mb-6">
-                <p className="text-sm text-slate-700">âœ“ MÃºltiples productos por compra</p>
-                <p className="text-sm text-slate-700">âœ“ CÃ¡lculo automÃ¡tico de totales</p>
-                <p className="text-sm text-slate-700">âœ“ Seguimiento de estado</p>
-                <p className="text-sm text-slate-700">âœ“ Observaciones y notas</p>
+                <p className="text-sm text-slate-700">✓ Múltiples productos por compra</p>
+                <p className="text-sm text-slate-700">✓ Cálculo automático de totales</p>
+                <p className="text-sm text-slate-700">✓ Seguimiento de estado</p>
+                <p className="text-sm text-slate-700">✓ Observaciones y notas</p>
               </div>
               <Link href="/dashboard/supliers/purchases">
                 <Button className="w-full bg-emerald-600 hover:bg-emerald-700">
@@ -504,8 +543,8 @@ export default function SuppliersPage() {
                         {supplier.companyName && <p className="text-slate-600">Empresa: {supplier.companyName}</p>}
                         {supplier.contactName && <p className="text-slate-600">Contacto: {supplier.contactName}</p>}
                         {supplier.email && <p className="text-slate-600">Email: {supplier.email}</p>}
-                        {supplier.phone && <p className="text-slate-600">TelÃ©fono: {supplier.phone}</p>}
-                        {supplier.address && <p className="text-slate-600">DirecciÃ³n: {supplier.address}</p>}
+                        {supplier.phone && <p className="text-slate-600">Teléfono: {supplier.phone}</p>}
+                        {supplier.address && <p className="text-slate-600">Dirección: {supplier.address}</p>}
                       </CardDescription>
                     </div>
                     <div className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold">
@@ -658,24 +697,24 @@ export default function SuppliersPage() {
           </CardHeader>
           <CardContent>
             <p className="text-indigo-800 mb-4">
-              Nuestro sistema de gestiÃ³n de proveedores estÃ¡ diseÃ±ado para ser intuitivo y fÃ¡cil de usar. Con una interfaz clara y organizada, puedes:
+              Nuestro sistema de gestión de proveedores está diseñado para ser intuitivo y fácil de usar. Con una interfaz clara y organizada, puedes:
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-white/50 p-4 rounded-lg border border-indigo-100">
-                <p className="text-sm font-semibold text-indigo-900 mb-2">ðŸ“‹ AdministraciÃ³n Eficiente</p>
-                <p className="text-sm text-indigo-800">MantÃ©n un registro completo de todos tus proveedores y sus datos de contacto en un solo lugar.</p>
+                <p className="text-sm font-semibold text-indigo-900 mb-2">📋 Administración Eficiente</p>
+                <p className="text-sm text-indigo-800">Mantén un registro completo de todos tus proveedores y sus datos de contacto en un solo lugar.</p>
               </div>
               <div className="bg-white/50 p-4 rounded-lg border border-indigo-100">
-                <p className="text-sm font-semibold text-indigo-900 mb-2">ðŸ’° Control Financiero</p>
+                <p className="text-sm font-semibold text-indigo-900 mb-2">💰 Control Financiero</p>
                 <p className="text-sm text-indigo-800">Rastrea todas tus compras y gastos con detalle, incluyendo fechas de pago y estados.</p>
               </div>
               <div className="bg-white/50 p-4 rounded-lg border border-indigo-100">
-                <p className="text-sm font-semibold text-indigo-900 mb-2">ðŸ“Š AnÃ¡lisis de Datos</p>
-                <p className="text-sm text-indigo-800">ObtÃ©n reportes y estadÃ­sticas sobre tus compras y proveedores para tomar mejores decisiones.</p>
+                <p className="text-sm font-semibold text-indigo-900 mb-2">📊 Análisis de Datos</p>
+                <p className="text-sm text-indigo-800">Obtén reportes y estadísticas sobre tus compras y proveedores para tomar mejores decisiones.</p>
               </div>
               <div className="bg-white/50 p-4 rounded-lg border border-indigo-100">
-                <p className="text-sm font-semibold text-indigo-900 mb-2">ðŸ”„ FÃ¡cil de Usar</p>
-                <p className="text-sm text-indigo-800">Interfaz intuitiva que no requiere capacitaciÃ³n. Comienza a usar en minutos.</p>
+                <p className="text-sm font-semibold text-indigo-900 mb-2">🔄 Fácil de Usar</p>
+                <p className="text-sm text-indigo-800">Interfaz intuitiva que no requiere capacitación. Comienza a usar en minutos.</p>
               </div>
             </div>
           </CardContent>

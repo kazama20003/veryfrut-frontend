@@ -3,7 +3,7 @@
 import type React from "react"
 import Image from "next/image"
 import { useState, useCallback, useMemo } from "react"
-import { ShoppingCart, Star, Tag, Plus, Minus, Package, Info } from "lucide-react"
+import { ShoppingCart, Star, Tag, Plus, Minus, Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
