@@ -4,6 +4,7 @@ import type { FormEvent } from "react"
 import { useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { useQueryClient } from "@tanstack/react-query"
 import { Space_Grotesk, Inter } from "next/font/google"
 import { Loader2, Lock, Mail, Phone, ArrowLeft, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -24,6 +25,7 @@ const body = Inter({
 
 export default function LoginPage() {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const loginMutation = useLoginMutation()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -62,12 +64,16 @@ export default function LoginPage() {
       const payload = decodeJwtPayload(token)
       const role = payload?.role
 
+      queryClient.clear()
+
       if (role === "admin") {
-        router.push("/dashboard")
+        router.replace("/dashboard")
+        router.refresh()
         return
       }
 
-      router.push("/users")
+      router.replace("/users")
+      router.refresh()
     } catch {
       const message = "Credenciales invalidas"
       toast.error(message)
@@ -253,3 +259,5 @@ export default function LoginPage() {
     </div>
   )
 }
+
+

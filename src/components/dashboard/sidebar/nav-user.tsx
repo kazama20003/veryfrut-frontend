@@ -30,6 +30,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { useRouter } from "next/navigation"
+import { useQueryClient } from "@tanstack/react-query"
 import { clearAuthToken } from "@/lib/api/auth"
 import { useMeQuery } from "@/lib/api/hooks"
 
@@ -44,6 +45,7 @@ export function NavUser({
 }) {
   const { isMobile } = useSidebar()
   const router = useRouter()
+  const queryClient = useQueryClient()
   const { data: currentUser } = useMeQuery()
   const displayName = currentUser
     ? `${currentUser.firstName} ${currentUser.lastName}`
@@ -59,7 +61,9 @@ export function NavUser({
 
   const handleLogout = () => {
     clearAuthToken()
-    router.push("/login")
+    queryClient.clear()
+    router.replace("/login")
+    router.refresh()
   }
 
   return (
@@ -133,3 +137,5 @@ export function NavUser({
     </SidebarMenu>
   )
 }
+
+
