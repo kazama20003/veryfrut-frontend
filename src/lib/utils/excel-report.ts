@@ -135,7 +135,7 @@ const generateExcelReport = async (
 
   // Fila 1 - Título
   const titleCell = worksheet.getCell(1, 1);
-  titleCell.value = `Reporte de Productos - ${finalDateRangeStr}`;
+  titleCell.value = finalDateRangeStr;
   titleCell.font = { name: 'Calibri', size: 16, bold: true, color: { argb: 'FF000000' } };
   titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
 
@@ -402,7 +402,7 @@ const generateExcelReport = async (
   const url = window.URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `reporte-productos-${startDate || endDate || 'todas-fechas'}.xlsx`;
+  link.download = `reporte-productos-${startDate || 'inicio'}-${endDate || 'fin'}.xlsx`;
   link.click();
   window.URL.revokeObjectURL(url);
 };

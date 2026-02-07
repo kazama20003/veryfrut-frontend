@@ -204,12 +204,32 @@ export default function UsersHistoryPage() {
 
     try {
       setDownloadingOrderId(order.id)
-      const html = buildOrderHtml(order)
-      const blob = new Blob([html], { type: "text/html;charset=utf-8" })
+      const payload = {
+        areaName: order.area?.name || `Area #${order.areaId}`,
+        observation: order.observation?.trim() || "",
+        items: (order.orderItems || []).map((item) => ({
+          productName:
+            item.product?.name ||
+            productNameById.get(item.productId) ||
+            `Producto #${item.productId}`,
+          quantity: item.quantity,
+          unitName: item.unitMeasurement?.name || "Unidad",
+        })),
+      }
+
+      const response = await fetch("/api/orders/print", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) throw new Error("No se pudo generar PDF")
+
+      const blob = await response.blob()
       const url = URL.createObjectURL(blob)
       const link = document.createElement("a")
       link.href = url
-      link.download = `pedido-${order.id}.html`
+      link.download = `pedido-${order.id}.pdf`
       document.body.appendChild(link)
       link.click()
       link.remove()
@@ -221,7 +241,7 @@ export default function UsersHistoryPage() {
     } finally {
       setDownloadingOrderId(null)
     }
-  }, [buildOrderHtml])
+  }, [productNameById])
 
   const handleDeleteOrder = useCallback(async (order: Order) => {
     if (!window.confirm(`¿Eliminar el pedido #${order.id}?`)) return
