@@ -195,6 +195,35 @@ export function UsersDashboard() {
   const { isMobile, mounted } = useIsMobile()
   const { cart, addToCart, getTotalItems, getTotalPrice, ...cartMethods } = useCart()
 
+  const handleAddItemFromDrawer = useCallback(
+    (product: Product, selectedUnitId: number, quantity: number) => {
+      addToCart(
+        {
+          ...product,
+          quantity,
+          selectedUnitId,
+        },
+        selectedUnitId,
+      )
+    },
+    [addToCart],
+  )
+
+  const handleChangeCartItemUnit = useCallback(
+    (item: (typeof cart)[number], nextUnitId: number) => {
+      if (item.selectedUnitId === nextUnitId) return
+      cartMethods.removeFromCart(item.id, item.selectedUnitId, item.cartItemId)
+      addToCart(
+        {
+          ...item,
+          selectedUnitId: nextUnitId,
+        },
+        nextUnitId,
+      )
+    },
+    [addToCart, cartMethods],
+  )
+
   // Cargar datos
   const fetchData = useCallback(async () => {
     try {
@@ -462,6 +491,9 @@ export function UsersDashboard() {
         isOpen={isCartOpen}
         onClose={() => setIsCartOpen(false)}
         cart={cart}
+        availableProducts={products}
+        onAddItem={handleAddItemFromDrawer}
+        onChangeItemUnit={handleChangeCartItemUnit}
         onUpdateQuantity={cartMethods.updateCartItemQuantity}
         onRemoveItem={cartMethods.removeFromCart}
         onClearCart={cartMethods.clearCart}
