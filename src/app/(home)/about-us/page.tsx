@@ -10,7 +10,7 @@ export default function AboutUsPage() {
         <div className="text-center mb-16">
           <h1 className="text-6xl lg:text-7xl font-extrabold tracking-tight mb-8">Sobre Veryfrut</h1>
           <p className="text-2xl text-gray-700 max-w-3xl mx-auto leading-relaxed">
-            En Veryfrut nos dedicamos a distribuir las mejores frutas y verduras orgánicas, garantizando frescura y calidad en cada producto.
+            En Veryfrut nos dedicamos a distribuir las mejores frutas y verduras de la mejor calidad, garantizando frescura y calidad en cada producto.
           </p>
         </div>
       </section>
@@ -21,7 +21,7 @@ export default function AboutUsPage() {
           <div>
             <h2 className="text-5xl font-extrabold tracking-tight mb-8">Nuestra Historia</h2>
             <p className="text-lg text-gray-700 mb-6 leading-relaxed">
-              Fundada en 2021, Veryfrut nació con la misión de proporcionar productos orgánicos de la más alta calidad a nuestros clientes. Comenzamos como una pequeña empresa familiar y hemos crecido hasta convertirnos en uno de los distribuidores líderes de frutas y verduras orgánicas en la región.
+              Fundada en 2021, Veryfrut nació con la misión de proporcionar productos de la más alta calidad a nuestros clientes. Comenzamos como una pequeña empresa familiar y hemos crecido hasta convertirnos en uno de los distribuidores líderes de frutas y verduras en la región.
             </p>
             <p className="text-lg text-gray-700 leading-relaxed">
               Trabajamos directamente con agricultores locales que comparten nuestra pasión por la agricultura sostenible y los productos naturales, garantizando que cada fruta y verdura que distribuimos cumpla con los más altos estándares de calidad.
@@ -96,7 +96,7 @@ export default function AboutUsPage() {
         <div className="bg-gradient-to-r from-[var(--color-lime)]/15 to-[var(--color-lime)]/10 rounded-[28px] px-12 py-16 border border-[var(--color-lime)]/20 text-center">
           <h2 className="text-4xl lg:text-5xl font-extrabold tracking-tight mb-6">Conectemos</h2>
           <p className="text-lg text-gray-700 mb-8 max-w-2xl mx-auto">
-            Estamos listos para hablar sobre cómo podemos colaborar y ofrecerte los mejores productos orgánicos.
+            Estamos listos para hablar sobre cómo podemos colaborar y ofrecerte los mejores productos.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button className="inline-flex items-center justify-center gap-3 bg-[#ff6b5c] text-black font-bold px-8 py-4 rounded-xl hover:scale-105 transition-transform">

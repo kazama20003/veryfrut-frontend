@@ -59,12 +59,12 @@ const data = {
       icon: Apple,
       items: [
         {
-          title: "Compras",
-          url: "/dashboard/supliers",
+          title: "Proveedores Activos",
+          url: "/dashboard/supliers/users",
         },
         {
-          title: "Reportes",
-          url: "/dashboard/supliers",
+          title: "Registrar compras", 
+          url: "/dashboard/supliers/purchases",
         },
       ],
     },

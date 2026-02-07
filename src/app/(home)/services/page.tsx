@@ -10,7 +10,7 @@ export default function ServicesPage() {
         <div className="text-center mb-16">
           <h1 className="text-6xl lg:text-7xl font-extrabold tracking-tight mb-8">Nuestros Servicios</h1>
           <p className="text-2xl text-gray-700 max-w-3xl mx-auto leading-relaxed">
-            En Veryfrut ofrecemos servicios completos de distribución de frutas y verduras orgánicas para satisfacer las necesidades de nuestros diversos clientes.
+            En Veryfrut ofrecemos servicios completos de distribución de frutas y verduras de la mejor calidad para satisfacer las necesidades de nuestros diversos clientes.
           </p>
         </div>
       </section>
@@ -32,7 +32,7 @@ export default function ServicesPage() {
                 'Entregas programadas y puntuales',
                 'Productos frescos seleccionados',
                 'Precios competitivos para mayoristas',
-                'Amplia variedad de productos orgánicos',
+                'Amplia variedad de productos ded calidad',
               ].map((item, i) => (
                 <li key={i} className="flex items-start gap-3">
                   <span className="text-[var(--color-lime)] font-bold text-xl">✓</span>
@@ -71,7 +71,7 @@ export default function ServicesPage() {
           <div className="lg:order-1">
             <h2 className="text-5xl font-extrabold tracking-tight mb-6">Distribución Minorista</h2>
             <p className="text-lg text-gray-700 mb-8 leading-relaxed">
-              Suministramos a tiendas especializadas, mercados locales y pequeños comercios que buscan ofrecer a sus clientes productos orgánicos de la mejor calidad.
+              Suministramos a tiendas especializadas, mercados locales y pequeños comercios que buscan ofrecer a sus clientes productos de la mejor calidad.
             </p>
             <p className="text-lg text-gray-700 mb-10 leading-relaxed">
               Entendemos las necesidades específicas de los minoristas y ofrecemos soluciones flexibles que se adaptan a diferentes volúmenes y frecuencias de pedido.
@@ -81,7 +81,6 @@ export default function ServicesPage() {
               {[
                 'Pedidos personalizados',
                 'Entregas frecuentes de productos frescos',
-                'Asesoramiento sobre almacenamiento y exhibición',
                 'Material promocional para punto de venta',
               ].map((item, i) => (
                 <li key={i} className="flex items-start gap-3">
@@ -107,7 +106,7 @@ export default function ServicesPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {[
-            { step: '1', title: 'Selección', desc: 'Seleccionamos cuidadosamente los mejores productos orgánicos de agricultores certificados.' },
+            { step: '1', title: 'Selección', desc: 'Seleccionamos cuidadosamente los mejores productos de agricultores.' },
             { step: '2', title: 'Control de Calidad', desc: 'Verificamos la calidad y frescura de cada producto antes de su distribución.' },
             { step: '3', title: 'Empaque', desc: 'Empacamos los productos con materiales sostenibles que mantienen su frescura.' },
             { step: '4', title: 'Distribución', desc: 'Entregamos los productos a tiempo y en perfectas condiciones a nuestros clientes.' },
@@ -134,7 +133,7 @@ export default function ServicesPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {[
             { title: 'Frutas Frescas', image: 'https://res.cloudinary.com/demzflxgq/image/upload/v1770447062/Exportaciones-de-frutas-chilenas-alcanzaron-cifras-record-en-el-primer-trimestre-de-2024-00_zz4iad.jpg' },
-            { title: 'Verduras Orgánicas', image: 'https://res.cloudinary.com/demzflxgq/image/upload/v1770447045/fresh-fruits-and-vegetables_yhlz0w.jpg' },
+            { title: 'Verduras', image: 'https://res.cloudinary.com/demzflxgq/image/upload/v1770447045/fresh-fruits-and-vegetables_yhlz0w.jpg' },
             { title: 'Frutas Exóticas', image: 'https://res.cloudinary.com/demzflxgq/image/upload/v1770444706/sabrina_ripke_fotografie-pumpkin-1768857_1280_xxf594.jpg' },
             { title: 'Productos de Temporada', image: 'https://res.cloudinary.com/demzflxgq/image/upload/v1770444706/vitaly-gariev-xSdL0ze7Qqc-unsplash_czjiib.jpg' },
           ].map((producto, i) => (
@@ -160,7 +159,7 @@ export default function ServicesPage() {
         <div className="bg-gradient-to-r from-[var(--color-lime)]/15 to-[var(--color-lime)]/10 rounded-[28px] px-12 py-16 border border-[var(--color-lime)]/20 text-center">
           <h2 className="text-4xl lg:text-5xl font-extrabold tracking-tight mb-6">¿Listo para comenzar?</h2>
           <p className="text-lg text-gray-700 mb-8 max-w-2xl mx-auto">
-            Contáctanos hoy mismo para discutir cómo podemos satisfacer tus necesidades de distribución de frutas y verduras orgánicas.
+            Contáctanos hoy mismo para discutir cómo podemos satisfacer tus necesidades de distribución de frutas y verduras de la mejor calidad.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button className="inline-flex items-center justify-center gap-3 bg-[#ff6b5c] text-black font-bold px-8 py-4 rounded-xl hover:scale-105 transition-transform">

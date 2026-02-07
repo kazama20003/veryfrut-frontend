@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { generateExcelReport } from '@/lib/utils/excel-report';
-import { useCategoriesQuery } from '@/lib/api';
+import { useCategoriesQuery, useOrdersByDateRangeQuery } from '@/lib/api';
 import { useOrdersByDay } from '@/lib/api/hooks/use-orders-by-day';
 import { Loader2, Download } from 'lucide-react';
 
@@ -38,6 +38,12 @@ export function ReportDialog({ open, onOpenChange, orders }: ReportDialogProps) 
     mode === 'specific' && isSpecificValid && open
   );
 
+  const { data: rangeOrdersData, isLoading: isRangeLoading } = useOrdersByDateRangeQuery(
+    mode === 'range' && isRangeValid ? startDate : null,
+    mode === 'range' && isRangeValid ? endDate : null,
+    { page: 1, limit: 1000 }
+  );
+
   const { data: categoriesData = [] } = useCategoriesQuery();
 
   const filteredOrders = (() => {
@@ -46,7 +52,7 @@ export function ReportDialog({ open, onOpenChange, orders }: ReportDialogProps) 
       return specificOrdersData;
     }
     if (!isRangeValid) return [];
-    return orders.filter((order) => {
+    return rangeOrdersData?.items || orders.filter((order) => {
       if (!order.createdAt) return false;
       const orderDate = order.createdAt.slice(0, 10);
       return orderDate >= startDate && orderDate <= endDate;
@@ -208,7 +214,7 @@ export function ReportDialog({ open, onOpenChange, orders }: ReportDialogProps) 
           <Button
             variant='outline'
             onClick={resetAndClose}
-            disabled={isGenerating || isSpecificLoading}
+            disabled={isGenerating || isSpecificLoading || isRangeLoading}
           >
             Cancelar
           </Button>
@@ -217,12 +223,13 @@ export function ReportDialog({ open, onOpenChange, orders }: ReportDialogProps) 
             disabled={
               isGenerating ||
               isSpecificLoading ||
+              isRangeLoading ||
               (mode === 'specific' ? !isSpecificValid : !isRangeValid) ||
               filteredOrders.length === 0
             }
             className='gap-2'
           >
-            {isGenerating || isSpecificLoading ? (
+            {isGenerating || isSpecificLoading || isRangeLoading ? (
               <>
                 <Loader2 className='w-4 h-4 animate-spin' />
                 {isGenerating ? 'Generando...' : 'Cargando...'}

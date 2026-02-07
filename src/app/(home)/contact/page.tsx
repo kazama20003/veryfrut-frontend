@@ -33,7 +33,7 @@ export default function ContactPage() {
         <div className="text-center mb-16">
           <h1 className="text-6xl lg:text-7xl font-extrabold tracking-tight mb-8">Contáctanos</h1>
           <p className="text-2xl text-gray-700 max-w-3xl mx-auto leading-relaxed">
-            Estamos aquí para responder cualquier pregunta que puedas tener sobre nuestros productos orgánicos y servicios de distribución. Contáctanos y te responderemos lo antes posible.
+            Estamos aquí para responder cualquier pregunta que puedas tener sobre nuestros productos y servicios de distribución. Contáctanos y te responderemos lo antes posible.
           </p>
         </div>
       </section>
@@ -109,7 +109,7 @@ export default function ContactPage() {
           <div className="text-center mb-12">
             <h2 className="text-5xl font-extrabold tracking-tight mb-4">Envíanos un mensaje</h2>
             <p className="text-lg text-gray-600">
-              Completa el formulario y nos pondremos en contacto contigo para discutir tus necesidades de productos orgánicos.
+              Completa el formulario y nos pondremos en contacto contigo para discutir tus necesidades de productos de la mejor calidad.
             </p>
           </div>
 
@@ -189,7 +189,7 @@ export default function ContactPage() {
                 name="message"
                 value={formData.message}
                 onChange={handleChange}
-                placeholder="Cuéntanos sobre tus necesidades de productos orgánicos..."
+                placeholder="Cuéntanos sobre tus necesidades de productos de la mejor calidad..."
                 rows={6}
                 className="w-full px-4 py-3 rounded-xl border border-black/10 focus:outline-none focus:ring-2 focus:ring-[var(--color-lime)] resize-none"
                 required
@@ -218,7 +218,7 @@ export default function ContactPage() {
             { q: '¿Cómo puedo realizar un pedido?', a: 'Puedes contactarnos por teléfono, correo electrónico o a través del formulario de contacto en nuestra web.' },
             { q: '¿Cuál es el pedido mínimo?', a: 'El pedido mínimo varía según el tipo de cliente y productos. Contáctanos para detalles específicos.' },
             { q: '¿Ofrecen envío gratuito?', a: 'Ofrecemos opciones de envío según el volumen del pedido. Consulta nuestras políticas de envío.' },
-            { q: '¿Todos sus productos son orgánicos?', a: 'Sí, todos nuestros productos cuentan con certificaciones orgánicas de agricultores especializados.' },
+            { q: '¿Todos sus productos son de agricultura sostenible?', a: 'Sí, todos nuestros productos cuentan con certificaciones de agricultores especializados.' },
             { q: '¿Atienden a restaurantes y hoteles?', a: 'Sí, contamos con un programa especial para establecimientos comerciales con entregas programadas.' },
           ].map((faq, i) => (
             <div key={i} className="bg-gradient-to-br from-white to-gray-50 rounded-[24px] p-8 border border-black/5 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">

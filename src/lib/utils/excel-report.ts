@@ -35,6 +35,7 @@ interface CategoryProduct {
       areaId: number;
       areaName: string;
       areaColor: string;
+      dateKey: string;
     }>
   >;
 }
@@ -53,6 +54,7 @@ const generateExcelReport = async (
   const finalDateRangeStr = dateRangeStr || (startDate || endDate 
     ? `${startDate || 'inicio'} al ${endDate || 'fin'}` 
     : 'Todas las fechas');
+  const isRangeMode = Boolean(startDate && endDate && startDate !== endDate);
   const ExcelJS = await import('exceljs');
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('Reporte de Productos');
@@ -68,6 +70,7 @@ const generateExcelReport = async (
   // Procesar órdenes
   orders.forEach((order) => {
     if (!order.area || !order.area.company) return;
+    const orderDateKey = order.createdAt ? order.createdAt.slice(0, 10) : '';
 
     const company = order.area.company;
     const area = order.area;
@@ -126,6 +129,7 @@ const generateExcelReport = async (
         areaId: area.id,
         areaName: area.name,
         areaColor: area.color || '#000000',
+        dateKey: orderDateKey,
       });
     });
   });
@@ -250,11 +254,11 @@ const generateExcelReport = async (
           // Agrupar cantidades por área y unidad
           const groupedByAreaAndUnit = new Map<
             string,
-            { quantity: number; unitName: string; areaName: string; areaColor: string }
+            { quantity: number; unitName: string; areaName: string; areaColor: string; dateKey: string }
           >();
 
           quantities.forEach((q) => {
-            const key = `${q.areaId}__${q.unitName}`;
+            const key = isRangeMode ? `${q.areaId}__${q.unitName}__${q.dateKey}` : `${q.areaId}__${q.unitName}`;
             const current = groupedByAreaAndUnit.get(key);
             if (current) {
               current.quantity += q.quantity;
@@ -265,13 +269,17 @@ const generateExcelReport = async (
               unitName: q.unitName,
               areaName: q.areaName,
               areaColor: q.areaColor,
+              dateKey: q.dateKey,
             });
           });
 
           const groups = Array.from(groupedByAreaAndUnit.values()).sort((a, b) => {
             const areaNameCmp = a.areaName.localeCompare(b.areaName, 'es-ES', { sensitivity: 'base' });
             if (areaNameCmp !== 0) return areaNameCmp;
-            return a.unitName.localeCompare(b.unitName, 'es-ES', { sensitivity: 'base' });
+            const unitCmp = a.unitName.localeCompare(b.unitName, 'es-ES', { sensitivity: 'base' });
+            if (unitCmp !== 0) return unitCmp;
+            if (!isRangeMode) return 0;
+            return (a.dateKey || '').localeCompare(b.dateKey || '');
           });
 
           const richText: ExcelJS.RichText[] = groups.flatMap((g, idx) => {
@@ -317,15 +325,15 @@ const generateExcelReport = async (
       const cell = worksheet.getCell(currentRow, colIndex + 2);
 
       // Sumar todas las cantidades para esta company en esta categoría
-      let totalQuantity = 0;
+      let totalItems = 0;
       sortedProducts.forEach(({ quantitiesByCompany }) => {
         const quantities = quantitiesByCompany.get(company.id) || [];
         quantities.forEach((q) => {
-          totalQuantity += q.quantity;
+          totalItems += 1;
         });
       });
 
-      cell.value = totalQuantity > 0 ? totalQuantity : '';
+      cell.value = totalItems > 0 ? totalItems : '';
       // Total: tamaño 16, CON NEGRITA, sin unidad de medida
       cell.font = { name: 'Calibri', size: 16, bold: true, color: { argb: 'FF000000' } };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFCCCCCC' } };

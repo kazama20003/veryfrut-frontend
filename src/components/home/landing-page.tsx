@@ -17,15 +17,15 @@ export default function LandingPage() {
           <div className="text-center mb-16">
             <h2 className="text-5xl lg:text-6xl font-extrabold tracking-tight mb-6">Nuestras Categorías</h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Descubre nuestra amplia selección de productos frescos y orgánicos
+              Descubre nuestra amplia selección de productos frescos y de calidad, cuidadosamente seleccionados para satisfacer tus necesidades.
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
-              { title: "Verduras", image: "https://res.cloudinary.com/demzflxgq/image/upload/v1770447045/fresh-fruits-and-vegetables_yhlz0w.jpg", items: ["Acelga", "Cebolla", "Cilantro", "Apio"] },
-              { title: "Frutas", image: "https://res.cloudinary.com/demzflxgq/image/upload/v1770447062/Exportaciones-de-frutas-chilenas-alcanzaron-cifras-record-en-el-primer-trimestre-de-2024-00_zz4iad.jpg", items: ["Aguaymanto", "Arándano", "Chirimoya", "Mango"] },
-              { title: "IGV", image: "https://res.cloudinary.com/demzflxgq/image/upload/v1770447122/Viet-Foods-and-Beverage-Indomie-Box-Packaging-for-Food-Konjac-Mini-Food-Korean-Stir-Fried-2X-Spicy-Ramen-Instant-Noodles_naldir.webp", items: ["Huevo Codorniz", "Queso Paria", "Fideos"] },
+              { title: "Verduras", image: "https://res.cloudinary.com/dhkb93mix/image/upload/v1770494623/WhatsApp_Image_2026-02-07_at_11.42.31_AM_hr9rko.jpg", items: ["Acelga", "Cebolla", "Cilantro", "Apio"] },
+              { title: "Frutas", image: "https://res.cloudinary.com/dhkb93mix/image/upload/v1770494636/WhatsApp_Image_2026-02-07_at_11.43.54_AM_cwlb84.jpg", items: ["Aguaymanto", "Arándano", "Chirimoya", "Mango"] },
+              { title: "IGV", image: "https://res.cloudinary.com/dhkb93mix/image/upload/v1770494358/622903-800-auto_pozdfm.webp", items: ["Huevo Codorniz", "Queso Paria", "Fideos"] },
               { title: "Otros", image: "https://res.cloudinary.com/demzflxgq/image/upload/v1770447045/fresh-fruits-and-vegetables_yhlz0w.jpg", items: ["Cáscara de Cacao", "Garbanzo", "Chuño"] },
             ].map((cat, i) => (
               <div key={i} className="group overflow-hidden rounded-[20px] border border-black/5 shadow-[0_8px_30px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)] transition-all duration-300">
@@ -74,7 +74,7 @@ export default function LandingPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2">
               <div className="relative h-64 sm:h-auto bg-gray-200">
                 <Image
-                  src="https://res.cloudinary.com/demzflxgq/image/upload/v1770447237/images---2021-04-21T110903.378_aihmpi.jpg"
+                  src="https://res.cloudinary.com/dhkb93mix/image/upload/v1770494556/WhatsApp_Image_2026-02-07_at_11.42.31_AM_a7tdpd.jpg"
                   alt="Línea Mayorista"
                   fill
                   className="object-cover group-hover:scale-105 transition-transform duration-300"
@@ -207,7 +207,7 @@ export default function LandingPage() {
             { icon: "🛒", title: "Venta Online", desc: "Pedidos fáciles a través de nuestra plataforma" },
             { icon: "📱", title: "Adaptado a Móviles", desc: "Realiza pedidos desde cualquier dispositivo" },
             { icon: "⚙️", title: "Personalización Fácil", desc: "Adapta tus pedidos a tus necesidades" },
-            { icon: "🍎", title: "Productos Orgánicos", desc: "100% certificados y naturales" },
+            { icon: "🍎", title: "Productos de Calidad", desc: "100% naturales" },
             { icon: "💰", title: "Mejor Precio", desc: "Precios justos para todos" },
           ].map((feature, i) => (
             <div key={i} className="text-center bg-gradient-to-br from-white to-gray-50 rounded-[20px] p-8 border border-black/5 shadow-[0_8px_30px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)] transition-shadow">
