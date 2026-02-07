@@ -56,6 +56,10 @@ const generateExcelReport = async (
   const ExcelJS = await import('exceljs');
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('Reporte de Productos');
+  const observationFillArgb = 'FFFFFF99';
+  const categoryRowHeight = 28;
+  const observationRowHeight = 56;
+  const observationFontSize = 18;
 
   // Agrupar por company
   const companiesMap = new Map<number, CompanyData>();
@@ -135,25 +139,31 @@ const generateExcelReport = async (
   titleCell.font = { name: 'Calibri', size: 16, bold: true, color: { argb: 'FF000000' } };
   titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
 
-  // Fila 2 - Encabezado de companies
+  const renderCompanyHeaderRow = (row: number, includeProductsHeader = false) => {
+    worksheet.getRow(row).height = categoryRowHeight;
+    const headerCell = worksheet.getCell(row, 1);
+    headerCell.value = includeProductsHeader ? 'Productos' : '';
+    headerCell.font = { name: 'Calibri', size: 16, bold: true, color: { argb: 'FFFFFFFF' } };
+    headerCell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: includeProductsHeader ? 'FF666666' : 'FFFFFFFF' },
+    };
+    headerCell.alignment = { horizontal: 'center', vertical: 'middle' };
+    headerCell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+
+    companies.forEach((company, colIndex) => {
+      const cell = worksheet.getCell(row, colIndex + 2);
+      cell.value = company.name.toUpperCase();
+      cell.font = { name: 'Calibri', size: 16, bold: true, color: { argb: 'FF000000' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: hexToArgb(company.color) } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+    });
+  };
+
+  // Iniciar en la fila 2, sin encabezado global de "Productos"
   let currentRow = 2;
-  const headerCell = worksheet.getCell(currentRow, 1);
-  headerCell.value = 'Productos';
-  headerCell.font = { name: 'Calibri', size: 16, bold: true, color: { argb: 'FFFFFFFF' } };
-  headerCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF666666' } };
-  headerCell.alignment = { horizontal: 'center', vertical: 'middle' };
-
-  // Encabezados de companies
-  companies.forEach((company, colIndex) => {
-    const cell = worksheet.getCell(currentRow, colIndex + 2);
-    cell.value = company.name.toUpperCase();
-    cell.font = { name: 'Calibri', size: 16, bold: true, color: { argb: 'FFFFFFFF' } };
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: hexToArgb(company.color) } };
-    cell.alignment = { horizontal: 'center', vertical: 'middle' };
-    cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
-  });
-
-  currentRow++;
 
   // Agrupar observaciones por company ANTES de iterar categorías
   const observationsByCompany = new Map<number, string[]>();
@@ -200,18 +210,16 @@ const generateExcelReport = async (
 
   // Iterar por categorías en orden
   sortedCategoryEntries.forEach(([categoryName, productsMap]) => {
+    // Encabezado de empresas desde la primera categoría
+    renderCompanyHeaderRow(currentRow);
+
     // Fila de categoría - TÍTULO CON TAMAÑO 16 Y NEGRITA
     const categoryCell = worksheet.getCell(currentRow, 1);
+    worksheet.getRow(currentRow).height = categoryRowHeight;
     categoryCell.value = categoryName.toUpperCase();
     categoryCell.font = { name: 'Calibri', size: 16, bold: true, color: { argb: 'FF000000' } };
     categoryCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
     categoryCell.alignment = { horizontal: 'left', vertical: 'middle' };
-
-    companies.forEach((_, colIndex) => {
-      const cell = worksheet.getCell(currentRow, colIndex + 2);
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
-      cell.alignment = { horizontal: 'center', vertical: 'middle' };
-    });
 
     currentRow++;
 
@@ -345,7 +353,7 @@ const generateExcelReport = async (
   companies.forEach((company, colIndex) => {
     const cell = worksheet.getCell(currentRow, colIndex + 2);
     cell.value = company.name.toUpperCase();
-    cell.font = { name: 'Calibri', size: 16, bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.font = { name: 'Calibri', size: 16, bold: true, color: { argb: 'FF000000' } };
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: hexToArgb(company.color) } };
     cell.alignment = { horizontal: 'center', vertical: 'middle' };
     cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
@@ -366,18 +374,19 @@ const generateExcelReport = async (
       
       if (obsIndex < companyObs.length) {
         cell.value = `• ${companyObs[obsIndex]}`;
-        cell.font = { name: 'Calibri', size: 16, bold: true, color: { argb: 'FF000000' } };
+        cell.font = { name: 'Calibri', size: observationFontSize, bold: true, color: { argb: 'FF000000' } };
         cell.alignment = { horizontal: 'left', vertical: 'top', wrapText: true };
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: observationFillArgb } };
       } else {
         cell.value = '';
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
+        cell.font = { name: 'Calibri', size: observationFontSize, bold: true, color: { argb: 'FF000000' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: observationFillArgb } };
       }
       
       cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
     });
 
-    worksheet.getRow(currentRow).height = 35;
+    worksheet.getRow(currentRow).height = observationRowHeight;
     currentRow++;
   }
 
