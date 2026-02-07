@@ -1,19 +1,22 @@
 "use client"
 
-import { useMemo, useSyncExternalStore } from "react"
+import { useCallback, useMemo, useState, useSyncExternalStore } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { ArrowLeft, ShoppingBag } from "lucide-react"
+import { ArrowLeft, ShoppingBag, Loader2, Trash2, Printer, Download } from "lucide-react"
 import {
   useOrderQuery,
+  useUpdateOrderMutation,
   useProductsQuery,
 } from "@/lib/api"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import type { OrderItem } from "@/types/order"
+import { toast } from "sonner"
 
 function formatDate(dateValue?: string) {
   if (!dateValue) return "Sin fecha"
@@ -55,7 +58,25 @@ function getItemLabel(item: OrderItem) {
   return `${formatQuantity(item.quantity)} ${unitName}`
 }
 
+interface AddedOrderItemDraft {
+  tempId: string
+  productId: number
+  productName: string
+  imageUrl?: string
+  unitMeasurementId: number
+  unitName: string
+  quantity: string
+  price: number
+}
+
 export default function OrderHistoryDetailPage() {
+  const [draftObservation, setDraftObservation] = useState("")
+  const [draftObservationTouched, setDraftObservationTouched] = useState(false)
+  const [draftQuantities, setDraftQuantities] = useState<Record<number, string>>({})
+  const [productSearch, setProductSearch] = useState("")
+  const [addedItems, setAddedItems] = useState<AddedOrderItemDraft[]>([])
+  const [isPrinting, setIsPrinting] = useState(false)
+  const [isDownloading, setIsDownloading] = useState(false)
   const params = useParams()
   const isHydrated = useSyncExternalStore(
     () => () => {},
@@ -70,6 +91,7 @@ export default function OrderHistoryDetailPage() {
   }, [params?.id])
 
   const { data: order, isLoading: isOrderLoading, error: orderError } = useOrderQuery(orderId)
+  const updateOrderMutation = useUpdateOrderMutation(orderId ?? 0)
   const { data: productsResponse } = useProductsQuery({ page: 1, limit: 500, order: "asc", sortBy: "name" })
   const productNameById = useMemo(() => {
     const map = new Map<number, string>()
@@ -93,6 +115,241 @@ export default function OrderHistoryDetailPage() {
   const canEdit = useMemo(() => {
     return isHydrated && isToday(order?.createdAt)
   }, [isHydrated, order?.createdAt])
+
+  const productUnitOptions = useMemo(() => {
+    const items = productsResponse?.items ?? []
+    return items.flatMap((product) =>
+      (product.productUnits ?? []).map((unit) => ({
+        key: `${product.id}__${unit.id}`,
+        productId: product.id,
+        productName: product.name,
+        imageUrl: product.imageUrl,
+        unitMeasurementId: unit.unitMeasurementId,
+        unitName: unit.unitMeasurement?.name ?? "Unidad",
+        price: product.price ?? 0,
+      }))
+    )
+  }, [productsResponse?.items])
+
+  const filteredProductUnitOptions = useMemo(() => {
+    const term = productSearch.trim().toLowerCase()
+    if (!term) return productUnitOptions
+    return productUnitOptions.filter((option) =>
+      `${option.productName} ${option.unitName}`.toLowerCase().includes(term)
+    )
+  }, [productSearch, productUnitOptions])
+
+  const handleAddProduct = useCallback((selectedKey: string) => {
+    const selected = productUnitOptions.find((option) => option.key === selectedKey)
+    if (!selected) return
+
+    const step = 0.25
+
+    const existingItem = (order?.orderItems ?? []).find(
+      (item) => item.productId === selected.productId && item.unitMeasurementId === selected.unitMeasurementId
+    )
+
+    if (existingItem) {
+      const currentValue = Number.parseFloat(
+        (draftQuantities[existingItem.id] ?? `${existingItem.quantity}`).replace(",", ".")
+      )
+      const nextQuantity = (Number.isFinite(currentValue) ? currentValue : existingItem.quantity) + step
+      setDraftQuantities((prev) => ({ ...prev, [existingItem.id]: String(nextQuantity) }))
+      setProductSearch("")
+      return
+    }
+
+    const existingAddedIndex = addedItems.findIndex(
+      (item) => item.productId === selected.productId && item.unitMeasurementId === selected.unitMeasurementId
+    )
+
+    if (existingAddedIndex >= 0) {
+      setAddedItems((prev) =>
+        prev.map((item, index) => {
+          if (index !== existingAddedIndex) return item
+          const current = Number.parseFloat(item.quantity.replace(",", "."))
+          const nextQuantity = (Number.isFinite(current) ? current : 0) + step
+          return { ...item, quantity: String(nextQuantity) }
+        })
+      )
+      setProductSearch("")
+      return
+    }
+
+    setAddedItems((prev) => [
+      ...prev,
+      {
+        tempId: `${selected.productId}-${selected.unitMeasurementId}-${Date.now()}`,
+        productId: selected.productId,
+        productName: selected.productName,
+        imageUrl: selected.imageUrl,
+        unitMeasurementId: selected.unitMeasurementId,
+        unitName: selected.unitName,
+        quantity: String(step),
+        price: selected.price,
+      },
+    ])
+    setProductSearch("")
+  }, [addedItems, draftQuantities, order?.orderItems, productUnitOptions])
+
+  const handleSaveEdit = useCallback(async () => {
+    if (!order || !orderId) return
+
+    const normalizedItems = (order.orderItems || []).map((item) => {
+      const parsed = Number.parseFloat((draftQuantities[item.id] ?? `${item.quantity}`).replace(",", "."))
+      return {
+        ...item,
+        quantity: Number.isFinite(parsed) ? parsed : item.quantity,
+      }
+    })
+
+    const normalizedAddedItems = addedItems.map((item) => {
+      const parsed = Number.parseFloat(item.quantity.replace(",", "."))
+      return {
+        ...item,
+        quantity: Number.isFinite(parsed) ? parsed : 0,
+      }
+    })
+
+    const hasInvalidQuantity =
+      normalizedItems.some((item) => item.quantity <= 0) ||
+      normalizedAddedItems.some((item) => item.quantity <= 0)
+    if (hasInvalidQuantity) {
+      toast.error("La cantidad debe ser mayor a 0")
+      return
+    }
+
+    const totalAmount =
+      normalizedItems.reduce((sum, item) => sum + item.quantity * item.price, 0) +
+      normalizedAddedItems.reduce((sum, item) => sum + item.quantity * item.price, 0)
+
+    try {
+      await updateOrderMutation.mutateAsync({
+        observation: draftObservationTouched ? (draftObservation.trim() || undefined) : (order.observation?.trim() || undefined),
+        totalAmount,
+        orderItems: [
+          ...normalizedItems.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            price: item.price,
+            unitMeasurementId: item.unitMeasurementId,
+          })),
+          ...normalizedAddedItems.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            price: item.price,
+            unitMeasurementId: item.unitMeasurementId,
+          })),
+        ],
+      })
+      setAddedItems([])
+      setDraftObservationTouched(false)
+      toast.success("Pedido actualizado")
+    } catch (error) {
+      console.error("[OrderHistoryDetailPage] Error updating order:", error)
+      toast.error("No se pudo actualizar el pedido")
+    }
+  }, [addedItems, draftObservation, draftObservationTouched, draftQuantities, order, orderId, updateOrderMutation])
+
+  const buildPrintPayload = useCallback(() => {
+    if (!order) return null
+
+    const normalizedItems = (order.orderItems || []).map((item) => {
+      const parsed = Number.parseFloat((draftQuantities[item.id] ?? `${item.quantity}`).replace(",", "."))
+      return {
+        productName:
+          item.product?.name || productNameById.get(item.productId) || `Producto #${item.productId}`,
+        quantity: Number.isFinite(parsed) ? parsed : item.quantity,
+        unitName: item.unitMeasurement?.name ?? "Unidad",
+      }
+    })
+
+    const normalizedAddedItems = addedItems.map((item) => {
+      const parsed = Number.parseFloat(item.quantity.replace(",", "."))
+      return {
+        productName: item.productName,
+        quantity: Number.isFinite(parsed) ? parsed : 0,
+        unitName: item.unitName,
+      }
+    })
+
+    const mergedItems = [...normalizedItems, ...normalizedAddedItems].filter((item) => item.quantity > 0)
+    if (mergedItems.length === 0) return null
+
+    return {
+      areaName: order.area?.name || `Area #${order.areaId}`,
+      observation: draftObservationTouched ? draftObservation : order.observation || "",
+      items: mergedItems,
+    }
+  }, [addedItems, draftObservation, draftObservationTouched, draftQuantities, order, productNameById])
+
+  const handlePrintPdf = useCallback(async () => {
+    const payload = buildPrintPayload()
+    if (!payload) {
+      toast.error("No hay productos para imprimir")
+      return
+    }
+
+    try {
+      setIsPrinting(true)
+      const response = await fetch("/api/orders/print", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      if (!response.ok) throw new Error("No se pudo generar PDF")
+
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const win = window.open(url, "_blank", "noopener,noreferrer")
+      if (!win) {
+        const link = document.createElement("a")
+        link.href = url
+        link.target = "_blank"
+        link.rel = "noopener noreferrer"
+        link.click()
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 30000)
+    } catch (error) {
+      console.error("[OrderHistoryDetailPage] Error printing PDF:", error)
+      toast.error("No se pudo imprimir")
+    } finally {
+      setIsPrinting(false)
+    }
+  }, [buildPrintPayload])
+
+  const handleDownloadPdf = useCallback(async () => {
+    const payload = buildPrintPayload()
+    if (!payload) {
+      toast.error("No hay productos para descargar")
+      return
+    }
+
+    try {
+      setIsDownloading(true)
+      const response = await fetch("/api/orders/print", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      if (!response.ok) throw new Error("No se pudo generar PDF")
+
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = `pedido-${order?.id ?? "detalle"}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 30000)
+    } catch (error) {
+      console.error("[OrderHistoryDetailPage] Error downloading PDF:", error)
+      toast.error("No se pudo descargar")
+    } finally {
+      setIsDownloading(false)
+    }
+  }, [buildPrintPayload, order?.id])
 
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">
@@ -146,6 +403,37 @@ export default function OrderHistoryDetailPage() {
               </CardHeader>
               <CardContent className="pt-0">
                 <Separator className="mb-4" />
+                {canEdit && (
+                  <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                    <p className="mb-2 text-sm font-semibold text-blue-900">Agregar producto</p>
+                    <div className="space-y-2">
+                      <Input
+                        type="text"
+                        value={productSearch}
+                        onChange={(event) => setProductSearch(event.target.value)}
+                        className="h-9 bg-white"
+                        placeholder="Buscar producto o unidad"
+                      />
+                      <div className="max-h-44 overflow-y-auto rounded-md border border-blue-100 bg-white">
+                        {filteredProductUnitOptions.length === 0 ? (
+                          <p className="px-3 py-2 text-xs text-gray-500">Sin resultados</p>
+                        ) : (
+                          filteredProductUnitOptions.map((option) => (
+                            <button
+                              key={option.key}
+                              type="button"
+                              onClick={() => handleAddProduct(option.key)}
+                              className="flex w-full items-center justify-between border-b border-blue-50 px-3 py-2 text-left text-sm hover:bg-blue-50 last:border-b-0"
+                            >
+                              <span>{option.productName} - {option.unitName}</span>
+                              <span className="text-xs font-semibold text-blue-700">Agregar</span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div className="space-y-3">
                   {(order.orderItems || []).map((item) => (
                     <div
@@ -172,13 +460,104 @@ export default function OrderHistoryDetailPage() {
                               productNameById.get(item.productId) ||
                               `Producto #${item.productId}`}
                           </p>
-                          <p className="text-xs text-gray-500">Cantidad: {getItemLabel(item)}</p>
+                          {canEdit ? (
+                            <div className="mt-1 flex items-center gap-2">
+                              <span className="text-xs text-gray-500">Cantidad:</span>
+                              <Input
+                                type="number"
+                                min="0.001"
+                                step="0.25"
+                                value={draftQuantities[item.id] ?? String(item.quantity)}
+                                onChange={(event) =>
+                                  setDraftQuantities((prev) => ({
+                                    ...prev,
+                                    [item.id]: event.target.value,
+                                  }))
+                                }
+                                className="h-8 w-28 text-sm"
+                              />
+                              <span className="text-xs text-gray-500">{item.unitMeasurement?.name ?? "Unidad"}</span>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-gray-500">Cantidad: {getItemLabel(item)}</p>
+                          )}
                         </div>
                       </div>
                     </div>
                   ))}
                   {(order.orderItems || []).length === 0 && (
                     <p className="text-sm text-gray-500">No hay items registrados en esta orden.</p>
+                  )}
+                  {canEdit &&
+                    addedItems.map((item) => (
+                      <div
+                        key={item.tempId}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2"
+                      >
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded-md bg-white">
+                            <Image
+                              src={item.imageUrl || "/placeholder.svg"}
+                              alt={item.productName}
+                              fill
+                              className="object-cover"
+                              sizes="40px"
+                            />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">{item.productName}</p>
+                            <div className="mt-1 flex items-center gap-2">
+                              <span className="text-xs text-gray-500">Cantidad:</span>
+                              <Input
+                                type="number"
+                                min="0.001"
+                                step="0.25"
+                                value={item.quantity}
+                                onChange={(event) =>
+                                  setAddedItems((prev) =>
+                                    prev.map((current) =>
+                                      current.tempId === item.tempId
+                                        ? { ...current, quantity: event.target.value }
+                                        : current
+                                    )
+                                  )
+                                }
+                                className="h-8 w-28 text-sm"
+                              />
+                              <span className="text-xs text-gray-500">{item.unitName}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() =>
+                            setAddedItems((prev) => prev.filter((current) => current.tempId !== item.tempId))
+                          }
+                          className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                          aria-label="Quitar producto"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                </div>
+                <div className="mt-4 space-y-1">
+                  <p className="text-xs font-semibold text-gray-500">Observacion</p>
+                  {canEdit ? (
+                    <textarea
+                      value={draftObservationTouched ? draftObservation : (order.observation || "")}
+                      onChange={(event) => {
+                        setDraftObservationTouched(true)
+                        setDraftObservation(event.target.value)
+                      }}
+                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      rows={2}
+                      placeholder="Observaciones del pedido"
+                    />
+                  ) : (
+                    <p className="text-sm text-gray-600">{order.observation || "Sin observaciones"}</p>
                   )}
                 </div>
               </CardContent>
@@ -205,14 +584,32 @@ export default function OrderHistoryDetailPage() {
                   </p>
                 )}
                 {canEdit ? (
-                  <Button asChild className="w-full bg-blue-600 hover:bg-blue-700 text-white">
-                    <Link href={`/users/edit-order/${order.id}`} className="flex items-center justify-center gap-2">
-                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                      Editar pedido
-                    </Link>
-                  </Button>
+                  <div className="space-y-2">
+                    <Button
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                      onClick={() => void handleSaveEdit()}
+                      disabled={updateOrderMutation.isPending}
+                    >
+                      {updateOrderMutation.isPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Guardando...
+                        </>
+                      ) : (
+                        "Guardar cambios"
+                      )}
+                    </Button>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button type="button" variant="outline" onClick={() => void handlePrintPdf()} disabled={isPrinting}>
+                        {isPrinting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
+                        Imprimir
+                      </Button>
+                      <Button type="button" variant="outline" onClick={() => void handleDownloadPdf()} disabled={isDownloading}>
+                        {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                        Descargar
+                      </Button>
+                    </div>
+                  </div>
                 ) : (
                   <Button disabled className="w-full">
                     <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

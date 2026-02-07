@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useMemo, useRef, useEffect } from "react"
+import { useState, useCallback, useMemo, useEffect } from "react"
 import { Package, Plus, X, Trash2, Send, Printer } from "lucide-react"
 import { useProductsQuery } from "@/lib/api/hooks/useProduct"
 import { useCreateOrderMutation, useCheckOrderQuery } from "@/lib/api/hooks/useOrder"
@@ -13,7 +13,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Suspense } from "react"
 import Loading from "@/components/dashboard/sidebar/loading"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { SimpleProductCombobox } from "@/components/users/simple-product-combobox"
 import { Product, ProductUnit } from "@/types/product"
 import type { User } from "@/types/users"
 import { CreateOrderDto, CreateOrderItemDto, CheckOrderResponse } from "@/types/order"
@@ -37,7 +36,7 @@ interface TableProduct {
 
 const FastOrdersPage = () => {
   const [tableProducts, setTableProducts] = useState<TableProduct[]>([])
-  const [selectedProductId, setSelectedProductId] = useState<number | undefined>()
+  const [selectedProductKey, setSelectedProductKey] = useState<string>("")
   const [selectedAreaId, setSelectedAreaId] = useState<number | undefined>()
   const [isCreatingOrder, setIsCreatingOrder] = useState(false)
   const [isPrinting, setIsPrinting] = useState(false)
@@ -50,7 +49,6 @@ const FastOrdersPage = () => {
   
   // Track orders created in this session to prevent duplicates
   const [sessionOrders, setSessionOrders] = useState<Set<number>>(new Set())
-  const comboboxRef = useRef<HTMLDivElement>(null)
   const createOrderMutation = useCreateOrderMutation()
   
   // Prevent hydration mismatches by only rendering after component is mounted
@@ -209,17 +207,6 @@ const FastOrdersPage = () => {
 
   }
 
-  // Auto-focus combobox on mount
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const searchInput = comboboxRef.current?.querySelector("input")
-      if (searchInput) {
-        searchInput.focus()
-      }
-    }, 100)
-    return () => clearTimeout(timer)
-  }, [])
-
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -239,69 +226,55 @@ const FastOrdersPage = () => {
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [tableProducts, selectedAreaId])
 
-  // Handle product selection - adds to table automatically
-  const handleProductSelect = useCallback((productId: number) => {
-    console.log("[FastPage] handleProductSelect called with:", productId)
-    setSelectedProductId(undefined)
+  const productUnitOptions = useMemo(() => {
+    return products.flatMap((product) => {
+      if (!product.productUnits || product.productUnits.length === 0) return []
+      return product.productUnits.map((unit) => ({
+        key: `${product.id}__${unit.id}`,
+        productId: product.id,
+        productUnitId: unit.id,
+        label: `${product.name} - ${unit.unitMeasurement.name}`,
+      }))
+    })
+  }, [products])
 
-    const product = products.find(p => p.id === productId)
-    if (!product) {
-  
+  const handleAddSelectedProduct = useCallback(() => {
+    if (!selectedProductKey) {
+      toast.error("Selecciona un producto para añadir")
       return
     }
 
-    // Stock validation removed from frontend
+    const selectedOption = productUnitOptions.find((option) => option.key === selectedProductKey)
+    if (!selectedOption) return
 
-    // Validate that product has units available
-    if (!product.productUnits || product.productUnits.length === 0) {
-  
-      return
-    }
+    const product = products.find((p) => p.id === selectedOption.productId)
+    if (!product) return
 
-    const defaultUnit = product.productUnits?.[0]?.unitMeasurement || { id: 0, name: "Unidad", description: "" }
-    const defaultUnitId = product.productUnits?.[0]?.id || 0
+    const selectedProductUnit = product.productUnits?.find((unit) => unit.id === selectedOption.productUnitId)
+    const selectedUnit = selectedProductUnit?.unitMeasurement || { id: 0, name: "Unidad", description: "" }
+    const selectedUnitId = selectedProductUnit?.id || 0
 
-    // For products with multiple units/variations, require user to select the specific one
-    if (product.productUnits?.length > 1) {
-      const existingProductsWithDifferentUnits = tableProducts.filter(tp => tp.product.id === product.id)
-      if (existingProductsWithDifferentUnits.length > 0) {
-        // Product already in table with different unit - allow to add another variation
-        console.log("[FastPage] Product already in table with different variation - allowing to add")
-      }
-    }
-
-    // Check if product with the SAME presentation already exists - this is not allowed
-    const existingProduct = tableProducts.find(tp => 
-      tp.product.id === product.id && tp.selectedUnitId === defaultUnitId
+    const existingProduct = tableProducts.find(
+      (tp) => tp.product.id === product.id && tp.selectedUnitId === selectedUnitId
     )
     if (existingProduct) {
-      console.log("[FastPage] Product with same presentation already exists - blocking")
+      toast.error("Ese producto con esa unidad ya está en la tabla")
       return
     }
 
-    // Generate a stable ID to avoid hydration issues
-    const uniqueId = Math.random().toString(36).substr(2, 9)
+    const uniqueId = Math.random().toString(36).slice(2, 11)
     const newTableProduct: TableProduct = {
-      id: `${product.id}-${defaultUnitId}-${uniqueId}`,
+      id: `${product.id}-${selectedUnitId}-${uniqueId}`,
       product,
       quantity: 1,
-      selectedUnitId: defaultUnitId,
-      selectedUnit: defaultUnit,
+      selectedUnitId: selectedUnitId,
+      selectedUnit: selectedUnit,
       isEditing: true,
     }
 
-    setTableProducts(prev => [...prev, newTableProduct])
-
-
-    // Re-focus combobox for next product
-    setTimeout(() => {
-      const searchInput = comboboxRef.current?.querySelector("input")
-      if (searchInput) {
-        searchInput.focus()
-        searchInput.value = ""
-      }
-    }, 100)
-  }, [products, tableProducts])
+    setTableProducts((prev) => [...prev, newTableProduct])
+    setSelectedProductKey("")
+  }, [productUnitOptions, products, selectedProductKey, tableProducts])
 
   // Update product quantity with 0.25 increments
   const handleUpdateQuantity = useCallback((tableProductId: string, newQuantity: number) => {
@@ -474,13 +447,6 @@ const FastOrdersPage = () => {
         }
       }
       
-      // Re-focus combobox
-      setTimeout(() => {
-        const searchInput = comboboxRef.current?.querySelector("input")
-        if (searchInput) {
-          searchInput.focus()
-        }
-      }, 200)
     } catch (error: unknown) {
       console.error("Error creating order:", error)
     } finally {
@@ -666,23 +632,36 @@ const FastOrdersPage = () => {
             </div>
 
             {/* Product Selection */}
-            <div ref={comboboxRef} className="bg-white rounded-xl border border-gray-200 p-5 shadow-md">
+            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-md">
               <label className="text-sm font-semibold text-gray-700 block mb-3">Producto</label>
-              <SimpleProductCombobox
-                products={products}
-                selectedProductId={selectedProductId}
-                onProductSelect={handleProductSelect}
-                placeholder="Busca un producto..."
-              />
-              <p className="text-xs text-gray-500 mt-3 flex items-center gap-1">
-                <kbd className="px-2 py-1 bg-gray-100 border border-gray-300 rounded text-xs">Enter</kbd> o selecciona para agregar
-              </p>
+              <div className="space-y-3">
+                <Select value={selectedProductKey} onValueChange={setSelectedProductKey}>
+                  <SelectTrigger className="rounded-lg border-gray-300">
+                    <SelectValue placeholder="Selecciona producto - unidad de medida" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {productUnitOptions.length > 0 ? (
+                      productUnitOptions.map((option) => (
+                        <SelectItem key={option.key} value={option.key}>
+                          {option.label}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <div className="px-2 py-1.5 text-sm text-gray-500">No hay productos disponibles</div>
+                    )}
+                  </SelectContent>
+                </Select>
+                <Button type="button" onClick={handleAddSelectedProduct} className="w-full">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Anadir producto
+                </Button>
+              </div>
             </div>
           </div>
 
           {/* Products Table */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-md overflow-hidden">
-            <div className="overflow-x-auto">
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
@@ -856,6 +835,111 @@ const FastOrdersPage = () => {
                   )}
                 </tbody>
               </table>
+            </div>
+
+            <div className="md:hidden p-3 space-y-3">
+              {isLoading ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="animate-pulse rounded-lg border border-gray-200 p-3">
+                    <div className="h-4 w-2/3 rounded bg-gray-200 mb-2" />
+                    <div className="h-3 w-1/2 rounded bg-gray-200 mb-3" />
+                    <div className="h-9 w-full rounded bg-gray-200" />
+                  </div>
+                ))
+              ) : tableProducts.length === 0 ? (
+                <div className="py-12 text-center">
+                  <div className="mb-3 inline-flex rounded-full bg-gray-100 p-3">
+                    <Package className="h-7 w-7 text-gray-400" />
+                  </div>
+                  <h3 className="text-base font-bold text-gray-900">Tabla vacía</h3>
+                  <p className="mt-1 text-sm text-gray-600">Busca productos para agregarlos automáticamente</p>
+                </div>
+              ) : (
+                tableProducts.map((tableProduct) => {
+                  const { product, quantity, id, selectedUnit, isEditing } = tableProduct
+
+                  return (
+                    <div key={id} className="rounded-lg border border-gray-200 p-3">
+                      <div className="mb-3">
+                        <div className="text-sm font-semibold text-gray-900">{product.name}</div>
+                        <div className="text-xs text-gray-500 line-clamp-2">{product.description}</div>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div className="hidden">
+                          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Presentación</p>
+                          {isEditing ? (
+                            <Select
+                              value={tableProduct.selectedUnitId.toString()}
+                              onValueChange={(value) => handleUpdateUnit(id, parseInt(value))}
+                            >
+                              <SelectTrigger className="h-10 w-full border border-gray-300 bg-white rounded-lg font-semibold">
+                                <SelectValue placeholder="Selecciona presentación" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {product.productUnits?.map((unit) => (
+                                  <SelectItem key={unit.id} value={unit.id.toString()}>
+                                    {unit.unitMeasurement.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 px-3 py-1 text-xs font-semibold rounded-lg">
+                              {selectedUnit.name}
+                            </Badge>
+                          )}
+                        </div>
+
+                        <div>
+                          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Cantidad</p>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => handleUpdateQuantity(id, quantity - 0.25)}
+                              disabled={quantity <= 0.25}
+                              className="h-8 w-8"
+                            >
+                              <X className="h-3 w-3 rotate-45" />
+                            </Button>
+                            <Input
+                              type="number"
+                              step={0.25}
+                              value={quantity}
+                              onChange={(e) => handleUpdateQuantity(id, parseFloat(e.target.value) || 0.25)}
+                              className="h-8 flex-1 text-center"
+                              min={0.25}
+                              max={product.stock}
+                            />
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => handleUpdateQuantity(id, quantity + 0.25)}
+                              className="h-8 w-8"
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          <p className="mt-1 text-xs text-gray-500">{selectedUnit.name}</p>
+                        </div>
+
+                        <div className="flex justify-end">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemoveProduct(id)}
+                            className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
+                            aria-label="Eliminar producto"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
             </div>
           </div>
 
