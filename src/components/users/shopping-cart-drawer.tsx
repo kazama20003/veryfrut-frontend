@@ -3,7 +3,7 @@
 import type React from "react"
 import Image from "next/image"
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Minus, Plus, ShoppingCart, Trash2, Loader2, Printer } from "lucide-react"
+import { Minus, Plus, ShoppingCart, Trash2, Loader2, Printer, Download, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -54,6 +54,9 @@ interface ShoppingCartDrawerProps {
   isOpen: boolean
   onClose: () => void
   cart: Product[]
+  availableProducts: Omit<Product, "quantity" | "selectedUnitId" | "cartItemId">[]
+  onAddItem: (product: Omit<Product, "quantity" | "selectedUnitId" | "cartItemId">, selectedUnitId: number, quantity: number) => void
+  onChangeItemUnit: (item: Product, nextUnitMeasurementId: number) => void
   onUpdateQuantity: (productId: number, selectedUnitId: number, quantity: number, cartItemId?: string) => void
   onRemoveItem: (productId: number, selectedUnitId: number, cartItemId?: string) => void
   onClearCart: () => void
@@ -77,6 +80,9 @@ export function ShoppingCartDrawer({
   isOpen,
   onClose,
   cart,
+  availableProducts,
+  onAddItem,
+  onChangeItemUnit,
   onUpdateQuantity,
   onRemoveItem,
   onClearCart,
@@ -84,9 +90,14 @@ export function ShoppingCartDrawer({
 }: ShoppingCartDrawerProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isPrinting, setIsPrinting] = useState(false)
+  const [isDownloading, setIsDownloading] = useState(false)
   const [areas, setAreas] = useState<Area[]>([])
   const [blockedAreaIds, setBlockedAreaIds] = useState<Set<number>>(new Set())
   const [selectedAreaId, setSelectedAreaId] = useState<string>("")
+  const [productSearch, setProductSearch] = useState("")
+  const [newProductId, setNewProductId] = useState<number | null>(null)
+  const [newSelectedUnitId, setNewSelectedUnitId] = useState<string>("")
+  const [newQuantity, setNewQuantity] = useState<string>("1")
   const [quantityInputs, setQuantityInputs] = useState<Record<string, string>>({})
   const [editingQuantityKey, setEditingQuantityKey] = useState<string | null>(null)
   const [observation, setObservation] = useState("")
@@ -102,6 +113,19 @@ export function ShoppingCartDrawer({
   const getCartItemKey = useCallback(
     (item: Product) => item.cartItemId || `${item.id}-${item.selectedUnitId}`,
     [],
+  )
+
+  const filteredProducts = useMemo(() => {
+    const query = productSearch.trim().toLowerCase()
+    if (!query) return availableProducts.slice(0, 12)
+    return availableProducts
+      .filter((product) => `${product.name} ${product.description}`.toLowerCase().includes(query))
+      .slice(0, 12)
+  }, [availableProducts, productSearch])
+
+  const selectedNewProduct = useMemo(
+    () => availableProducts.find((product) => product.id === newProductId) ?? null,
+    [availableProducts, newProductId],
   )
 
   const fetchAreas = useCallback(async () => {
@@ -303,6 +327,97 @@ export function ShoppingCartDrawer({
     }
   }, [areas, cart, observation, selectedAreaId])
 
+  const handleDownload = useCallback(async () => {
+    if (cart.length === 0) {
+      toast.error("El carrito esta vacio")
+      return
+    }
+
+    if (!selectedAreaId) {
+      toast.error("Selecciona un area para descargar")
+      return
+    }
+
+    try {
+      setIsDownloading(true)
+
+      const selectedArea = areas.find((area) => area.id.toString() === selectedAreaId)
+      const payload = {
+        areaName: selectedArea?.name ?? "Area no especificada",
+        observation: observation || "",
+        items: cart.map((item) => ({
+          productName: item.name,
+          quantity: item.quantity,
+          unitName:
+            item.productUnits.find((unit) => unit.unitMeasurement.id === item.selectedUnitId)?.unitMeasurement.name ??
+            "Unidad",
+        })),
+      }
+
+      const response = await fetch("/api/orders/print", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        throw new Error("No se pudo generar la descarga")
+      }
+
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = `pedido-${selectedAreaId}-${todayDate}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+
+      setTimeout(() => URL.revokeObjectURL(url), 30000)
+      toast.success("Descarga iniciada")
+    } catch (error) {
+      console.error("[shopping-cart-drawer] Error al descargar:", error)
+      toast.error("Error al descargar PDF")
+    } finally {
+      setIsDownloading(false)
+    }
+  }, [areas, cart, observation, selectedAreaId, todayDate])
+
+  const handleSelectNewProduct = useCallback((productId: number) => {
+    const product = availableProducts.find((item) => item.id === productId)
+    if (!product) return
+
+    const firstUnitId = product.productUnits[0]?.unitMeasurement.id
+    setNewProductId(productId)
+    setNewSelectedUnitId(firstUnitId ? firstUnitId.toString() : "")
+    setProductSearch(product.name)
+  }, [availableProducts])
+
+  const handleAddProduct = useCallback(() => {
+    if (!selectedNewProduct) {
+      toast.error("Selecciona un producto")
+      return
+    }
+
+    const parsedQty = Number.parseFloat(newQuantity.replace(",", "."))
+    if (!Number.isFinite(parsedQty) || parsedQty <= 0) {
+      toast.error("Cantidad invalida")
+      return
+    }
+
+    const unitMeasurementId = Number.parseInt(newSelectedUnitId, 10)
+    if (!Number.isFinite(unitMeasurementId)) {
+      toast.error("Selecciona una unidad")
+      return
+    }
+
+    onAddItem(selectedNewProduct, unitMeasurementId, parsedQty)
+    setProductSearch("")
+    setNewProductId(null)
+    setNewSelectedUnitId("")
+    setNewQuantity("1")
+  }, [newQuantity, newSelectedUnitId, onAddItem, selectedNewProduct])
+
   const handleSubmit = async () => {
     if (!selectedAreaId) {
       toast.error("Por favor selecciona un área")
@@ -380,6 +495,73 @@ export function ShoppingCartDrawer({
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto px-6 py-4">
+          <div className="mb-4 space-y-2 rounded-lg border border-gray-200 p-3">
+            <label className="text-xs font-semibold uppercase tracking-wide text-gray-600">Agregar producto</label>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <Input
+                value={productSearch}
+                onChange={(event) => {
+                  setProductSearch(event.target.value)
+                  if (!event.target.value.trim()) {
+                    setNewProductId(null)
+                    setNewSelectedUnitId("")
+                  }
+                }}
+                placeholder="Buscar por nombre"
+                className="pl-9"
+              />
+            </div>
+            {productSearch.trim().length > 0 && (
+              <div className="max-h-40 overflow-y-auto rounded-md border border-gray-200">
+                {filteredProducts.length > 0 ? (
+                  filteredProducts.map((product) => (
+                    <button
+                      key={product.id}
+                      type="button"
+                      onClick={() => handleSelectNewProduct(product.id)}
+                      className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-gray-50"
+                    >
+                      <span className="truncate">{product.name}</span>
+                      <Plus className="h-4 w-4 text-green-600" />
+                    </button>
+                  ))
+                ) : (
+                  <div className="px-3 py-2 text-sm text-gray-500">Sin resultados</div>
+                )}
+              </div>
+            )}
+
+            {selectedNewProduct && (
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <Select value={newSelectedUnitId} onValueChange={setNewSelectedUnitId}>
+                  <SelectTrigger className="sm:col-span-2">
+                    <SelectValue placeholder="Unidad" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {selectedNewProduct.productUnits.map((unit) => (
+                      <SelectItem key={unit.id} value={unit.unitMeasurement.id.toString()}>
+                        {unit.unitMeasurement.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="number"
+                  min={QUANTITY_LIMITS.MIN}
+                  step={QUANTITY_LIMITS.STEP}
+                  value={newQuantity}
+                  onChange={(event) => setNewQuantity(event.target.value)}
+                  className="text-center"
+                />
+                <Button type="button" onClick={handleAddProduct} className="sm:col-span-3">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Agregar al carrito
+                </Button>
+              </div>
+            )}
+          </div>
+
           {cart.length > 0 ? (
             <ul className="space-y-3">
               {cart.map((item) => (
@@ -408,6 +590,21 @@ export function ShoppingCartDrawer({
                   </div>
 
                   <div className="mt-3 flex items-center justify-center gap-2">
+                    <Select
+                      value={item.selectedUnitId.toString()}
+                      onValueChange={(value) => onChangeItemUnit(item, Number.parseInt(value, 10))}
+                    >
+                      <SelectTrigger className="h-8 w-28">
+                        <SelectValue placeholder="Unidad" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {item.productUnits.map((unit) => (
+                          <SelectItem key={unit.id} value={unit.unitMeasurement.id.toString()}>
+                            {unit.unitMeasurement.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <Button
                       variant="outline"
                       size="icon"
@@ -520,7 +717,7 @@ export function ShoppingCartDrawer({
               </div>
 
               {/* Botones */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
                 <Button variant="outline" onClick={onClearCart}>
                   Vaciar
                 </Button>
@@ -534,6 +731,19 @@ export function ShoppingCartDrawer({
                     <>
                       <Printer className="mr-2 h-4 w-4" />
                       Imprimir
+                    </>
+                  )}
+                </Button>
+                <Button variant="outline" onClick={handleDownload} disabled={isDownloading || isLoadingAreas}>
+                  {isDownloading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Descargando...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="mr-2 h-4 w-4" />
+                      Descargar
                     </>
                   )}
                 </Button>

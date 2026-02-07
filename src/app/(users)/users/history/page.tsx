@@ -53,6 +53,15 @@ function getItemLabel(item: OrderItem) {
   return `${formatQuantity(item.quantity)} ${unitName}`
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;")
+}
+
 export default function UsersHistoryPage() {
   const [printingOrderId, setPrintingOrderId] = useState<number | null>(null)
   const [downloadingOrderId, setDownloadingOrderId] = useState<number | null>(null)
@@ -93,6 +102,70 @@ export default function UsersHistoryPage() {
     return map
   }, [productsResponse?.items])
 
+  const buildOrderHtml = useCallback((order: Order) => {
+    const areaName = order.area?.name || `Area #${order.areaId}`
+    const createdAt = formatDate(order.createdAt)
+    const observation = order.observation?.trim() || "-"
+    const rows = (order.orderItems || [])
+      .map((item, idx) => {
+        const productName =
+          item.product?.name ||
+          productNameById.get(item.productId) ||
+          `Producto #${item.productId}`
+        const quantity = formatQuantity(item.quantity)
+        const unitName = item.unitMeasurement?.name || "Unidad"
+        return `
+          <tr>
+            <td>${idx + 1}</td>
+            <td>${escapeHtml(productName)}</td>
+            <td style="text-align:right">${escapeHtml(quantity)}</td>
+            <td>${escapeHtml(unitName)}</td>
+          </tr>
+        `
+      })
+      .join("")
+
+    return `
+      <!doctype html>
+      <html lang="es">
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Pedido #${order.id}</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 24px; color: #111827; }
+          h1 { margin: 0 0 8px 0; font-size: 20px; }
+          p { margin: 4px 0; font-size: 13px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+          th, td { border: 1px solid #e5e7eb; padding: 8px; font-size: 12px; }
+          th { background: #f3f4f6; text-align: left; }
+          .obs { margin-top: 12px; padding: 10px; background: #fffbeb; border: 1px solid #fde68a; font-size: 12px; }
+        </style>
+      </head>
+      <body>
+        <h1>Pedido #${order.id}</h1>
+        <p><strong>Fecha:</strong> ${escapeHtml(createdAt)}</p>
+        <p><strong>Area:</strong> ${escapeHtml(areaName)}</p>
+        <p><strong>Estado:</strong> ${escapeHtml(order.status || "pendiente")}</p>
+        <div class="obs"><strong>Observacion:</strong> ${escapeHtml(observation)}</div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width:56px">#</th>
+              <th>Producto</th>
+              <th style="width:96px; text-align:right">Cantidad</th>
+              <th style="width:120px">Unidad</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `
+  }, [productNameById])
+
   const handlePrintOrder = useCallback(async (order: Order) => {
     if (!order.orderItems || order.orderItems.length === 0) {
       toast.error("No hay productos para imprimir en este pedido")
@@ -101,43 +174,17 @@ export default function UsersHistoryPage() {
 
     try {
       setPrintingOrderId(order.id)
-
-      const payload = {
-        areaName: order.area?.name || `Area #${order.areaId}`,
-        observation: order.observation || "",
-        items: order.orderItems.map((item) => ({
-          productName:
-            item.product?.name ||
-            productNameById.get(item.productId) ||
-            `Producto #${item.productId}`,
-          quantity: item.quantity,
-          unitName: item.unitMeasurement?.name || "Unidad",
-        })),
+      const html = buildOrderHtml(order)
+      const printWindow = window.open("", "_blank", "noopener,noreferrer")
+      if (!printWindow) {
+        throw new Error("No se pudo abrir la ventana de impresion")
       }
 
-      const response = await fetch("/api/orders/print", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-
-      if (!response.ok) {
-        throw new Error("No se pudo generar la impresion")
-      }
-
-      const blob = await response.blob()
-      const url = URL.createObjectURL(blob)
-      const win = window.open(url, "_blank", "noopener,noreferrer")
-
-      if (!win) {
-        const link = document.createElement("a")
-        link.href = url
-        link.target = "_blank"
-        link.rel = "noopener noreferrer"
-        link.click()
-      }
-
-      setTimeout(() => URL.revokeObjectURL(url), 30000)
+      printWindow.document.open()
+      printWindow.document.write(html)
+      printWindow.document.close()
+      printWindow.focus()
+      printWindow.print()
       toast.success("Impresion lista")
     } catch (error) {
       console.error("[UsersHistoryPage] Error printing order:", error)
@@ -145,7 +192,7 @@ export default function UsersHistoryPage() {
     } finally {
       setPrintingOrderId(null)
     }
-  }, [productNameById])
+  }, [buildOrderHtml])
 
   const handleDownloadOrder = useCallback(async (order: Order) => {
     if (!order.orderItems || order.orderItems.length === 0) {
@@ -155,35 +202,12 @@ export default function UsersHistoryPage() {
 
     try {
       setDownloadingOrderId(order.id)
-
-      const payload = {
-        areaName: order.area?.name || `Area #${order.areaId}`,
-        observation: order.observation || "",
-        items: order.orderItems.map((item) => ({
-          productName:
-            item.product?.name ||
-            productNameById.get(item.productId) ||
-            `Producto #${item.productId}`,
-          quantity: item.quantity,
-          unitName: item.unitMeasurement?.name || "Unidad",
-        })),
-      }
-
-      const response = await fetch("/api/orders/print", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-
-      if (!response.ok) {
-        throw new Error("No se pudo generar el PDF")
-      }
-
-      const blob = await response.blob()
+      const html = buildOrderHtml(order)
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" })
       const url = URL.createObjectURL(blob)
       const link = document.createElement("a")
       link.href = url
-      link.download = `pedido-${order.id}.pdf`
+      link.download = `pedido-${order.id}.html`
       document.body.appendChild(link)
       link.click()
       link.remove()
@@ -195,7 +219,7 @@ export default function UsersHistoryPage() {
     } finally {
       setDownloadingOrderId(null)
     }
-  }, [productNameById])
+  }, [buildOrderHtml])
 
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">
