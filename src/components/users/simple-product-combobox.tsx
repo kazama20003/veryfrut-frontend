@@ -4,7 +4,6 @@ import React, { useMemo, useState } from "react"
 import Image from "next/image"
 import { Search, Package } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { Badge } from "@/components/ui/badge"
 import {
   ComboboxRoot,
   ComboboxTrigger,

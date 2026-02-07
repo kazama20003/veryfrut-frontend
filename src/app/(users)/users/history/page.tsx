@@ -1,9 +1,9 @@
 "use client"
 
-import { useMemo, useSyncExternalStore } from "react"
+import { useCallback, useMemo, useState, useSyncExternalStore } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { ShoppingBag, RefreshCw } from "lucide-react"
+import { ShoppingBag, RefreshCw, Printer, Loader2 } from "lucide-react"
 import { useMeQuery, useOrdersByCustomerQuery, useProductsQuery } from "@/lib/api"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import type { Order, OrderItem } from "@/types/order"
+import { toast } from "sonner"
 
 function formatDate(dateValue?: string) {
   if (!dateValue) return "Sin fecha"
@@ -53,6 +54,7 @@ function getItemLabel(item: OrderItem) {
 }
 
 export default function UsersHistoryPage() {
+  const [printingOrderId, setPrintingOrderId] = useState<number | null>(null)
   const isHydrated = useSyncExternalStore(
     () => () => {},
     () => true,
@@ -89,6 +91,61 @@ export default function UsersHistoryPage() {
     }
     return map
   }, [productsResponse?.items])
+
+  const handlePrintOrder = useCallback(async (order: Order) => {
+    if (!order.orderItems || order.orderItems.length === 0) {
+      toast.error("No hay productos para imprimir en este pedido")
+      return
+    }
+
+    try {
+      setPrintingOrderId(order.id)
+
+      const payload = {
+        areaName: order.area?.name || `Area #${order.areaId}`,
+        observation: order.observation || "",
+        items: order.orderItems.map((item) => ({
+          productName:
+            item.product?.name ||
+            productNameById.get(item.productId) ||
+            `Producto #${item.productId}`,
+          quantity: item.quantity,
+          unitName: item.unitMeasurement?.name || "Unidad",
+        })),
+      }
+
+      const response = await fetch("/api/orders/print", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        throw new Error("No se pudo generar la impresion")
+      }
+
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const win = window.open(url, "_blank", "noopener,noreferrer")
+
+      if (!win) {
+        const link = document.createElement("a")
+        link.href = url
+        link.target = "_blank"
+        link.rel = "noopener noreferrer"
+        link.click()
+      }
+
+      setTimeout(() => URL.revokeObjectURL(url), 30000)
+      toast.success("Impresion lista")
+    } catch (error) {
+      console.error("[UsersHistoryPage] Error printing order:", error)
+      toast.error("Error al generar impresion")
+    } finally {
+      setPrintingOrderId(null)
+    }
+  }, [productNameById])
+
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">
       <header className="sticky top-0 z-40 border-b bg-white shadow-sm">
@@ -229,8 +286,27 @@ export default function UsersHistoryPage() {
                       <p className="text-sm text-gray-500">No hay items registrados en esta orden.</p>
                     )}
                   </div>
+                  <div className="mt-4 flex justify-end gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-2"
+                      onClick={() => void handlePrintOrder(order)}
+                      disabled={printingOrderId === order.id}
+                    >
+                      {printingOrderId === order.id ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Imprimiendo...
+                        </>
+                      ) : (
+                        <>
+                          <Printer className="h-4 w-4" />
+                          Imprimir
+                        </>
+                      )}
+                    </Button>
                   {isToday(order.createdAt) && (
-                    <div className="mt-4 flex justify-end">
                       <Button asChild size="sm" className="bg-blue-600 hover:bg-blue-700 text-white border-0">
                         <Link href={`/users/history/${order.id}`} className="flex items-center gap-2">
                           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -239,8 +315,8 @@ export default function UsersHistoryPage() {
                           Modificar pedido
                         </Link>
                       </Button>
-                    </div>
                   )}
+                  </div>
                 </CardContent>
               </Card>
             ))}
