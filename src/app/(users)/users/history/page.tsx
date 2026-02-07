@@ -3,8 +3,8 @@
 import { useCallback, useMemo, useState, useSyncExternalStore } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { ShoppingBag, RefreshCw, Printer, Loader2, Download } from "lucide-react"
-import { useMeQuery, useOrdersByCustomerQuery, useProductsQuery } from "@/lib/api"
+import { ShoppingBag, RefreshCw, Printer, Loader2, Download, Trash2 } from "lucide-react"
+import { useDeleteOrderMutation, useMeQuery, useOrdersByCustomerQuery, useProductsQuery } from "@/lib/api"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -17,11 +17,10 @@ function formatDate(dateValue?: string) {
   if (!dateValue) return "Sin fecha"
   const parsed = new Date(dateValue)
   if (Number.isNaN(parsed.getTime())) return "Sin fecha"
-  return parsed.toLocaleDateString("es-ES", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  })
+  const day = String(parsed.getUTCDate()).padStart(2, "0")
+  const month = String(parsed.getUTCMonth() + 1).padStart(2, "0")
+  const year = parsed.getUTCFullYear()
+  return `${day}/${month}/${year}`
 }
 
 // Memoize today's date to avoid hydration issues
@@ -65,12 +64,15 @@ function escapeHtml(value: string) {
 export default function UsersHistoryPage() {
   const [printingOrderId, setPrintingOrderId] = useState<number | null>(null)
   const [downloadingOrderId, setDownloadingOrderId] = useState<number | null>(null)
+  const [deletingOrderId, setDeletingOrderId] = useState<number | null>(null)
+  const [isClearingOrders, setIsClearingOrders] = useState(false)
   const isHydrated = useSyncExternalStore(
     () => () => {},
     () => true,
     () => false
   )
   const { data: currentUser, isLoading: isUserLoading, error: userError } = useMeQuery()
+  const deleteOrderMutation = useDeleteOrderMutation()
   const userId = currentUser?.id ?? null
   const showLoadingUser = !isHydrated || isUserLoading
 
@@ -221,6 +223,45 @@ export default function UsersHistoryPage() {
     }
   }, [buildOrderHtml])
 
+  const handleDeleteOrder = useCallback(async (order: Order) => {
+    if (!window.confirm(`¿Eliminar el pedido #${order.id}?`)) return
+
+    try {
+      setDeletingOrderId(order.id)
+      await deleteOrderMutation.mutateAsync(order.id)
+      await refetch()
+      toast.success("Pedido eliminado")
+    } catch (error) {
+      console.error("[UsersHistoryPage] Error deleting order:", error)
+      toast.error("No se pudo eliminar el pedido")
+    } finally {
+      setDeletingOrderId(null)
+    }
+  }, [deleteOrderMutation, refetch])
+
+  const handleClearAllOrders = useCallback(async () => {
+    if (orders.length === 0) {
+      toast.error("No hay pedidos para vaciar")
+      return
+    }
+
+    if (!window.confirm(`¿Vaciar ${orders.length} pedido(s)? Esta accion no se puede deshacer.`)) return
+
+    try {
+      setIsClearingOrders(true)
+      for (const order of orders) {
+        await deleteOrderMutation.mutateAsync(order.id)
+      }
+      await refetch()
+      toast.success("Pedidos eliminados")
+    } catch (error) {
+      console.error("[UsersHistoryPage] Error clearing orders:", error)
+      toast.error("No se pudieron vaciar todos los pedidos")
+    } finally {
+      setIsClearingOrders(false)
+    }
+  }, [deleteOrderMutation, orders, refetch])
+
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">
       <header className="sticky top-0 z-40 border-b bg-white shadow-sm">
@@ -239,6 +280,16 @@ export default function UsersHistoryPage() {
 
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">Pedidos: {orders.length}</Badge>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 text-red-700 hover:text-red-800"
+              onClick={() => void handleClearAllOrders()}
+              disabled={isClearingOrders || orders.length === 0}
+            >
+              {isClearingOrders ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              Vaciar pedidos
+            </Button>
             <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2">
               <RefreshCw className="h-4 w-4" />
               Actualizar
@@ -362,6 +413,21 @@ export default function UsersHistoryPage() {
                     )}
                   </div>
                   <div className="mt-4 flex justify-end gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-9 w-9 p-0"
+                      onClick={() => void handleDeleteOrder(order)}
+                      disabled={deletingOrderId === order.id}
+                      aria-label="Eliminar pedido"
+                      title="Eliminar pedido"
+                    >
+                      {deletingOrderId === order.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4 text-red-600" />
+                      )}
+                    </Button>
                     <Button
                       size="sm"
                       variant="outline"

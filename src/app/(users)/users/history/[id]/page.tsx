@@ -3,9 +3,10 @@
 import { useCallback, useMemo, useState, useSyncExternalStore } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { ArrowLeft, ShoppingBag, Loader2, Trash2, Printer, Download, Minus, Plus } from "lucide-react"
 import {
+  useDeleteOrderMutation,
   useOrderQuery,
   useUpdateOrderMutation,
   useProductsQuery,
@@ -77,7 +78,10 @@ export default function OrderHistoryDetailPage() {
   const [addedItems, setAddedItems] = useState<AddedOrderItemDraft[]>([])
   const [isPrinting, setIsPrinting] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
+  const [isDeletingOrder, setIsDeletingOrder] = useState(false)
+  const [isClearingOrder, setIsClearingOrder] = useState(false)
   const params = useParams()
+  const router = useRouter()
   const isHydrated = useSyncExternalStore(
     () => () => {},
     () => true,
@@ -92,6 +96,7 @@ export default function OrderHistoryDetailPage() {
 
   const { data: order, isLoading: isOrderLoading, error: orderError } = useOrderQuery(orderId)
   const updateOrderMutation = useUpdateOrderMutation(orderId ?? 0)
+  const deleteOrderMutation = useDeleteOrderMutation()
   const { data: productsResponse } = useProductsQuery({ page: 1, limit: 500, order: "asc", sortBy: "name" })
   const productNameById = useMemo(() => {
     const map = new Map<number, string>()
@@ -371,6 +376,45 @@ export default function OrderHistoryDetailPage() {
       setIsDownloading(false)
     }
   }, [buildPrintPayload, order?.id])
+
+  const handleClearOrder = useCallback(async () => {
+    if (!order || !orderId) return
+    if (!window.confirm(`¿Vaciar los productos del pedido #${order.id}?`)) return
+
+    try {
+      setIsClearingOrder(true)
+      await updateOrderMutation.mutateAsync({
+        observation: draftObservationTouched ? (draftObservation.trim() || undefined) : (order.observation?.trim() || undefined),
+        totalAmount: 0,
+        orderItems: [],
+      })
+      setDraftQuantities({})
+      setAddedItems([])
+      toast.success("Pedido vaciado")
+    } catch (error) {
+      console.error("[OrderHistoryDetailPage] Error clearing order:", error)
+      toast.error("No se pudo vaciar el pedido")
+    } finally {
+      setIsClearingOrder(false)
+    }
+  }, [draftObservation, draftObservationTouched, order, orderId, updateOrderMutation])
+
+  const handleDeleteOrder = useCallback(async () => {
+    if (!order) return
+    if (!window.confirm(`¿Eliminar el pedido #${order.id}? Esta accion no se puede deshacer.`)) return
+
+    try {
+      setIsDeletingOrder(true)
+      await deleteOrderMutation.mutateAsync(order.id)
+      toast.success("Pedido eliminado")
+      router.push("/users/history")
+    } catch (error) {
+      console.error("[OrderHistoryDetailPage] Error deleting order:", error)
+      toast.error("No se pudo eliminar el pedido")
+    } finally {
+      setIsDeletingOrder(false)
+    }
+  }, [deleteOrderMutation, order, router])
 
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">
@@ -676,6 +720,28 @@ export default function OrderHistoryDetailPage() {
                       <Button type="button" variant="outline" onClick={() => void handleDownloadPdf()} disabled={isDownloading}>
                         {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
                         Descargar
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-1 gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-800"
+                        onClick={() => void handleClearOrder()}
+                        disabled={isClearingOrder || updateOrderMutation.isPending}
+                      >
+                        {isClearingOrder ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                        Vaciar pedido
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="border-red-300 text-red-700 hover:bg-red-50 hover:text-red-800"
+                        onClick={() => void handleDeleteOrder()}
+                        disabled={isDeletingOrder || deleteOrderMutation.isPending}
+                      >
+                        {isDeletingOrder ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                        Eliminar pedido
                       </Button>
                     </div>
                   </div>

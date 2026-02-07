@@ -104,7 +104,13 @@ export function ShoppingCartDrawer({
   const [isLoadingAreas, setIsLoadingAreas] = useState(false)
   const [isCheckingAreas, setIsCheckingAreas] = useState(false)
   const createOrderMutation = useCreateOrderMutation()
-  const todayDate = useMemo(() => new Date().toISOString().split("T")[0], [])
+  const todayDate = useMemo(() => {
+    const now = new Date()
+    const yyyy = now.getFullYear()
+    const mm = String(now.getMonth() + 1).padStart(2, "0")
+    const dd = String(now.getDate()).padStart(2, "0")
+    return `${yyyy}-${mm}-${dd}`
+  }, [])
   const allAreasBlocked = useMemo(
     () => areas.length > 0 && areas.every((a) => blockedAreaIds.has(a.id)),
     [areas, blockedAreaIds],
@@ -193,10 +199,10 @@ export function ShoppingCartDrawer({
 
   // Cargar áreas disponibles
   useEffect(() => {
-    if (isOpen && areas.length === 0) {
+    if (isOpen) {
       fetchAreas()
     }
-  }, [fetchAreas, isOpen, areas.length])
+  }, [fetchAreas, isOpen])
 
   useEffect(() => {
     setQuantityInputs((prev) => {
@@ -435,7 +441,21 @@ export function ShoppingCartDrawer({
       // Final guard: don't allow creating a second order for the same area/day
       const check = await orderService.check({ areaId: selectedAreaId, date: todayDate })
       if (check.exists) {
-        toast.error("Ya existe un pedido para esta área hoy. No se puede crear otro.")
+        const blockedId = Number(selectedAreaId)
+        if (Number.isFinite(blockedId)) {
+          const nextBlocked = new Set(blockedAreaIds)
+          nextBlocked.add(blockedId)
+          setBlockedAreaIds((prev) => {
+            const next = new Set(prev)
+            next.add(blockedId)
+            return next
+          })
+          const firstAvailable = areas.find((area) => area.id !== blockedId && !nextBlocked.has(area.id))
+          if (firstAvailable) {
+            setSelectedAreaId(firstAvailable.id.toString())
+          }
+        }
+        toast.error("Ya existe un pedido para esta area hoy. No se puede crear otro.")
         return
       }
 
@@ -776,4 +796,5 @@ export function ShoppingCartDrawer({
     </Dialog>
   )
 }
+
 
