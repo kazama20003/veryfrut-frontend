@@ -7,24 +7,11 @@ import { useRouter } from "next/navigation"
 import gsap from "gsap"
 import { NAV_ITEMS } from "@/components/home/nav-items"
 const LogoIcon: React.FC = () => (
-  <svg width="30" height="30" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
-    <path
-      d="M10 28C10 28 8 22 12 18C16 14 22 22 22 22C22 22 26 14 30 18C34 22 32 28 32 28"
-      stroke="#8CC63F"
-      strokeWidth="4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <path
-      d="M16 18C16 18 14 12 18 8C22 4 28 12 28 12"
-      stroke="#8CC63F"
-      strokeWidth="4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      opacity="0.6"
-    />
-    <circle cx="10" cy="28" r="3" fill="#8CC63F" />
-  </svg>
+  <img
+    src="https://res.cloudinary.com/demzflxgq/image/upload/v1770449756/ChatGPT_Image_7_feb_2026_02_25_57_a_ilotbf.svg"
+    alt="Logo Veryfrut"
+    className="h-12 w-auto shrink-0 sm:h-14 [filter:brightness(0)_saturate(100%)_invert(66%)_sepia(17%)_saturate(1508%)_hue-rotate(43deg)_brightness(91%)_contrast(88%)]"
+  />
 )
 
 const QuoteCharacter: React.FC = () => (
@@ -54,6 +41,7 @@ const Header: React.FC = () => {
   const navRef = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const mainBarRef = useRef<HTMLDivElement>(null)
+  const closeTimeoutRef = useRef<number | null>(null)
 
   useEffect(() => {
     router.prefetch("/users")
@@ -69,8 +57,31 @@ const Header: React.FC = () => {
     }
   }, [openDropdown])
 
-  const handleDropdownHover = (itemLabel: string | null) => {
+  useEffect(() => {
+    return () => {
+      if (closeTimeoutRef.current) {
+        window.clearTimeout(closeTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  const clearCloseTimeout = () => {
+    if (closeTimeoutRef.current) {
+      window.clearTimeout(closeTimeoutRef.current)
+      closeTimeoutRef.current = null
+    }
+  }
+
+  const openDropdownMenu = (itemLabel: string) => {
+    clearCloseTimeout()
     setOpenDropdown(itemLabel)
+  }
+
+  const scheduleCloseDropdown = () => {
+    clearCloseTimeout()
+    closeTimeoutRef.current = window.setTimeout(() => {
+      setOpenDropdown(null)
+    }, 140)
   }
 
   return (
@@ -80,20 +91,20 @@ const Header: React.FC = () => {
           {/* Main Bar */}
           <div ref={mainBarRef} className="relative flex-1 bg-white rounded-[10px] shadow-[0_2px_12px_rgba(0,0,0,0.04)] px-3 sm:px-4 md:px-5 lg:px-6 py-2 flex justify-between min-h-[66px] mx-0 my-1.5 border-0 items-stretch flex-row font-normal tracking-normal">
             {/* Logo */}
-            <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0 cursor-pointer">
+            <Link href="/" className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
               <LogoIcon />
               <span className="text-[#1A1A1A] text-base sm:text-lg md:text-xl lg:text-2xl tracking-tight leading-5 font-normal whitespace-nowrap">
                 Veryfrut
               </span>
-            </div>
+            </Link>
 
             {/* Desktop Navigation */}
             <div className="hidden lg:flex items-center gap-0 ml-auto pr-0 relative">
               {NAV_ITEMS.map((item) => (
                 <div
                   key={item.label}
-                  onMouseEnter={() => item.hasDropdown && handleDropdownHover(item.label)}
-                  onMouseLeave={() => item.hasDropdown && handleDropdownHover(null)}
+                  onMouseEnter={() => item.hasDropdown && openDropdownMenu(item.label)}
+                  onMouseLeave={() => item.hasDropdown && scheduleCloseDropdown()}
                   className="relative"
                 >
                   <a
@@ -135,8 +146,8 @@ const Header: React.FC = () => {
       {openDropdown && (
         <div
           ref={dropdownRef}
-          onMouseEnter={() => handleDropdownHover(openDropdown)}
-          onMouseLeave={() => handleDropdownHover(null)}
+          onMouseEnter={clearCloseTimeout}
+          onMouseLeave={scheduleCloseDropdown}
           className="fixed top-[calc(12px+66px+12px)] left-1/2 -translate-x-1/2 w-[calc(100%-24px)] lg:w-auto lg:max-w-[900px] bg-white rounded-[10px] shadow-[0_8px_32px_rgba(0,0,0,0.12)] overflow-hidden z-40 px-3 sm:px-4 md:px-6 lg:px-0"
         >
           {NAV_ITEMS.find((item) => item.label === openDropdown) && (
@@ -168,7 +179,7 @@ const Header: React.FC = () => {
                     .slice(0, Math.ceil((NAV_ITEMS.find((item) => item.label === openDropdown)?.dropdownItems || []).length / 2))
                     .map((dropdownItem) => (
                       <Link
-                        key={dropdownItem.href}
+                        key={`${dropdownItem.href}-${dropdownItem.label}-left`}
                         href={dropdownItem.href}
                         className="block text-[#1A1A1A] hover:text-[#8CC63F] transition-colors text-base font-normal"
                         onClick={() => setOpenDropdown(null)}
@@ -182,7 +193,7 @@ const Header: React.FC = () => {
                     .slice(Math.ceil((NAV_ITEMS.find((item) => item.label === openDropdown)?.dropdownItems || []).length / 2))
                     .map((dropdownItem) => (
                       <Link
-                        key={dropdownItem.href}
+                        key={`${dropdownItem.href}-${dropdownItem.label}-right`}
                         href={dropdownItem.href}
                         className="block text-[#1A1A1A] hover:text-[#8CC63F] transition-colors text-base font-normal"
                         onClick={() => setOpenDropdown(null)}
@@ -222,7 +233,7 @@ const Header: React.FC = () => {
                     <div className="ml-4 mt-3 space-y-2 border-l-2 border-[#8CC63F] pl-4">
                       {item.dropdownItems?.map((dropdownItem) => (
                         <Link
-                          key={dropdownItem.href}
+                          key={`${dropdownItem.href}-${dropdownItem.label}-mobile`}
                           href={dropdownItem.href}
                           className="block py-2 text-sm text-[#1A1A1A] hover:text-[#8CC63F] transition-colors"
                           onClick={() => setIsMobileMenuOpen(false)}

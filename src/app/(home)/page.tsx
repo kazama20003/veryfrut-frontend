@@ -1,16 +1,15 @@
 "use client"
-
-import Connecting from "@/components/home/conection"
 import Hero from "@/components/home/hero"
-import Services from "@/components/home/services"
+import LandingPage from "@/components/home/landing-page"
 
 export default function Page() {
 
   return (
       <>
       <Hero/>
-      <Services/>
-      <Connecting/>
+      <div className="relative z-20 -mt-2">
+        <LandingPage/>
+      </div>
       </>
   )
 }
