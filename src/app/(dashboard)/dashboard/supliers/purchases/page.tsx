@@ -241,6 +241,7 @@ export default function RegisterPurchasesPage() {
         await queryClient.invalidateQueries({
           queryKey: queryKeys.suppliers.purchaseLists(Number(selectedSupplier)),
         });
+        await queryClient.refetchQueries({ queryKey: queryKeys.suppliers.lists(), type: 'all' });
         toast.success('Compra registrada');
 
         setFormData({
@@ -268,6 +269,7 @@ export default function RegisterPurchasesPage() {
         if (result.success) {
           setPurchases((prev) => prev.filter((p) => p.id !== id));
           await queryClient.invalidateQueries({ queryKey: queryKeys.suppliers.lists() });
+          await queryClient.refetchQueries({ queryKey: queryKeys.suppliers.lists(), type: 'all' });
           toast.success('Compra eliminada');
         } else {
           toast.error('Error al eliminar');
@@ -603,3 +605,4 @@ export default function RegisterPurchasesPage() {
     </div>
   );
 }
+

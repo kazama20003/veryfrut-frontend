@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,7 +34,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import queryKeys from '@/lib/api/queryKeys';
 
 export default function SuppliersPage() {
-  const { data: suppliersData, isLoading, error } = useSuppliersQuery();
+  const { data: suppliersData, isLoading, error, refetch } = useSuppliersQuery();
   const { data: unitMeasurements = [] } = useUnitMeasurementsQuery();
   const queryClient = useQueryClient();
   const [reportLoading, setReportLoading] = useState(false);
@@ -48,6 +48,10 @@ export default function SuppliersPage() {
   } | null>(null);
   const [editStatus, setEditStatus] = useState<'created' | 'processing' | 'completed' | 'cancelled'>('created');
   const [editPaid, setEditPaid] = useState(false);
+
+  useEffect(() => {
+    void refetch();
+  }, [refetch]);
 
   const parseDateFromInput = (value: string, boundary: 'start' | 'end'): Date | undefined => {
     if (!value) return undefined;
@@ -723,3 +727,4 @@ export default function SuppliersPage() {
     </div>
   );
 }
+

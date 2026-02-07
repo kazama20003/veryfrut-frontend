@@ -13,10 +13,13 @@ import { ArrowLeft, Plus, Loader } from 'lucide-react';
 import { toast } from 'sonner';
 import type { CreateSupplierInput } from '@/types/supplier';
 import suppliersService, { type Suplier } from '@/lib/api/services/suppliers-service';
+import { useQueryClient } from '@tanstack/react-query';
+import queryKeys from '@/lib/api/queryKeys';
 
 export default function CreateSupplierPage() {
   const [isLoading, setIsLoading] = useState(false);
 const [suppliers, setSuppliers] = useState<Suplier[]>([]);
+  const queryClient = useQueryClient();
 
   const [formData, setFormData] = useState<CreateSupplierInput>({
     name: '',
@@ -51,6 +54,8 @@ setIsLoading(true);
       if (newSupplier) {
         // Agregar nuevo proveedor a la lista local
         setSuppliers((prev) => [newSupplier, ...prev]);
+        await queryClient.invalidateQueries({ queryKey: queryKeys.suppliers.lists() });
+        await queryClient.refetchQueries({ queryKey: queryKeys.suppliers.lists(), type: 'all' });
         toast.success('Proveedor creado exitosamente');
 
         // Resetear formulario
@@ -318,3 +323,4 @@ setIsLoading(true);
     </div>
   );
 }
+
