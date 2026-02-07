@@ -65,6 +65,12 @@ const Header: React.FC = () => {
     }
   }, [])
 
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      setOpenDropdown(null)
+    }
+  }, [isMobileMenuOpen])
+
   const clearCloseTimeout = () => {
     if (closeTimeoutRef.current) {
       window.clearTimeout(closeTimeoutRef.current)
@@ -143,12 +149,12 @@ const Header: React.FC = () => {
       </nav>
 
       {/* Mega Menu - Fixed position below navbar */}
-      {openDropdown && (
+      {openDropdown && !isMobileMenuOpen && (
         <div
           ref={dropdownRef}
           onMouseEnter={clearCloseTimeout}
           onMouseLeave={scheduleCloseDropdown}
-          className="fixed top-[calc(12px+66px+12px)] left-1/2 -translate-x-1/2 w-[calc(100%-24px)] lg:w-auto lg:max-w-[900px] bg-white rounded-[10px] shadow-[0_8px_32px_rgba(0,0,0,0.12)] overflow-hidden z-40 px-3 sm:px-4 md:px-6 lg:px-0"
+          className="hidden lg:block fixed top-[calc(12px+66px+12px)] left-1/2 -translate-x-1/2 w-[calc(100%-24px)] lg:w-auto lg:max-w-[900px] bg-white rounded-[10px] shadow-[0_8px_32px_rgba(0,0,0,0.12)] overflow-hidden z-40 px-3 sm:px-4 md:px-6 lg:px-0"
         >
           {NAV_ITEMS.find((item) => item.label === openDropdown) && (
             <div className="flex p-6 gap-8">
