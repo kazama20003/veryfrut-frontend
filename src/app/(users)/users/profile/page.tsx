@@ -38,8 +38,6 @@ export default function UsersProfilePage() {
 
   useEffect(() => {
     let isMounted = true
-    setIsLoading(true)
-    setLoadError(null)
 
     usersService
       .getMe()
