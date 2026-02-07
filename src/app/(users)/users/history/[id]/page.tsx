@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState, useSyncExternalStore } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { ArrowLeft, ShoppingBag, Loader2, Trash2, Printer, Download } from "lucide-react"
+import { ArrowLeft, ShoppingBag, Loader2, Trash2, Printer, Download, Minus, Plus } from "lucide-react"
 import {
   useOrderQuery,
   useUpdateOrderMutation,
@@ -191,6 +191,27 @@ export default function OrderHistoryDetailPage() {
     ])
     setProductSearch("")
   }, [addedItems, draftQuantities, order?.orderItems, productUnitOptions])
+
+  const adjustExistingQuantity = useCallback((itemId: number, fallback: number, delta: number) => {
+    setDraftQuantities((prev) => {
+      const current = Number.parseFloat((prev[itemId] ?? String(fallback)).replace(",", "."))
+      const base = Number.isFinite(current) ? current : fallback
+      const next = Math.max(0.25, Math.round((base + delta) * 100) / 100)
+      return { ...prev, [itemId]: String(next) }
+    })
+  }, [])
+
+  const adjustAddedQuantity = useCallback((tempId: string, fallback: string, delta: number) => {
+    setAddedItems((prev) =>
+      prev.map((item) => {
+        if (item.tempId !== tempId) return item
+        const current = Number.parseFloat((item.quantity || fallback).replace(",", "."))
+        const base = Number.isFinite(current) ? current : Number.parseFloat(fallback) || 0.25
+        const next = Math.max(0.25, Math.round((base + delta) * 100) / 100)
+        return { ...item, quantity: String(next) }
+      })
+    )
+  }, [])
 
   const handleSaveEdit = useCallback(async () => {
     if (!order || !orderId) return
@@ -463,6 +484,21 @@ export default function OrderHistoryDetailPage() {
                           {canEdit ? (
                             <div className="mt-1 flex items-center gap-2">
                               <span className="text-xs text-gray-500">Cantidad:</span>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() =>
+                                  adjustExistingQuantity(
+                                    item.id,
+                                    Number.parseFloat((draftQuantities[item.id] ?? String(item.quantity)).replace(",", ".")),
+                                    -0.25
+                                  )
+                                }
+                              >
+                                <Minus className="h-3 w-3" />
+                              </Button>
                               <Input
                                 type="number"
                                 min="0.001"
@@ -476,6 +512,21 @@ export default function OrderHistoryDetailPage() {
                                 }
                                 className="h-8 w-28 text-sm"
                               />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() =>
+                                  adjustExistingQuantity(
+                                    item.id,
+                                    Number.parseFloat((draftQuantities[item.id] ?? String(item.quantity)).replace(",", ".")),
+                                    0.25
+                                  )
+                                }
+                              >
+                                <Plus className="h-3 w-3" />
+                              </Button>
                               <span className="text-xs text-gray-500">{item.unitMeasurement?.name ?? "Unidad"}</span>
                             </div>
                           ) : (
@@ -508,6 +559,15 @@ export default function OrderHistoryDetailPage() {
                             <p className="text-sm font-medium text-gray-900 truncate">{item.productName}</p>
                             <div className="mt-1 flex items-center gap-2">
                               <span className="text-xs text-gray-500">Cantidad:</span>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => adjustAddedQuantity(item.tempId, item.quantity, -0.25)}
+                              >
+                                <Minus className="h-3 w-3" />
+                              </Button>
                               <Input
                                 type="number"
                                 min="0.001"
@@ -524,6 +584,15 @@ export default function OrderHistoryDetailPage() {
                                 }
                                 className="h-8 w-28 text-sm"
                               />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => adjustAddedQuantity(item.tempId, item.quantity, 0.25)}
+                              >
+                                <Plus className="h-3 w-3" />
+                              </Button>
                               <span className="text-xs text-gray-500">{item.unitName}</span>
                             </div>
                           </div>

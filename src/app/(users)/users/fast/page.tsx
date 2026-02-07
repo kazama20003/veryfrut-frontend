@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useMemo, useEffect } from "react"
-import { Package, Plus, X, Trash2, Send, Printer } from "lucide-react"
+import { Package, Plus, X, Trash2, Send, Printer, Download, Loader2 } from "lucide-react"
 import { useProductsQuery } from "@/lib/api/hooks/useProduct"
 import { useCreateOrderMutation, useCheckOrderQuery } from "@/lib/api/hooks/useOrder"
 import { useMeQuery } from "@/lib/api/hooks/useUsers"
@@ -36,10 +36,11 @@ interface TableProduct {
 
 const FastOrdersPage = () => {
   const [tableProducts, setTableProducts] = useState<TableProduct[]>([])
-  const [selectedProductKey, setSelectedProductKey] = useState<string>("")
+  const [productSearch, setProductSearch] = useState("")
   const [selectedAreaId, setSelectedAreaId] = useState<number | undefined>()
   const [isCreatingOrder, setIsCreatingOrder] = useState(false)
   const [isPrinting, setIsPrinting] = useState(false)
+  const [isDownloading, setIsDownloading] = useState(false)
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false)
   const [areas, setAreas] = useState<Array<{id: number; name: string}>>([])
   const [blockedAreaIds, setBlockedAreaIds] = useState<Set<number>>(new Set())
@@ -238,13 +239,17 @@ const FastOrdersPage = () => {
     })
   }, [products])
 
-  const handleAddSelectedProduct = useCallback(() => {
-    if (!selectedProductKey) {
-      toast.error("Selecciona un producto para añadir")
-      return
-    }
+  const filteredProductUnitOptions = useMemo(() => {
+    const search = productSearch.trim().toLowerCase()
+    if (!search) return productUnitOptions.slice(0, 30)
 
-    const selectedOption = productUnitOptions.find((option) => option.key === selectedProductKey)
+    return productUnitOptions
+      .filter((option) => option.label.toLowerCase().includes(search))
+      .slice(0, 30)
+  }, [productSearch, productUnitOptions])
+
+  const handleAddProductByKey = useCallback((key: string) => {
+    const selectedOption = productUnitOptions.find((option) => option.key === key)
     if (!selectedOption) return
 
     const product = products.find((p) => p.id === selectedOption.productId)
@@ -258,7 +263,7 @@ const FastOrdersPage = () => {
       (tp) => tp.product.id === product.id && tp.selectedUnitId === selectedUnitId
     )
     if (existingProduct) {
-      toast.error("Ese producto con esa unidad ya está en la tabla")
+      toast.error("Ese producto con esa unidad ya esta en la tabla")
       return
     }
 
@@ -273,9 +278,8 @@ const FastOrdersPage = () => {
     }
 
     setTableProducts((prev) => [...prev, newTableProduct])
-    setSelectedProductKey("")
-  }, [productUnitOptions, products, selectedProductKey, tableProducts])
-
+    setProductSearch("")
+  }, [productUnitOptions, products, tableProducts])
   // Update product quantity with 0.25 increments
   const handleUpdateQuantity = useCallback((tableProductId: string, newQuantity: number) => {
     if (newQuantity < 0.25) return
@@ -512,6 +516,56 @@ const FastOrdersPage = () => {
     }
   }, [orderObservations, selectedAreaId, selectedAreaName, tableProducts])
 
+  const handleDownload = useCallback(async () => {
+    if (!selectedAreaId) {
+      toast.error("Selecciona un area para descargar")
+      return
+    }
+
+    if (tableProducts.length === 0) {
+      toast.error("No hay productos para descargar")
+      return
+    }
+
+    try {
+      setIsDownloading(true)
+
+      const payload = {
+        areaName: selectedAreaName || `Area ${selectedAreaId}`,
+        observation: orderObservations || "",
+        items: tableProducts.map((tp) => ({
+          productName: tp.product.name,
+          quantity: tp.quantity,
+          unitName: tp.selectedUnit.name,
+        })),
+      }
+
+      const response = await fetch("/api/orders/print", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        throw new Error("No se pudo generar descarga")
+      }
+
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = `pedido-rapido-${selectedAreaId}-${todayDate}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      setTimeout(() => URL.revokeObjectURL(url), 30000)
+    } catch (error) {
+      console.error("[FastOrdersPage] Error downloading order:", error)
+      toast.error("Error al descargar PDF")
+    } finally {
+      setIsDownloading(false)
+    }
+  }, [orderObservations, selectedAreaId, selectedAreaName, tableProducts, todayDate])
   const stats = useMemo(() => ({
     totalProducts: tableProducts.length,
     totalItems: tableProducts.reduce((sum, tp) => sum + tp.quantity, 0),
@@ -633,28 +687,36 @@ const FastOrdersPage = () => {
 
             {/* Product Selection */}
             <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-md">
-              <label className="text-sm font-semibold text-gray-700 block mb-3">Producto</label>
+              <label htmlFor="fast-product-search" className="text-sm font-semibold text-gray-700 block mb-3">
+                Buscar producto
+              </label>
               <div className="space-y-3">
-                <Select value={selectedProductKey} onValueChange={setSelectedProductKey}>
-                  <SelectTrigger className="rounded-lg border-gray-300">
-                    <SelectValue placeholder="Selecciona producto - unidad de medida" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {productUnitOptions.length > 0 ? (
-                      productUnitOptions.map((option) => (
-                        <SelectItem key={option.key} value={option.key}>
-                          {option.label}
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <div className="px-2 py-1.5 text-sm text-gray-500">No hay productos disponibles</div>
-                    )}
-                  </SelectContent>
-                </Select>
-                <Button type="button" onClick={handleAddSelectedProduct} className="w-full">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Anadir producto
-                </Button>
+                <Input
+                  id="fast-product-search"
+                  value={productSearch}
+                  onChange={(event) => setProductSearch(event.target.value)}
+                  placeholder="Nombre producto - unidad (agrega con clic)"
+                  className="rounded-lg border-gray-300"
+                />
+                <div className="max-h-64 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100">
+                  {filteredProductUnitOptions.length > 0 ? (
+                    filteredProductUnitOptions.map((option) => (
+                      <button
+                        key={option.key}
+                        type="button"
+                        onClick={() => handleAddProductByKey(option.key)}
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 transition-colors flex items-center justify-between gap-2"
+                      >
+                        <span className="truncate">{option.label}</span>
+                        <Plus className="h-4 w-4 flex-shrink-0 text-green-600" />
+                      </button>
+                    ))
+                  ) : productSearch.trim().length > 0 ? (
+                    <div className="px-3 py-4 text-sm text-gray-500">No hay coincidencias</div>
+                  ) : (
+                    <div className="px-3 py-4 text-sm text-gray-500">Escribe para filtrar productos</div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -837,7 +899,7 @@ const FastOrdersPage = () => {
               </table>
             </div>
 
-            <div className="md:hidden p-3 space-y-3">
+            <div className="md:hidden p-3">
               {isLoading ? (
                 Array.from({ length: 4 }).map((_, i) => (
                   <div key={i} className="animate-pulse rounded-lg border border-gray-200 p-3">
@@ -851,98 +913,68 @@ const FastOrdersPage = () => {
                   <div className="mb-3 inline-flex rounded-full bg-gray-100 p-3">
                     <Package className="h-7 w-7 text-gray-400" />
                   </div>
-                  <h3 className="text-base font-bold text-gray-900">Tabla vacía</h3>
-                  <p className="mt-1 text-sm text-gray-600">Busca productos para agregarlos automáticamente</p>
+                  <h3 className="text-base font-bold text-gray-900">Tabla vacia</h3>
+                  <p className="mt-1 text-sm text-gray-600">Busca productos para agregarlos automaticamente</p>
                 </div>
               ) : (
-                tableProducts.map((tableProduct) => {
-                  const { product, quantity, id, selectedUnit, isEditing } = tableProduct
-
-                  return (
-                    <div key={id} className="rounded-lg border border-gray-200 p-3">
-                      <div className="mb-3">
-                        <div className="text-sm font-semibold text-gray-900">{product.name}</div>
-                        <div className="text-xs text-gray-500 line-clamp-2">{product.description}</div>
-                      </div>
-
-                      <div className="space-y-3">
-                        <div className="hidden">
-                          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Presentación</p>
-                          {isEditing ? (
-                            <Select
-                              value={tableProduct.selectedUnitId.toString()}
-                              onValueChange={(value) => handleUpdateUnit(id, parseInt(value))}
-                            >
-                              <SelectTrigger className="h-10 w-full border border-gray-300 bg-white rounded-lg font-semibold">
-                                <SelectValue placeholder="Selecciona presentación" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {product.productUnits?.map((unit) => (
-                                  <SelectItem key={unit.id} value={unit.id.toString()}>
-                                    {unit.unitMeasurement.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          ) : (
-                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 px-3 py-1 text-xs font-semibold rounded-lg">
-                              {selectedUnit.name}
-                            </Badge>
-                          )}
-                        </div>
-
-                        <div>
-                          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Cantidad</p>
-                          <div className="flex items-center gap-2">
+                <div className="rounded-lg border border-gray-200 overflow-hidden">
+                  <div className="grid grid-cols-[1fr_auto_auto] items-center gap-2 bg-gray-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-600">
+                    <span>Producto</span>
+                    <span className="text-center">Cantidad</span>
+                    <span className="text-center">Accion</span>
+                  </div>
+                  <div className="divide-y divide-gray-100">
+                    {tableProducts.map((tableProduct) => {
+                      const { product, quantity, id, selectedUnit } = tableProduct
+                      return (
+                        <div key={id} className="grid grid-cols-[1fr_auto_auto] items-center gap-2 px-3 py-2">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-gray-900">{product.name}</p>
+                            <p className="text-[11px] text-gray-500">{selectedUnit.name}</p>
+                          </div>
+                          <div className="flex items-center gap-1">
                             <Button
                               variant="outline"
                               size="icon"
                               onClick={() => handleUpdateQuantity(id, quantity - 0.25)}
                               disabled={quantity <= 0.25}
-                              className="h-8 w-8"
+                              className="h-7 w-7"
+                              aria-label="Disminuir cantidad"
                             >
                               <X className="h-3 w-3 rotate-45" />
                             </Button>
-                            <Input
-                              type="number"
-                              step={0.25}
-                              value={quantity}
-                              onChange={(e) => handleUpdateQuantity(id, parseFloat(e.target.value) || 0.25)}
-                              className="h-8 flex-1 text-center"
-                              min={0.25}
-                              max={product.stock}
-                            />
+                            <span className="w-10 text-center text-xs font-semibold text-gray-900">
+                              {quantity % 1 === 0 ? quantity : quantity.toFixed(2)}
+                            </span>
                             <Button
                               variant="outline"
                               size="icon"
                               onClick={() => handleUpdateQuantity(id, quantity + 0.25)}
-                              className="h-8 w-8"
+                              className="h-7 w-7"
+                              aria-label="Aumentar cantidad"
                             >
                               <Plus className="h-3 w-3" />
                             </Button>
                           </div>
-                          <p className="mt-1 text-xs text-gray-500">{selectedUnit.name}</p>
+                          <div className="flex justify-center">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleRemoveProduct(id)}
+                              className="h-7 w-7 text-red-600 hover:bg-red-50 hover:text-red-700"
+                              aria-label="Eliminar producto"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
-
-                        <div className="flex justify-end">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleRemoveProduct(id)}
-                            className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
-                            aria-label="Eliminar producto"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })
+                      )
+                    })}
+                  </div>
+                </div>
               )}
             </div>
           </div>
-
           {/* Summary */}
           {tableProducts.length > 0 && (
             <div className="mt-6 bg-white rounded-xl border border-gray-200 p-5 shadow-md">
@@ -955,11 +987,23 @@ const FastOrdersPage = () => {
                  <div className="flex items-center gap-3">
                     <Button
                       variant="outline"
+                      size="icon"
                       onClick={handlePrint}
                       disabled={!selectedAreaId || tableProducts.length === 0 || isPrinting}
+                      aria-label="Imprimir pedido"
+                      title="Imprimir pedido"
                     >
-                      <Printer className="h-4 w-4 mr-2" />
-                      {isPrinting ? "Imprimiendo..." : "Imprimir"}
+                      {isPrinting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={handleDownload}
+                      disabled={!selectedAreaId || tableProducts.length === 0 || isDownloading}
+                      aria-label="Descargar PDF"
+                      title="Descargar PDF"
+                    >
+                      {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                     </Button>
                     <Button
                       onClick={() => setIsConfirmDialogOpen(true)}
@@ -1032,11 +1076,23 @@ const FastOrdersPage = () => {
             <DialogFooter className="gap-2">
               <Button
                 variant="outline"
+                size="icon"
                 onClick={handlePrint}
                 disabled={!selectedAreaId || tableProducts.length === 0 || isPrinting}
+                aria-label="Imprimir pedido"
+                title="Imprimir pedido"
               >
-                <Printer className="h-4 w-4 mr-2" />
-                {isPrinting ? "Imprimiendo..." : "Imprimir"}
+                {isPrinting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleDownload}
+                disabled={!selectedAreaId || tableProducts.length === 0 || isDownloading}
+                aria-label="Descargar PDF"
+                title="Descargar PDF"
+              >
+                {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               </Button>
               <Button
                 variant="outline"
@@ -1065,6 +1121,9 @@ const FastOrdersPage = () => {
 }
 
 export default FastOrdersPage
+
+
+
 
 
 

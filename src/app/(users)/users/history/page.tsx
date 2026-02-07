@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState, useSyncExternalStore } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { ShoppingBag, RefreshCw, Printer, Loader2 } from "lucide-react"
+import { ShoppingBag, RefreshCw, Printer, Loader2, Download } from "lucide-react"
 import { useMeQuery, useOrdersByCustomerQuery, useProductsQuery } from "@/lib/api"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -55,6 +55,7 @@ function getItemLabel(item: OrderItem) {
 
 export default function UsersHistoryPage() {
   const [printingOrderId, setPrintingOrderId] = useState<number | null>(null)
+  const [downloadingOrderId, setDownloadingOrderId] = useState<number | null>(null)
   const isHydrated = useSyncExternalStore(
     () => () => {},
     () => true,
@@ -143,6 +144,56 @@ export default function UsersHistoryPage() {
       toast.error("Error al generar impresion")
     } finally {
       setPrintingOrderId(null)
+    }
+  }, [productNameById])
+
+  const handleDownloadOrder = useCallback(async (order: Order) => {
+    if (!order.orderItems || order.orderItems.length === 0) {
+      toast.error("No hay productos para descargar en este pedido")
+      return
+    }
+
+    try {
+      setDownloadingOrderId(order.id)
+
+      const payload = {
+        areaName: order.area?.name || `Area #${order.areaId}`,
+        observation: order.observation || "",
+        items: order.orderItems.map((item) => ({
+          productName:
+            item.product?.name ||
+            productNameById.get(item.productId) ||
+            `Producto #${item.productId}`,
+          quantity: item.quantity,
+          unitName: item.unitMeasurement?.name || "Unidad",
+        })),
+      }
+
+      const response = await fetch("/api/orders/print", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        throw new Error("No se pudo generar el PDF")
+      }
+
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = `pedido-${order.id}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 30000)
+      toast.success("Descarga lista")
+    } catch (error) {
+      console.error("[UsersHistoryPage] Error downloading order:", error)
+      toast.error("Error al descargar PDF")
+    } finally {
+      setDownloadingOrderId(null)
     }
   }, [productNameById])
 
@@ -290,20 +341,31 @@ export default function UsersHistoryPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="gap-2"
+                      className="h-9 w-9 p-0"
                       onClick={() => void handlePrintOrder(order)}
                       disabled={printingOrderId === order.id}
+                      aria-label="Imprimir pedido"
+                      title="Imprimir pedido"
                     >
                       {printingOrderId === order.id ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Imprimiendo...
-                        </>
+                        <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
-                        <>
-                          <Printer className="h-4 w-4" />
-                          Imprimir
-                        </>
+                        <Printer className="h-4 w-4" />
+                      )}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-9 w-9 p-0"
+                      onClick={() => void handleDownloadOrder(order)}
+                      disabled={downloadingOrderId === order.id}
+                      aria-label="Descargar pedido"
+                      title="Descargar pedido"
+                    >
+                      {downloadingOrderId === order.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Download className="h-4 w-4" />
                       )}
                     </Button>
                   {isToday(order.createdAt) && (
