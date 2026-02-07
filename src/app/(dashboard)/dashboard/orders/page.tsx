@@ -63,6 +63,7 @@ export default function OrdersPage() {
     const timeStr = date.toLocaleTimeString('es-ES', {
       hour: '2-digit',
       minute: '2-digit',
+      second: '2-digit',
       hour12: false,
     });
     return `${dateStr} ${timeStr}`;
@@ -201,12 +202,12 @@ export default function OrdersPage() {
                   <Table className='w-full table-fixed text-sm'>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className='w-[170px] text-xs px-2'>Fecha</TableHead>
                         <TableHead className='w-14 text-xs px-2'>ID</TableHead>
                         <TableHead className='w-[220px] text-xs px-2'>Cliente</TableHead>
                         <TableHead className='w-[120px] text-xs px-2'>Área</TableHead>
                         <TableHead className='w-[280px] text-xs px-2'>Productos</TableHead>
                         <TableHead className='w-[120px] text-xs px-2'>Estado</TableHead>
-                        <TableHead className='w-[160px] text-xs px-2'>Fecha</TableHead>
                         <TableHead className='sticky right-0 z-10 w-[92px] bg-background text-right text-xs px-2 border-l border-border'>
                           Acciones
                         </TableHead>
@@ -215,6 +216,9 @@ export default function OrdersPage() {
                     <TableBody>
                       {data.items.map((order: Order) => (
                         <TableRow key={order.id} className='group hover:bg-muted/50'>
+                          <TableCell className='text-xs text-muted-foreground whitespace-nowrap px-2'>
+                            {formatDate(order.createdAt || '')}
+                          </TableCell>
                           <TableCell className='font-semibold text-primary text-xs px-2'>#{order.id}</TableCell>
                           <TableCell className='px-2'>
                             <div className='min-w-0'>
@@ -252,9 +256,6 @@ export default function OrdersPage() {
                             >
                               {statusLabels[order.status] || order.status}
                             </div>
-                          </TableCell>
-                          <TableCell className='text-xs text-muted-foreground whitespace-nowrap px-2'>
-                            {formatDate(order.createdAt || '')}
                           </TableCell>
                           <TableCell className='sticky right-0 bg-background group-hover:bg-muted/50 text-right px-2 border-l border-border'>
                             <div className='flex justify-end gap-1'>
@@ -355,3 +356,6 @@ export default function OrdersPage() {
     </div>
   );
 }
+
+
+
