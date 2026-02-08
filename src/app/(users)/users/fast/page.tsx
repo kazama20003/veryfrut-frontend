@@ -36,6 +36,7 @@ interface TableProduct {
 
 const FastOrdersPage = () => {
   const [tableProducts, setTableProducts] = useState<TableProduct[]>([])
+  const [quantityDrafts, setQuantityDrafts] = useState<Record<string, string>>({})
   const [productSearch, setProductSearch] = useState("")
   const [selectedAreaId, setSelectedAreaId] = useState<number | undefined>()
   const [isCreatingOrder, setIsCreatingOrder] = useState(false)
@@ -271,7 +272,7 @@ const FastOrdersPage = () => {
     const newTableProduct: TableProduct = {
       id: `${product.id}-${selectedUnitId}-${uniqueId}`,
       product,
-      quantity: 1,
+      quantity: 0,
       selectedUnitId: selectedUnitId,
       selectedUnit: selectedUnit,
       isEditing: true,
@@ -282,7 +283,7 @@ const FastOrdersPage = () => {
   }, [productUnitOptions, products, tableProducts])
   // Update product quantity with 0.25 increments
   const handleUpdateQuantity = useCallback((tableProductId: string, newQuantity: number) => {
-    if (newQuantity < 0.25) return
+    if (newQuantity < 0) return
 
     // Round to nearest 0.25 increment
     const roundedQuantity = Math.round(newQuantity * 4) / 4
@@ -294,6 +295,36 @@ const FastOrdersPage = () => {
       return tp
     }))
   }, [])
+
+  const handleQuantityChange = useCallback((tableProductId: string, nextValue: string) => {
+    const cleaned = nextValue.replace(/[^0-9.,]/g, "")
+    const normalized = cleaned.replace(",", ".")
+    const parts = normalized.split(".")
+    const normalizedSingle =
+      parts.length > 1 ? `${parts.shift()}.${parts.join("")}` : normalized
+
+    setQuantityDrafts((prev) => ({ ...prev, [tableProductId]: cleaned }))
+    const parsed = Number.parseFloat(normalizedSingle)
+    if (Number.isFinite(parsed)) {
+      handleUpdateQuantity(tableProductId, parsed)
+    }
+  }, [handleUpdateQuantity])
+
+  const handleQuantityBlur = useCallback((tableProductId: string) => {
+    setQuantityDrafts((prev) => {
+      const current = prev[tableProductId]
+      const normalized = (current ?? "").replace(",", ".").trim()
+      const parsed = Number.parseFloat(normalized)
+      if (!normalized) {
+        handleUpdateQuantity(tableProductId, 0)
+      } else if (Number.isFinite(parsed)) {
+        handleUpdateQuantity(tableProductId, parsed)
+      }
+      const next = { ...prev }
+      delete next[tableProductId]
+      return next
+    })
+  }, [handleUpdateQuantity])
 
   // Update product unit
   const handleUpdateUnit = useCallback((tableProductId: string, newUnitId: number) => {
@@ -337,6 +368,11 @@ const FastOrdersPage = () => {
     }
 
     if (tableProducts.length === 0) {
+      return
+    }
+
+    if (tableProducts.some((tp) => !tp.quantity || tp.quantity <= 0)) {
+      toast.error("No puedes crear un pedido con cantidad 0. Ajusta las cantidades.")
       return
     }
 
@@ -777,6 +813,9 @@ const FastOrdersPage = () => {
                   ) : (
                     tableProducts.map((tableProduct) => {
                       const { product, quantity, id, selectedUnit, isEditing } = tableProduct
+                      const draftValue = quantityDrafts[id]
+                      const displayQuantity = Number.isFinite(quantity) ? quantity : 0
+                      const inputValue = draftValue ?? String(displayQuantity)
 
                       return (
                         <tr key={id} className="hover:bg-gray-50 transition-colors duration-150">
@@ -818,59 +857,15 @@ const FastOrdersPage = () => {
                            {/* Cantidad */}
                            <td className="px-6 py-4">
                              <div className="flex items-center justify-center gap-2">
-                               {isEditing ? (
-                                 <div className="flex items-center gap-2">
-                                   <Button
-                                     variant="outline"
-                                     size="icon"
-                                     onClick={() => handleUpdateQuantity(id, quantity - 0.25)}
-                                     disabled={quantity <= 0.25}
-                                     className="h-7 w-7"
-                                   >
-                                     <X className="h-3 w-3 rotate-45" />
-                                   </Button>
-                                   <Input
-                                     type="number"
-                                     step={0.25}
-                                     value={quantity}
-                                     onChange={(e) => handleUpdateQuantity(id, parseFloat(e.target.value) || 0.25)}
-                                     className="w-16 h-8 text-center"
-                                     min={0.25}
-                                     max={product.stock}
-                                   />
-                                   <Button
-                                     variant="outline"
-                                     size="icon"
-                                     onClick={() => handleUpdateQuantity(id, quantity + 0.25)}
-                                     className="h-7 w-7"
-                                   >
-                                     <Plus className="h-3 w-3" />
-                                   </Button>
-                                 </div>
-                               ) : (
-                                 <div className="flex items-center gap-1">
-                                   <Button
-                                     variant="outline"
-                                     size="icon"
-                                     onClick={() => handleUpdateQuantity(id, quantity - 0.25)}
-                                     disabled={quantity <= 0.25}
-                                     className="h-7 w-7"
-                                   >
-                                     <X className="h-3 w-3 rotate-45" />
-                                   </Button>
-                                   <span className="w-12 text-center text-sm font-medium">
-                                     {quantity % 1 === 0 ? quantity : quantity.toFixed(2)}
-                                   </span>
-                                    <Button
-                                      variant="outline"
-                                      size="icon"
-                                      onClick={() => handleUpdateQuantity(id, quantity + 0.25)}
-                                      className="h-7 w-7"
-                                    >
-                                      <Plus className="h-3 w-3" />
-                                    </Button>
-                                 </div>
-                               )}
+                               <Input
+                                 type="text"
+                                 inputMode="decimal"
+                                 pattern="^\\d*(?:[\\.,]\\d+)?$"
+                                 value={inputValue}
+                                 onChange={(e) => handleQuantityChange(id, e.target.value)}
+                                 onBlur={() => handleQuantityBlur(id)}
+                                 className="w-20 h-8 text-center border border-gray-300 bg-white focus-visible:ring-2 focus-visible:ring-primary/30"
+                               />
                                <span className="text-sm text-gray-600 min-w-fit">
                                  {selectedUnit.name}
                                </span>
@@ -926,35 +921,25 @@ const FastOrdersPage = () => {
                   <div className="divide-y divide-gray-100">
                     {tableProducts.map((tableProduct) => {
                       const { product, quantity, id, selectedUnit } = tableProduct
+                      const draftValue = quantityDrafts[id]
+                      const displayQuantity = Number.isFinite(quantity) ? quantity : 0
+                      const inputValue = draftValue ?? String(displayQuantity)
                       return (
                         <div key={id} className="grid grid-cols-[1fr_auto_auto] items-center gap-2 px-3 py-2">
                           <div className="min-w-0">
                             <p className="truncate text-sm font-semibold text-gray-900">{product.name}</p>
                             <p className="text-[11px] text-gray-500">{selectedUnit.name}</p>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              onClick={() => handleUpdateQuantity(id, quantity - 0.25)}
-                              disabled={quantity <= 0.25}
-                              className="h-7 w-7"
-                              aria-label="Disminuir cantidad"
-                            >
-                              <X className="h-3 w-3 rotate-45" />
-                            </Button>
-                            <span className="w-10 text-center text-xs font-semibold text-gray-900">
-                              {quantity % 1 === 0 ? quantity : quantity.toFixed(2)}
-                            </span>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              onClick={() => handleUpdateQuantity(id, quantity + 0.25)}
-                              className="h-7 w-7"
-                              aria-label="Aumentar cantidad"
-                            >
-                              <Plus className="h-3 w-3" />
-                            </Button>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="text"
+                              inputMode="decimal"
+                              pattern="^\\d*(?:[\\.,]\\d+)?$"
+                              value={inputValue}
+                              onChange={(e) => handleQuantityChange(id, e.target.value)}
+                              onBlur={() => handleQuantityBlur(id)}
+                              className="w-20 h-8 text-center border border-gray-300 bg-white focus-visible:ring-2 focus-visible:ring-primary/30"
+                            />
                           </div>
                           <div className="flex justify-center">
                             <Button
