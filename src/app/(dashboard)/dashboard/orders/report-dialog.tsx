@@ -23,6 +23,7 @@ interface ReportDialogProps {
 }
 
 export function ReportDialog({ open, onOpenChange, orders }: ReportDialogProps) {
+  void orders;
   const [isGenerating, setIsGenerating] = useState(false);
   const [mode, setMode] = useState<'range' | 'specific'>('range');
   const [startDate, setStartDate] = useState('');
@@ -38,10 +39,9 @@ export function ReportDialog({ open, onOpenChange, orders }: ReportDialogProps) 
     mode === 'specific' && isSpecificValid && open
   );
 
-  const { data: rangeOrdersData, isLoading: isRangeLoading } = useOrdersByDateRangeQuery(
+  const { data: rangeOrdersData = [], isLoading: isRangeLoading } = useOrdersByDateRangeQuery(
     mode === 'range' && isRangeValid ? startDate : null,
-    mode === 'range' && isRangeValid ? endDate : null,
-    { page: 1, limit: 1000 }
+    mode === 'range' && isRangeValid ? endDate : null
   );
 
   const { data: categoriesData = [] } = useCategoriesQuery();
@@ -52,11 +52,7 @@ export function ReportDialog({ open, onOpenChange, orders }: ReportDialogProps) 
       return specificOrdersData;
     }
     if (!isRangeValid) return [];
-    return rangeOrdersData?.items || orders.filter((order) => {
-      if (!order.createdAt) return false;
-      const orderDate = order.createdAt.slice(0, 10);
-      return orderDate >= startDate && orderDate <= endDate;
-    });
+    return rangeOrdersData;
   })();
 
   const dateRangeLabel = useMemo(() => {

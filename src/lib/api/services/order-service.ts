@@ -243,30 +243,41 @@ class OrderService {
   /**
    * Filtrar órdenes por rango de fechas
    */
-  async filterByDateRange(params: GetOrdersByDateRangeParams) {
+  async filterByDateRange(params: GetOrdersByDateRangeParams): Promise<Order[]> {
     try {
       const response = await axiosInstance.get<
-        PaginatedOrdersResponse | ApiResponse<PaginatedOrdersResponse>
-      >('/orders/filter', { params });
+        Order[] |
+        ApiResponse<Order[]> |
+        { items: Order[] } |
+        ApiResponse<{ items: Order[] }>
+      >('/orders/filter', { params: { startDate: params.startDate, endDate: params.endDate } });
       
       console.log('[OrderService] FilterByDateRange response:', response.data);
-      
-      let data: PaginatedOrdersResponse | undefined;
-      
-      if (response.data && 'data' in response.data && !('items' in response.data)) {
-        const resp = response.data as unknown as Record<string, unknown>;
-        data = resp.data as unknown as PaginatedOrdersResponse;
-      } else if (response.data && 'items' in response.data) {
-        data = response.data as unknown as PaginatedOrdersResponse;
-      } else if (response.data && typeof response.data === 'object' && response.data !== null) {
-        data = response.data as unknown as PaginatedOrdersResponse;
+
+      if (Array.isArray(response.data)) {
+        return response.data as Order[];
       }
-      
-      if (!data || !data.items) {
-        return { items: [], total: 0, page: 1, limit: 10, hasMore: false, totalPages: 0 };
+
+      if (response.data && typeof response.data === 'object') {
+        const payload = response.data as Record<string, unknown>;
+
+        if (Array.isArray(payload.data)) {
+          return payload.data as Order[];
+        }
+
+        if (payload.data && typeof payload.data === 'object') {
+          const wrapped = payload.data as Record<string, unknown>;
+          if (Array.isArray(wrapped.items)) {
+            return wrapped.items as Order[];
+          }
+        }
+
+        if (Array.isArray(payload.items)) {
+          return payload.items as Order[];
+        }
       }
-      
-      return data;
+
+      return [];
     } catch (error) {
       console.error('[OrderService] Error en filterByDateRange:', error);
       throw error;

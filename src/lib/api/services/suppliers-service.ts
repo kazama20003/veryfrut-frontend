@@ -166,10 +166,15 @@ class SuppliersService {
   /**
    * Eliminar proveedor
    */
-  async delete(id: string | number) {
+  async delete(id: string | number): Promise<{ success: boolean }> {
     const response = await axiosInstance.delete<{ success: boolean } | ApiResponse<{ success: boolean }>>(`/supliers/${id}`);
-    const data = (response.data as ApiResponse<{ success: boolean }>)?.data || response.data;
-    return data || { success: false };
+    const payload = (response.data as ApiResponse<{ success: boolean }>)?.data || response.data;
+
+    if (payload && typeof payload === 'object' && 'success' in payload) {
+      return { success: Boolean((payload as { success?: boolean }).success) };
+    }
+
+    return { success: response.status >= 200 && response.status < 300 };
   }
 
   /**

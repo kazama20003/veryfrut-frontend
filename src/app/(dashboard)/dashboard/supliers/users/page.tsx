@@ -20,7 +20,12 @@ import {
 import { Loader2, Pencil, Plus, RefreshCw, Trash2, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSuppliersQuery } from '@/lib/api';
-import suppliersService, { type Suplier, type CreateSuplierDto, type UpdateSuplierDto } from '@/lib/api/services/suppliers-service';
+import suppliersService, {
+  type Suplier,
+  type CreateSuplierDto,
+  type UpdateSuplierDto,
+  type PaginatedSupliersResponse,
+} from '@/lib/api/services/suppliers-service';
 import { useQueryClient } from '@tanstack/react-query';
 import queryKeys from '@/lib/api/queryKeys';
 
@@ -36,7 +41,7 @@ const emptyForm: CreateSuplierDto = {
 export default function SuppliersUsersPage() {
   const queryClient = useQueryClient();
   const { data, isLoading, isFetching, error, refetch } = useSuppliersQuery();
-  const suppliers = data?.data || [];
+  const suppliers = useMemo(() => data?.data ?? [], [data]);
 
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
@@ -136,6 +141,24 @@ export default function SuppliersUsersPage() {
 
   const handleDelete = async (supplier: Suplier) => {
     if (!confirm(`Eliminar proveedor "${supplier.name}"?`)) return;
+
+    const previousLists = queryClient.getQueriesData<PaginatedSupliersResponse>({
+      queryKey: queryKeys.suppliers.lists(),
+    });
+
+    queryClient.setQueriesData<PaginatedSupliersResponse>(
+      { queryKey: queryKeys.suppliers.lists() },
+      (current) => {
+        if (!current || !Array.isArray(current.data)) return current;
+        const nextData = current.data.filter((item) => item.id !== supplier.id);
+        return {
+          ...current,
+          data: nextData,
+          total: typeof current.total === 'number' ? Math.max(0, current.total - 1) : nextData.length,
+        };
+      }
+    );
+
     try {
       setDeletingId(supplier.id);
       const result = await suppliersService.delete(supplier.id);
@@ -143,6 +166,9 @@ export default function SuppliersUsersPage() {
       toast.success('Proveedor eliminado');
       await queryClient.invalidateQueries({ queryKey: queryKeys.suppliers.lists() });
     } catch (deleteError) {
+      previousLists.forEach(([key, value]) => {
+        queryClient.setQueryData(key, value);
+      });
       console.error(deleteError);
       toast.error('Error al eliminar proveedor');
     } finally {

@@ -36,9 +36,15 @@ interface CategoryProduct {
       areaName: string;
       areaColor: string;
       dateKey: string;
+      entryKey: string;
     }>
   >;
 }
+
+const toDateKey = (value?: string): string => {
+  if (!value) return '';
+  return value.slice(0, 10);
+};
 
 const generateExcelReport = async (
   orders: Order[],
@@ -70,7 +76,7 @@ const generateExcelReport = async (
   // Procesar órdenes
   orders.forEach((order) => {
     if (!order.area || !order.area.company) return;
-    const orderDateKey = order.createdAt ? order.createdAt.slice(0, 10) : '';
+    const orderDateKey = toDateKey(order.createdAt);
 
     const company = order.area.company;
     const area = order.area;
@@ -95,8 +101,12 @@ const generateExcelReport = async (
     }
 
     // Procesar items de orden
-    order.orderItems?.forEach((item) => {
+    order.orderItems?.forEach((item, itemIndex) => {
       if (!item.product) return;
+      const itemDateKey = toDateKey(item.createdAt) || orderDateKey;
+      const stableItemId =
+        item.id !== null && item.id !== undefined ? String(item.id) : `idx-${itemIndex}`;
+      const entryKey = `${order.id}-${stableItemId}`;
 
       const product = item.product;
       const categoryName = product.category?.name || 'Sin Categoría';
@@ -129,7 +139,8 @@ const generateExcelReport = async (
         areaId: area.id,
         areaName: area.name,
         areaColor: area.color || '#000000',
-        dateKey: orderDateKey,
+        dateKey: itemDateKey,
+        entryKey,
       });
     });
   });
@@ -254,11 +265,20 @@ const generateExcelReport = async (
           // Agrupar cantidades por área y unidad
           const groupedByAreaAndUnit = new Map<
             string,
-            { quantity: number; unitName: string; areaName: string; areaColor: string; dateKey: string }
+            {
+              quantity: number;
+              unitName: string;
+              areaName: string;
+              areaColor: string;
+              dateKey: string;
+              entryKey: string;
+            }
           >();
 
           quantities.forEach((q) => {
-            const key = isRangeMode ? `${q.areaId}__${q.unitName}__${q.dateKey}` : `${q.areaId}__${q.unitName}`;
+            const key = isRangeMode
+              ? `${q.areaId}__${q.unitName}__${q.dateKey || 'no-date'}__${q.entryKey}`
+              : `${q.areaId}__${q.unitName}`;
             const current = groupedByAreaAndUnit.get(key);
             if (current) {
               current.quantity += q.quantity;
@@ -270,6 +290,7 @@ const generateExcelReport = async (
               areaName: q.areaName,
               areaColor: q.areaColor,
               dateKey: q.dateKey,
+              entryKey: q.entryKey,
             });
           });
 
@@ -328,7 +349,7 @@ const generateExcelReport = async (
       let totalItems = 0;
       sortedProducts.forEach(({ quantitiesByCompany }) => {
         const quantities = quantitiesByCompany.get(company.id) || [];
-        quantities.forEach((q) => {
+        quantities.forEach(() => {
           totalItems += 1;
         });
       });
