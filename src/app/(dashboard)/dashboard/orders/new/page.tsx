@@ -63,11 +63,14 @@ const AdminFastOrdersPage = () => {
   }, [])
 
   // Get all users, products, and areas for admin
-  const { data: usersData, isLoading: isLoadingUsers } = useUsersQuery()
+  const { data: usersData, isLoading: isLoadingUsers } = useUsersQuery({ page: 1, limit: 200 })
   const { data: productsData, isLoading, error } = useProductsQuery({ page: 1, limit: 100 })
   const { data: allAreas = [] } = useAreasQuery()
   
-  const users = useMemo(() => Array.isArray(usersData) ? usersData : [], [usersData])
+  const users = useMemo(
+    () => (Array.isArray(usersData) ? usersData : usersData?.items ?? []),
+    [usersData]
+  )
   const products = useMemo(() => productsData?.items || [], [productsData?.items])
   
   // Get today's date once to avoid hydration issues

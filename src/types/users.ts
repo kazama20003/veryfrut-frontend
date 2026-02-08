@@ -61,7 +61,7 @@ export interface UpdateUserDto {
 export interface GetUsersParams {
   page?: number;
   limit?: number;
-  sortBy?: 'id' | 'firstName' | 'lastName' | 'email' | 'createdAt' | 'updatedAt';
+  sortBy?: 'id' | 'firstName' | 'lastName' | 'email' | 'createdAt' | 'updatedAt' | 'role';
   order?: 'asc' | 'desc';
   q?: string; // búsqueda genérica
 }
