@@ -74,6 +74,11 @@ function EditOrderForm({ order }: { order: Order }) {
     [selectedProduct?.productUnits]
   );
 
+  const getUnitsForProduct = (productId: number) => {
+    const product = products.find((item) => item.id === productId);
+    return product?.productUnits ?? [];
+  };
+
   const totalQuantity = useMemo(
     () => items.reduce((sum, item) => sum + item.quantity, 0),
     [items]
@@ -98,6 +103,22 @@ function EditOrderForm({ order }: { order: Order }) {
 
   const handleRemoveItem = (index: number) => {
     setItems((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
+  };
+
+  const handleChangeUnit = (index: number, unitMeasurementId: number) => {
+    setItems((prev) =>
+      prev.map((item, itemIndex) => {
+        if (itemIndex !== index) return item;
+        const unit = getUnitsForProduct(item.productId).find(
+          (productUnit) => productUnit.unitMeasurement.id === unitMeasurementId
+        )?.unitMeasurement;
+        return {
+          ...item,
+          unitMeasurementId,
+          unitName: unit?.name ?? item.unitName,
+        };
+      })
+    );
   };
 
   const handleAddProduct = () => {
@@ -126,31 +147,19 @@ function EditOrderForm({ order }: { order: Order }) {
       return;
     }
 
-    setItems((prev) => {
-      const existingIndex = prev.findIndex(
-        (item) => item.productId === selectedProduct.id && item.unitMeasurementId === selectedUnit.id
-      );
-
-      if (existingIndex >= 0) {
-        return prev.map((item, index) =>
-          index === existingIndex ? { ...item, quantity: item.quantity + quantity } : item
-        );
-      }
-
-      return [
-        ...prev,
-        {
-          key: `new-${selectedProduct.id}-${selectedUnit.id}-${Date.now()}`,
-          productId: selectedProduct.id,
-          unitMeasurementId: selectedUnit.id,
-          productName: selectedProduct.name,
-          unitName: selectedUnit.name,
-          quantity,
-          price: selectedProduct.price,
-          imageUrl: selectedProduct.imageUrl,
-        },
-      ];
-    });
+    setItems((prev) => [
+      ...prev,
+      {
+        key: `new-${selectedProduct.id}-${selectedUnit.id}-${Date.now()}`,
+        productId: selectedProduct.id,
+        unitMeasurementId: selectedUnit.id,
+        productName: selectedProduct.name,
+        unitName: selectedUnit.name,
+        quantity,
+        price: selectedProduct.price,
+        imageUrl: selectedProduct.imageUrl,
+      },
+    ]);
 
     setSelectedProductId(undefined);
     setSelectedUnitId(undefined);
@@ -298,7 +307,22 @@ function EditOrderForm({ order }: { order: Order }) {
                       </div>
                     </div>
 
-                    <div className='grid grid-cols-1 sm:grid-cols-[140px_160px] gap-2 w-full md:w-auto'>
+                    <div className='grid grid-cols-1 sm:grid-cols-[180px_140px_160px] gap-2 w-full md:w-auto'>
+                      <Select
+                        value={item.unitMeasurementId.toString()}
+                        onValueChange={(value) => handleChangeUnit(index, Number(value))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder='Unidad' />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {getUnitsForProduct(item.productId).map((unit) => (
+                            <SelectItem key={unit.id} value={unit.unitMeasurement.id.toString()}>
+                              {unit.unitMeasurement.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <Input
                         type='number'
                         min='0.01'

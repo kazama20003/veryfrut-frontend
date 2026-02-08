@@ -310,15 +310,6 @@ const AdminFastOrdersPage = () => {
       }
     }
 
-    // Check if product with the SAME presentation already exists - this is not allowed
-    const existingProduct = tableProducts.find(tp => 
-      tp.product.id === foundProduct.id && tp.selectedUnitId === defaultUnitId
-    )
-    if (existingProduct) {
-      console.log("[AdminFastOrdersPage] Product with same presentation already exists - blocking")
-      return
-    }
-
     // Generate a stable ID to avoid hydration issues
     const uniqueId = Math.random().toString(36).substr(2, 9)
     const newTableProduct: TableProduct = {

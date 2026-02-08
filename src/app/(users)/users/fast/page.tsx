@@ -260,14 +260,6 @@ const FastOrdersPage = () => {
     const selectedUnit = selectedProductUnit?.unitMeasurement || { id: 0, name: "Unidad", description: "" }
     const selectedUnitId = selectedProductUnit?.id || 0
 
-    const existingProduct = tableProducts.find(
-      (tp) => tp.product.id === product.id && tp.selectedUnitId === selectedUnitId
-    )
-    if (existingProduct) {
-      toast.error("Ese producto con esa unidad ya esta en la tabla")
-      return
-    }
-
     const uniqueId = Math.random().toString(36).slice(2, 11)
     const newTableProduct: TableProduct = {
       id: `${product.id}-${selectedUnitId}-${uniqueId}`,
