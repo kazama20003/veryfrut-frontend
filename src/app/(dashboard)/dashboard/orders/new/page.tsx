@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, useCallback, useMemo, useRef, useEffect } from "react"
-import { Package, Plus, X, Trash2, Edit, Save, XCircle, Send, Users } from "lucide-react"
+import { useState, useCallback, useMemo, useEffect } from "react"
+import { Package, Plus, Trash2, Send, Users, Printer, Download, Loader2 } from "lucide-react"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useProductsQuery } from "@/lib/api/hooks/useProduct"
-import { useCreateOrderMutation, useCheckOrderQuery, useOrdersQuery } from "@/lib/api/hooks/useOrder"
+import { useCreateOrderMutation, useCheckOrderQuery } from "@/lib/api/hooks/useOrder"
 import { useUsersQuery } from "@/lib/api/hooks/useUsers"
 import { useAreasQuery } from "@/lib/api/hooks/useArea"
 import { Button } from "@/components/ui/button"
@@ -16,7 +17,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Suspense } from "react"
 import Loading from "@/components/dashboard/sidebar/loading"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { SimpleProductCombobox } from "@/components/users/simple-product-combobox"
 import { Product, ProductUnit } from "@/types/product"
 import type { User } from "@/types/users"
 import { CreateOrderDto, CreateOrderItemDto, CheckOrderResponse } from "@/types/order"
@@ -39,20 +39,24 @@ interface TableProduct {
 }
 
 const AdminFastOrdersPage = () => {
+  const router = useRouter()
   const [tableProducts, setTableProducts] = useState<TableProduct[]>([])
-  const [selectedProductId, setSelectedProductId] = useState<number | undefined>()
+  const [quantityDrafts, setQuantityDrafts] = useState<Record<string, string>>({})
+  const [productSearch, setProductSearch] = useState("")
   const [selectedUserId, setSelectedUserId] = useState<number | undefined>()
   const [selectedAreaId, setSelectedAreaId] = useState<number | undefined>()
   const [isCreatingOrder, setIsCreatingOrder] = useState(false)
+  const [isPrinting, setIsPrinting] = useState(false)
+  const [isDownloading, setIsDownloading] = useState(false)
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false)
   const [areas, setAreas] = useState<Array<{id: number; name: string}>>([])
+  const [blockedAreaIds, setBlockedAreaIds] = useState<Set<number>>(new Set())
   const [orderObservations, setOrderObservations] = useState<string>("")
   const [shouldCheckOrder, setShouldCheckOrder] = useState(false)
   const [existingOrder, setExistingOrder] = useState<{id: number; status: string; areaId: number; totalAmount: number} | undefined>(undefined)
   
   // Track orders created in this session to prevent duplicates
-  const [sessionOrders, setSessionOrders] = useState<Set<number>>(new Set())
-  const comboboxRef = useRef<HTMLDivElement>(null)
+  const [sessionOrderKeys, setSessionOrderKeys] = useState<Set<string>>(new Set())
   const createOrderMutation = useCreateOrderMutation()
   
   // Prevent hydration mismatches by only rendering after component is mounted
@@ -119,154 +123,75 @@ const AdminFastOrdersPage = () => {
     })
   }, [allAreas, selectedUser, selectedUserId])
 
-  // Check for existing order when user and area are selected
   const checkOrderData = useMemo(() => {
-    if (!selectedAreaId || !selectedUserId || !shouldCheckOrder) return null
-    const data = {
+    if (!selectedAreaId || !shouldCheckOrder) return null
+    return {
       areaId: selectedAreaId.toString(),
-      date: todayDate, // Use stable date
-      userId: selectedUserId.toString() // Include userId for admin checks
+      date: todayDate,
     }
-    console.log('[AdminFastOrdersPage] checkOrderData:', data)
-    return data
-  }, [selectedAreaId, selectedUserId, shouldCheckOrder, todayDate])
-  
+  }, [selectedAreaId, shouldCheckOrder, todayDate])
+
   const { data: existingOrderData, isLoading: isCheckingOrder } = useCheckOrderQuery(
-    checkOrderData, 
+    checkOrderData,
     shouldCheckOrder
   ) as { data: CheckOrderResponse | undefined, isLoading: boolean }
 
-  // Fallback: Check orders list if check endpoint doesn't work properly
-  const { data: ordersData } = useOrdersQuery({
-    userId: selectedUserId,
-    areaId: selectedAreaId,
-    page: 1,
-    limit: 10
-  })
-
-  // Check for existing order when user or area changes
   useEffect(() => {
     if (selectedAreaId && selectedUserId) {
-      console.log('[AdminFastOrdersPage] Checking for existing order for user:', selectedUserId, 'in area:', selectedAreaId)
-      // Don't reset existingOrder immediately - let the check response determine it
       setShouldCheckOrder(true)
     } else {
       setShouldCheckOrder(false)
       setExistingOrder(undefined)
     }
   }, [selectedAreaId, selectedUserId])
-  
-  // Handle existing order found
+
+  useEffect(() => {
+    if (!selectedAreaId) return
+    if (!blockedAreaIds.has(selectedAreaId)) return
+
+    const firstAvailable = areas.find((area) => !blockedAreaIds.has(area.id))
+    if (firstAvailable) {
+      setSelectedAreaId(firstAvailable.id)
+    }
+  }, [areas, blockedAreaIds, selectedAreaId])
+
   useEffect(() => {
     if (existingOrderData && shouldCheckOrder) {
-      console.log('[AdminFastOrdersPage] Existing order data from check:', existingOrderData)
-      console.log('[AdminFastOrdersPage] exists value:', existingOrderData.exists)
-      console.log('[AdminFastOrdersPage] order value:', existingOrderData.order)
-      
       if (existingOrderData.exists) {
-        // Si existe una orden (con o sin detalles del objeto order)
+        if (selectedAreaId) {
+          setBlockedAreaIds((prev) => {
+            const next = new Set(prev)
+            next.add(selectedAreaId)
+            return next
+          })
+        }
+
         if (existingOrderData.order) {
           setExistingOrder(existingOrderData.order)
-          
-          // Show toast notification about existing order
-          if (existingOrderData.order.status === 'created') {
-            toast.info(`Ya existe una orden creada hoy para esta área. Puedes agregar más productos.`)
-          } else {
-            toast.warning(`Ya existe una orden (${existingOrderData.order.status}) para esta área hoy. No se pueden crear más pedidos.`)
-          }
         } else {
-          // Si existe pero no hay detalles del objeto, crear un objeto genérico para bloquear
-          const blockOrder = {
+          setExistingOrder({
             id: 0,
-            status: 'unknown',
+            status: "unknown",
             areaId: selectedAreaId || 0,
-            totalAmount: 0
-          }
-          setExistingOrder(blockOrder)
-          console.log('[AdminFastOrdersPage] Blocking with generic order:', blockOrder)
-          toast.warning(`Ya existe un pedido para esta área hoy. Solo se permite un pedido por día y por área.`)
+            totalAmount: 0,
+          })
         }
         setShouldCheckOrder(false)
       } else if (existingOrderData.exists === false) {
-        console.log('[AdminFastOrdersPage] No existing order found according to backend check')
         setShouldCheckOrder(false)
-        // Set to undefined to let fallback potentially find it
         setExistingOrder(undefined)
       }
     } else if (!existingOrderData && shouldCheckOrder && !isCheckingOrder) {
-      console.log('[AdminFastOrdersPage] No order data returned from check')
       setShouldCheckOrder(false)
     }
-  }, [existingOrderData, shouldCheckOrder, isCheckingOrder, selectedAreaId, selectedUserId])
+  }, [existingOrderData, shouldCheckOrder, isCheckingOrder, selectedAreaId])
 
-  // Fallback: Check orders list if check endpoint doesn't work properly
-  useEffect(() => {
-    // Only run fallback after check is complete and no order was found
-    if (selectedAreaId && selectedUserId && ordersData && !shouldCheckOrder && !existingOrder && !isCheckingOrder) {
-      console.log('[AdminFastOrdersPage] Running fallback check with orders list:', ordersData)
-      
-      // Look for orders created today for this user and area
-      const todayOrders = ordersData.items?.filter(order => {
-        const orderDate = new Date(order.createdAt || '').toISOString().split('T')[0]
-        const matchesArea = order.areaId === selectedAreaId
-        const matchesUser = order.userId === selectedUserId
-        const matchesToday = orderDate === todayDate
-        return matchesArea && matchesUser && matchesToday
-      }) || []
-      
-      console.log('[AdminFastOrdersPage] Today orders for user and area:', todayOrders)
-      
-      if (todayOrders.length > 0) {
-        // Use the most recent order
-        const latestOrder = todayOrders[0]
-        console.log('[AdminFastOrdersPage] Found existing order via fallback:', latestOrder)
-        
-        setExistingOrder(latestOrder)
-        
-        if (latestOrder.status === 'created') {
-          toast.info(`Ya existe una orden creada hoy para esta área. Puedes agregar más productos.`)
-        } else {
-          toast.warning(`Ya existe una orden (${latestOrder.status}) para esta área hoy. No se pueden crear más pedidos.`)
-        }
-      } else {
-        setExistingOrder(undefined)
-      }
-    }
-  }, [ordersData, selectedAreaId, selectedUserId, shouldCheckOrder, existingOrder, todayDate, isCheckingOrder])
-
-  // Handle errors
   if (error) {
     console.error("[AdminFastOrdersPage] Error loading products:", error)
   }
 
-  // Auto-focus user selection on mount
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const userSelect = document.querySelector('[data-testid="user-select"]') as HTMLSelectElement
-      if (userSelect) {
-        userSelect.focus()
-      }
-    }, 100)
-    return () => clearTimeout(timer)
-  }, [])
-
-  // Auto-focus combobox when area is selected
-  useEffect(() => {
-    if (selectedAreaId) {
-      const timer = setTimeout(() => {
-        const searchInput = comboboxRef.current?.querySelector("input")
-        if (searchInput) {
-          searchInput.focus()
-        }
-      }, 100)
-      return () => clearTimeout(timer)
-    }
-  }, [selectedAreaId])
-
-  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl/Cmd + Enter = Create order
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
         e.preventDefault()
         if (tableProducts.length > 0 && selectedUserId && selectedAreaId) {
@@ -279,74 +204,90 @@ const AdminFastOrdersPage = () => {
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [tableProducts, selectedUserId, selectedAreaId])
 
-  // Handle product selection - adds to table automatically
-  const handleProductSelect = useCallback((productId: number) => {
-    console.log("[AdminFastOrdersPage] handleProductSelect called with:", productId)
-    setSelectedProductId(undefined)
+  const productUnitOptions = useMemo(() => {
+    return products.flatMap((product) => {
+      if (!product.productUnits || product.productUnits.length === 0) return []
+      return product.productUnits.map((unit) => ({
+        key: `${product.id}__${unit.id}`,
+        productId: product.id,
+        productUnitId: unit.id,
+        label: `${product.name} - ${unit.unitMeasurement.name}`,
+      }))
+    })
+  }, [products])
 
-    const foundProduct = products.find(p => p.id === productId)
-    if (!foundProduct) {
+  const filteredProductUnitOptions = useMemo(() => {
+    const search = productSearch.trim().toLowerCase()
+    if (!search) return productUnitOptions.slice(0, 30)
+    return productUnitOptions.filter((option) => option.label.toLowerCase().includes(search)).slice(0, 30)
+  }, [productSearch, productUnitOptions])
+
+  const handleAddProductByKey = useCallback((key: string) => {
+    if (!selectedUserId || !selectedAreaId) {
+      toast.error("Selecciona usuario y area antes de agregar productos.")
       return
     }
 
-    // Stock validation removed from frontend
+    const selectedOption = productUnitOptions.find((option) => option.key === key)
+    if (!selectedOption) return
 
-    // Validate that product has units available
-    if (!foundProduct.productUnits || foundProduct.productUnits.length === 0) {
-      return
-    }
+    const product = products.find((p) => p.id === selectedOption.productId)
+    if (!product) return
 
-    // If product has only one unit, use it directly, otherwise set to editing mode
-    const hasOnlyOneUnit = foundProduct.productUnits?.length === 1
-    const defaultUnit = foundProduct.productUnits?.[0]?.unitMeasurement || { id: 0, name: "Unidad", description: "" }
-    const defaultUnitId = foundProduct.productUnits?.[0]?.id || 0
+    const selectedProductUnit = product.productUnits?.find((unit) => unit.id === selectedOption.productUnitId)
+    const selectedUnit = selectedProductUnit?.unitMeasurement || { id: 0, name: "Unidad", description: "" }
+    const selectedUnitId = selectedProductUnit?.id || 0
 
-    // For products with multiple units/variations, require user to select the specific one
-    if (!hasOnlyOneUnit) {
-      const existingProductsWithDifferentUnits = tableProducts.filter(tp => tp.product.id === foundProduct.id)
-      if (existingProductsWithDifferentUnits.length > 0) {
-        // Product already in table with different unit - allow to add another variation
-        console.log("[AdminFastOrdersPage] Product already in table with different variation - allowing to add")
-      }
-    }
-
-    // Generate a stable ID to avoid hydration issues
-    const uniqueId = Math.random().toString(36).substr(2, 9)
+    const uniqueId = Math.random().toString(36).slice(2, 11)
     const newTableProduct: TableProduct = {
-      id: `${foundProduct.id}-${defaultUnitId}-${uniqueId}`,
-      product: foundProduct,
-      quantity: 1,
-      selectedUnitId: defaultUnitId,
-      selectedUnit: defaultUnit,
-      isEditing: !hasOnlyOneUnit // Start in edit mode if multiple units available
+      id: `${product.id}-${selectedUnitId}-${uniqueId}`,
+      product,
+      quantity: 0,
+      selectedUnitId,
+      selectedUnit,
+      isEditing: true,
     }
 
-    setTableProducts(prev => [...prev, newTableProduct])
+    setTableProducts((prev) => [...prev, newTableProduct])
+    setProductSearch("")
+  }, [productUnitOptions, products, selectedAreaId, selectedUserId])
 
-    // Re-focus combobox for next product
-    setTimeout(() => {
-      const searchInput = comboboxRef.current?.querySelector("input")
-      if (searchInput) {
-        searchInput.focus()
-        searchInput.value = ""
-      }
-    }, 100)
-  }, [products, tableProducts])
-
-  // Update product quantity with 0.25 increments
   const handleUpdateQuantity = useCallback((tableProductId: string, newQuantity: number) => {
-    if (newQuantity < 0.25) return
-
-    // Round to nearest 0.25 increment
+    if (newQuantity < 0) return
     const roundedQuantity = Math.round(newQuantity * 4) / 4
 
-    setTableProducts(prev => prev.map(tp => {
-      if (tp.id === tableProductId) {
-        return { ...tp, quantity: roundedQuantity }
-      }
-      return tp
-    }))
+    setTableProducts((prev) =>
+      prev.map((tp) => (tp.id === tableProductId ? { ...tp, quantity: roundedQuantity } : tp)),
+    )
   }, [])
+
+  const handleQuantityChange = useCallback((tableProductId: string, nextValue: string) => {
+    const cleaned = nextValue.replace(/[^0-9.,]/g, "")
+    const normalized = cleaned.replace(",", ".")
+    const parts = normalized.split(".")
+    const normalizedSingle = parts.length > 1 ? `${parts.shift()}.${parts.join("")}` : normalized
+
+    setQuantityDrafts((prev) => ({ ...prev, [tableProductId]: cleaned }))
+    const parsed = Number.parseFloat(normalizedSingle)
+    if (Number.isFinite(parsed)) {
+      handleUpdateQuantity(tableProductId, parsed)
+    }
+  }, [handleUpdateQuantity])
+  const handleQuantityBlur = useCallback((tableProductId: string) => {
+    setQuantityDrafts((prev) => {
+      const current = prev[tableProductId]
+      const normalized = (current ?? "").replace(",", ".").trim()
+      const parsed = Number.parseFloat(normalized)
+      if (!normalized) {
+        handleUpdateQuantity(tableProductId, 0)
+      } else if (Number.isFinite(parsed)) {
+        handleUpdateQuantity(tableProductId, parsed)
+      }
+      const next = { ...prev }
+      delete next[tableProductId]
+      return next
+    })
+  }, [handleUpdateQuantity])
 
   // Update product unit
   const handleUpdateUnit = useCallback((tableProductId: string, newUnitId: number) => {
@@ -357,13 +298,6 @@ const AdminFastOrdersPage = () => {
       }
       return tp
     }))
-  }, [])
-
-  // Toggle edit mode
-  const handleToggleEdit = useCallback((tableProductId: string, isEditing: boolean) => {
-    setTableProducts(prev => prev.map(tp => 
-      tp.id === tableProductId ? { ...tp, isEditing } : tp
-    ))
   }, [])
 
   // Remove product from table
@@ -377,15 +311,16 @@ const AdminFastOrdersPage = () => {
       return
     }
 
-    if (window.confirm(`¿Deseas eliminar los ${tableProducts.length} productos?`)) {
+    if (window.confirm(`Deseas eliminar los ${tableProducts.length} productos?`)) {
       setTableProducts([])
+      setQuantityDrafts({})
     }
   }, [tableProducts])
 
   // Create order
   const handleCreateOrder = async () => {
     if (!selectedUserId || !selectedAreaId) {
-      toast.error("Por favor selecciona un usuario y un área")
+      toast.error("Por favor selecciona un usuario y un area")
       return
     }
 
@@ -394,26 +329,37 @@ const AdminFastOrdersPage = () => {
       return
     }
 
+    if (tableProducts.some((tp) => !tp.quantity || tp.quantity <= 0)) {
+      toast.error("No puedes crear un pedido con cantidad 0. Ajusta las cantidades.")
+      return
+    }
+
     // Check if there's already an order for this area in the current session
-    if (selectedAreaId && sessionOrders.has(selectedAreaId)) {
-      toast.error(`Ya existe un pedido para esta área hoy. Solo se permite un pedido por día y por área.`)
+    const orderKey = `${selectedUserId}-${selectedAreaId}`
+    if (sessionOrderKeys.has(orderKey)) {
+      toast.error("Ya existe un pedido para esta area hoy. Solo se permite un pedido por dia y por area.")
+      return
+    }
+
+    if (blockedAreaIds.has(selectedAreaId)) {
+      toast.error("Esta area ya tiene pedido hoy y esta bloqueada.")
       return
     }
     
     // Check if there's an existing order that's not in 'created' status
     if (existingOrder && existingOrder.status !== 'created') {
-      toast.error(`Ya existe una orden con estado "${existingOrder.status}" para esta área hoy. Solo se puede hacer un pedido por día y por área.`)
+      toast.error(`Ya existe una orden con estado "${existingOrder.status}" para esta area hoy. Solo se puede hacer un pedido por dia y por area.`)
       return
     }
     
     // Check if there's an existing order in 'created' status
     if (existingOrder && existingOrder.status === 'created') {
-      toast.info(`Se agregarán los productos a la orden existente en esta área.`)
+      toast.info("Se agregaran los productos a la orden existente en esta area.")
     }
     
     // If there's an existing order with status 'unknown' (when backend only returns exists: true)
     if (existingOrder && existingOrder.status === 'unknown') {
-      toast.error(`Ya existe un pedido para esta área hoy. Solo se permite un pedido por día y por área.`)
+      toast.error("Ya existe un pedido para esta area hoy. Solo se permite un pedido por dia y por area.")
       return
     }
 
@@ -454,25 +400,22 @@ const AdminFastOrdersPage = () => {
       const result = await createOrderMutation.mutateAsync(orderData)
       
       // Add this area to session orders to prevent duplicates
-      if (result && selectedAreaId) {
-        setSessionOrders(prev => new Set([...prev, selectedAreaId]))
-        console.log('[AdminFastOrdersPage] Added area to session orders:', selectedAreaId)
+      if (result) {
+        setSessionOrderKeys((prev) => new Set([...prev, orderKey]))
       }
        
       // Reset form
       setTableProducts([])
+      setQuantityDrafts({})
       setOrderObservations("")
       setIsConfirmDialogOpen(false)
       setExistingOrder(undefined)
-      setShouldCheckOrder(false) // Reset order check
-      
-      // Re-focus user select for next order
-      setTimeout(() => {
-        const userSelect = document.querySelector('[data-testid="user-select"]') as HTMLSelectElement
-        if (userSelect) {
-          userSelect.focus()
-        }
-      }, 200)
+      setBlockedAreaIds((prev) => {
+        const next = new Set(prev)
+        next.add(selectedAreaId)
+        return next
+      })
+      router.push("/dashboard/orders")
     } catch (error: unknown) {
       console.error("Error creating order:", error)
       toast.error("Error al crear el pedido. Por favor intenta de nuevo.")
@@ -480,6 +423,115 @@ const AdminFastOrdersPage = () => {
       setIsCreatingOrder(false)
     }
   }
+
+  const selectedAreaName = useMemo(
+    () => areas.find((area) => area.id === selectedAreaId)?.name ?? "",
+    [areas, selectedAreaId],
+  )
+
+  const handlePrint = useCallback(async () => {
+    if (!selectedAreaId) {
+      toast.error("Selecciona un area para imprimir")
+      return
+    }
+
+    if (tableProducts.length === 0) {
+      toast.error("No hay productos para imprimir")
+      return
+    }
+
+    try {
+      setIsPrinting(true)
+
+      const payload = {
+        areaName: selectedAreaName || `Area ${selectedAreaId}`,
+        observation: orderObservations || "",
+        items: tableProducts.map((tp) => ({
+          productName: tp.product.name,
+          quantity: tp.quantity,
+          unitName: tp.selectedUnit.name,
+        })),
+      }
+
+      const response = await fetch("/api/orders/print", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        throw new Error("No se pudo generar impresion")
+      }
+
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const win = window.open(url, "_blank", "noopener,noreferrer")
+      if (!win) {
+        const link = document.createElement("a")
+        link.href = url
+        link.target = "_blank"
+        link.rel = "noopener noreferrer"
+        link.click()
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 30000)
+    } catch (printError) {
+      console.error("[AdminFastOrdersPage] Error printing order:", printError)
+      toast.error("Error al generar impresion")
+    } finally {
+      setIsPrinting(false)
+    }
+  }, [orderObservations, selectedAreaId, selectedAreaName, tableProducts])
+
+  const handleDownload = useCallback(async () => {
+    if (!selectedAreaId) {
+      toast.error("Selecciona un area para descargar")
+      return
+    }
+
+    if (tableProducts.length === 0) {
+      toast.error("No hay productos para descargar")
+      return
+    }
+
+    try {
+      setIsDownloading(true)
+
+      const payload = {
+        areaName: selectedAreaName || `Area ${selectedAreaId}`,
+        observation: orderObservations || "",
+        items: tableProducts.map((tp) => ({
+          productName: tp.product.name,
+          quantity: tp.quantity,
+          unitName: tp.selectedUnit.name,
+        })),
+      }
+
+      const response = await fetch("/api/orders/print", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        throw new Error("No se pudo generar descarga")
+      }
+
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = `pedido-admin-${selectedAreaId}-${todayDate}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      setTimeout(() => URL.revokeObjectURL(url), 30000)
+    } catch (downloadError) {
+      console.error("[AdminFastOrdersPage] Error downloading order:", downloadError)
+      toast.error("Error al descargar PDF")
+    } finally {
+      setIsDownloading(false)
+    }
+  }, [orderObservations, selectedAreaId, selectedAreaName, tableProducts, todayDate])
 
   const stats = useMemo(() => ({
     totalProducts: tableProducts.length,
@@ -489,7 +541,7 @@ const AdminFastOrdersPage = () => {
 
   if (!isMounted) {
     return (
-      <div className="flex min-h-screen flex-col bg-background">
+      <div className="flex min-h-screen flex-col bg-gray-50">
         <div className="flex-1 flex items-center justify-center">
           <Loading />
         </div>
@@ -499,9 +551,9 @@ const AdminFastOrdersPage = () => {
 
   return (
     <Suspense fallback={<Loading />}>
-      <div className="flex min-h-screen flex-col bg-background">
+      <div className="flex min-h-screen flex-col bg-gray-50">
         {/* Header */}
-        <header className="sticky top-0 z-40 border-b bg-white">
+        <header className="sticky top-0 z-40 border-b bg-white shadow-sm">
           <div className="flex flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div className="flex items-center gap-4">
               <SidebarTrigger className="h-9 w-9 rounded-full border border-gray-200" />
@@ -582,29 +634,35 @@ const AdminFastOrdersPage = () => {
 
             {/* Area Selection */}
             <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-              <label className="text-sm font-semibold text-gray-700 block mb-3">Área</label>
+              <label className="text-sm font-semibold text-gray-700 block mb-3">Area</label>
               <Select 
                 value={selectedAreaId?.toString()} 
                 onValueChange={(value) => setSelectedAreaId(parseInt(value))}
                 disabled={!selectedUserId}
               >
                 <SelectTrigger className="rounded-lg border-gray-300">
-                  <SelectValue placeholder={selectedUserId ? "Selecciona un área..." : "Selecciona un usuario primero..."} />
+                  <SelectValue placeholder={selectedUserId ? "Selecciona un area..." : "Selecciona un usuario primero..."} />
                 </SelectTrigger>
                 <SelectContent>
                   {areas.length > 0 ? (
-                    areas.map((area) => (
-                      <SelectItem key={area.id} value={area.id.toString()}>
-                        {area.name}
-                      </SelectItem>
-                    ))
+                    areas.map((area) => {
+                      const isBlocked = blockedAreaIds.has(area.id)
+                      return (
+                        <SelectItem key={area.id} value={area.id.toString()} disabled={isBlocked}>
+                          {area.name}{isBlocked ? " (bloqueada)" : ""}
+                        </SelectItem>
+                      )
+                    })
                   ) : (
                     <div className="px-2 py-1.5 text-sm text-gray-500">
-                      {selectedUserId ? "No hay áreas disponibles" : "Selecciona un usuario primero"}
+                      {selectedUserId ? "No hay areas disponibles" : "Selecciona un usuario primero"}
                     </div>
                   )}
                 </SelectContent>
               </Select>
+              {selectedAreaId && blockedAreaIds.has(selectedAreaId) && (
+                <p className="mt-2 text-xs text-red-600">Bloqueada: esta area ya tiene pedido hoy.</p>
+              )}
               {/* Order Status */}
               {existingOrder && (
                 <div className={`mt-2 p-2 rounded-md text-xs ${
@@ -613,8 +671,8 @@ const AdminFastOrdersPage = () => {
                     : 'bg-red-50 text-red-700 border border-red-200'
                 }`}>
                   <div className="font-medium">
-                    {existingOrder.status === 'created' ? '📝 Orden abierta' : 
-                     existingOrder.status === 'unknown' ? '🚫 Pedido existente' : '🚫 Orden cerrada'}
+                    {existingOrder.status === 'created' ? 'Orden abierta' : 
+                     existingOrder.status === 'unknown' ? 'Pedido existente' : 'Orden cerrada'}
                   </div>
                   <div>
                     Estado: <span className="font-medium">
@@ -628,9 +686,9 @@ const AdminFastOrdersPage = () => {
                     </div>
                   )}
                   {existingOrder.status === 'created' ? (
-                    <div>Puedes agregar más productos a esta orden</div>
+                    <div>Puedes agregar mas productos a esta orden</div>
                   ) : (
-                    <div>No se pueden crear más pedidos hoy para esta área</div>
+                    <div>No se pueden crear mas pedidos hoy para esta area</div>
                   )}
                 </div>
               )}
@@ -638,29 +696,53 @@ const AdminFastOrdersPage = () => {
               {/* Checking Status */}
               {isCheckingOrder && (
                 <div className="mt-2 p-2 rounded-md text-xs bg-blue-50 text-blue-700 border border-blue-200">
-                  <div className="font-medium">🔍 Verificando pedidos existentes...</div>
+                  <div className="font-medium">Verificando pedidos existentes...</div>
                 </div>
               )}
             </div>
 
             {/* Product Selection */}
-            <div ref={comboboxRef} className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-              <label className="text-sm font-semibold text-gray-700 block mb-3">Producto</label>
-              <SimpleProductCombobox
-                products={products}
-                selectedProductId={selectedProductId}
-                onProductSelect={handleProductSelect}
-                placeholder="Busca un producto..."
-              />
-              <p className="text-xs text-gray-500 mt-3 flex items-center gap-1">
-                <kbd className="px-2 py-1 bg-gray-100 border border-gray-300 rounded text-xs">Enter</kbd> o selecciona para agregar
-              </p>
+            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-md">
+              <label htmlFor="admin-product-search" className="text-sm font-semibold text-gray-700 block mb-3">
+                Buscar producto
+              </label>
+              <div className="space-y-3">
+                <Input
+                  id="admin-product-search"
+                  value={productSearch}
+                  onChange={(event) => setProductSearch(event.target.value)}
+                  placeholder="Nombre producto - unidad (agrega con clic)"
+                  className="rounded-lg border-gray-300"
+                  disabled={!selectedUserId || !selectedAreaId}
+                />
+                <div className="max-h-64 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100">
+                  {!selectedUserId || !selectedAreaId ? (
+                    <div className="px-3 py-4 text-sm text-gray-500">Selecciona usuario y area para agregar productos</div>
+                  ) : filteredProductUnitOptions.length > 0 ? (
+                    filteredProductUnitOptions.map((option) => (
+                      <button
+                        key={option.key}
+                        type="button"
+                        onClick={() => handleAddProductByKey(option.key)}
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 transition-colors flex items-center justify-between gap-2"
+                      >
+                        <span className="truncate">{option.label}</span>
+                        <Plus className="h-4 w-4 flex-shrink-0 text-green-600" />
+                      </button>
+                    ))
+                  ) : productSearch.trim().length > 0 ? (
+                    <div className="px-3 py-4 text-sm text-gray-500">No hay coincidencias</div>
+                  ) : (
+                    <div className="px-3 py-4 text-sm text-gray-500">Escribe para filtrar productos</div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
 
           {/* Products Table */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-md overflow-hidden">
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
@@ -668,7 +750,7 @@ const AdminFastOrdersPage = () => {
                       Producto
                     </th>
                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                       Presentación
+                       Presentacion
                      </th>
                       <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
                         Cantidad
@@ -691,32 +773,29 @@ const AdminFastOrdersPage = () => {
                         <td className="px-6 py-4 text-center">
                           <div className="h-8 bg-gray-300 rounded w-16 mx-auto"></div>
                         </td>
-                        <td className="px-6 py-4">
-                          <div className="h-4 bg-gray-300 rounded w-1/2"></div>
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <div className="h-8 bg-gray-300 rounded w-16 mx-auto"></div>
-                        </td>
                       </tr>
                     ))
                   ) : tableProducts.length === 0 ? (
                     <tr>
-                      <td colSpan={3} className="px-6 py-20 text-center">
+                      <td colSpan={4} className="px-6 py-20 text-center">
                         <div className="flex flex-col items-center justify-center">
                           <div className="mb-4 p-3 bg-gray-100 rounded-full">
                             <Package className="h-8 w-8 text-gray-400" />
                           </div>
-                          <h3 className="text-lg font-bold text-gray-900">Tabla vacía</h3>
-                          <p className="text-gray-600 mt-2">Selecciona un usuario, un área y busca productos para agregarlos automáticamente</p>
+                          <h3 className="text-lg font-bold text-gray-900">Tabla vacia</h3>
+                          <p className="text-gray-600 mt-2">Selecciona un usuario, un area y busca productos para agregarlos automaticamente</p>
                         </div>
                       </td>
                     </tr>
                   ) : (
                     tableProducts.map((tableProduct) => {
                       const { product, quantity, id, selectedUnit, isEditing } = tableProduct
+                      const draftValue = quantityDrafts[id]
+                      const displayQuantity = Number.isFinite(quantity) ? quantity : 0
+                      const inputValue = draftValue ?? String(displayQuantity)
 
                       return (
-                        <tr key={id} className="hover:bg-muted/40 transition-colors">
+                        <tr key={id} className="hover:bg-gray-50 transition-colors duration-150">
                           {/* Producto */}
                           <td className="px-6 py-4">
                              <div>
@@ -725,15 +804,15 @@ const AdminFastOrdersPage = () => {
                              </div>
                           </td>
                           
-                          {/* Presentación */}
+                          {/* Presentacion */}
                           <td className="px-6 py-4">
                             {isEditing ? (
                               <Select
                                 value={tableProduct.selectedUnitId.toString()}
                                 onValueChange={(value) => handleUpdateUnit(id, parseInt(value))}
                               >
-                                <SelectTrigger className="h-10 w-48 border border-gray-300 bg-white rounded-lg font-medium">
-                                  <SelectValue placeholder="Selecciona presentación" />
+                                <SelectTrigger className="h-10 w-48 border border-gray-300 bg-white rounded-lg font-semibold">
+                                  <SelectValue placeholder="Selecciona presentacion" />
                                 </SelectTrigger>
                                 <SelectContent>
                                   {product.productUnits?.map((unit) => (
@@ -745,7 +824,7 @@ const AdminFastOrdersPage = () => {
                               </Select>
                             ) : (
                               <div className="inline-block">
-                                <Badge className="bg-muted text-foreground px-4 py-1.5 text-sm font-medium rounded-lg cursor-default">
+                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 px-4 py-1.5 text-sm font-semibold rounded-lg cursor-default">
                                   {selectedUnit.name}
                                 </Badge>
                               </div>
@@ -755,111 +834,33 @@ const AdminFastOrdersPage = () => {
                            {/* Cantidad */}
                            <td className="px-6 py-4">
                              <div className="flex items-center justify-center gap-2">
-                               {isEditing ? (
-                                 <div className="flex items-center gap-2">
-                                   <Button
-                                     variant="outline"
-                                     size="icon"
-                                     onClick={() => handleUpdateQuantity(id, quantity - 0.25)}
-                                     disabled={quantity <= 0.25}
-                                     className="h-7 w-7"
-                                   >
-                                     <X className="h-3 w-3 rotate-45" />
-                                   </Button>
-                                   <Input
-                                     type="number"
-                                     step={0.25}
-                                     value={quantity}
-                                     onChange={(e) => handleUpdateQuantity(id, parseFloat(e.target.value) || 0.25)}
-                                     className="w-16 h-8 text-center"
-                                     min={0.25}
-                                     max={product.stock}
-                                   />
-                                   <Button
-                                     variant="outline"
-                                     size="icon"
-                                     onClick={() => handleUpdateQuantity(id, quantity + 0.25)}
-                                     className="h-7 w-7"
-                                   >
-                                     <Plus className="h-3 w-3" />
-                                   </Button>
-                                 </div>
-                               ) : (
-                                 <div className="flex items-center gap-1">
-                                   <Button
-                                     variant="outline"
-                                     size="icon"
-                                     onClick={() => handleUpdateQuantity(id, quantity - 0.25)}
-                                     disabled={quantity <= 0.25}
-                                     className="h-7 w-7"
-                                   >
-                                     <X className="h-3 w-3 rotate-45" />
-                                   </Button>
-                                   <span className="w-12 text-center text-sm font-medium">
-                                     {quantity % 1 === 0 ? quantity : quantity.toFixed(2)}
-                                   </span>
-                                    <Button
-                                      variant="outline"
-                                      size="icon"
-                                      onClick={() => handleUpdateQuantity(id, quantity + 0.25)}
-                                      className="h-7 w-7"
-                                    >
-                                      <Plus className="h-3 w-3" />
-                                    </Button>
-                                 </div>
-                               )}
+                               <Input
+                                 type="text"
+                                 inputMode="decimal"
+                                 pattern="^\\d*(?:[\\.,]\\d+)?$"
+                                 value={inputValue}
+                                 onChange={(e) => handleQuantityChange(id, e.target.value)}
+                                 onBlur={() => handleQuantityBlur(id)}
+                                 className="w-20 h-8 text-center border border-gray-300 bg-white focus-visible:ring-2 focus-visible:ring-primary/30"
+                               />
                                <span className="text-sm text-gray-600 min-w-fit">
                                  {selectedUnit.name}
                                </span>
                              </div>
                            </td>
                            
-                           {/* Acciones */}
+                          {/* Acciones */}
                           <td className="px-6 py-4">
                             <div className="flex justify-center gap-2">
-                              {isEditing ? (
-                                <>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleToggleEdit(id, false)}
-                                    className="h-8 px-3 text-green-700 hover:text-green-800 hover:bg-green-100 border-green-200 bg-green-50 font-medium"
-                                  >
-                                    <Save className="h-4 w-4 mr-1" />
-                                    Guardar
-                                  </Button>
-                                   <Button
-                                     variant="outline"
-                                     size="sm"
-                                     onClick={() => handleToggleEdit(id, false)}
-                                     className="h-8 px-3 text-gray-600 hover:text-gray-700 hover:bg-gray-100 border-gray-200"
-                                   >
-                                     <XCircle className="h-4 w-4 mr-1" />
-                                     Cancelar
-                                   </Button>
-                                </>
-                              ) : (
-                                <>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleToggleEdit(id, true)}
-                                    className="h-8 px-3 text-blue-700 hover:text-blue-800 hover:bg-blue-100 border-blue-200 bg-blue-50 font-medium"
-                                  >
-                                    <Edit className="h-4 w-4 mr-1" />
-                                    Editar
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleRemoveProduct(id)}
-                                    className="h-8 px-3 text-red-700 hover:text-white hover:bg-red-600 border-red-300 hover:border-red-600 bg-red-50 font-medium"
-                                  >
-                                    <Trash2 className="h-4 w-4 mr-1" />
-                                    Eliminar
-                                  </Button>
-                                </>
-                              )}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleRemoveProduct(id)}
+                                className="h-8 px-3 text-red-700 hover:text-white hover:bg-red-600 border-red-300 hover:border-red-600 bg-red-50 font-medium"
+                              >
+                                <Trash2 className="h-4 w-4 mr-1" />
+                                Eliminar
+                              </Button>
                             </div>
                           </td>
                         </tr>
@@ -869,28 +870,114 @@ const AdminFastOrdersPage = () => {
                 </tbody>
               </table>
             </div>
+
+            <div className="md:hidden p-3">
+              {isLoading ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="animate-pulse rounded-lg border border-gray-200 p-3">
+                    <div className="h-4 w-2/3 rounded bg-gray-200 mb-2" />
+                    <div className="h-3 w-1/2 rounded bg-gray-200 mb-3" />
+                    <div className="h-9 w-full rounded bg-gray-200" />
+                  </div>
+                ))
+              ) : tableProducts.length === 0 ? (
+                <div className="py-12 text-center">
+                  <div className="mb-3 inline-flex rounded-full bg-gray-100 p-3">
+                    <Package className="h-7 w-7 text-gray-400" />
+                  </div>
+                  <h3 className="text-base font-bold text-gray-900">Tabla vacia</h3>
+                  <p className="mt-1 text-sm text-gray-600">Busca productos para agregarlos automaticamente</p>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-gray-200 overflow-hidden">
+                  <div className="grid grid-cols-[1fr_auto_auto] items-center gap-2 bg-gray-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-600">
+                    <span>Producto</span>
+                    <span className="text-center">Cantidad</span>
+                    <span className="text-center">Accion</span>
+                  </div>
+                  <div className="divide-y divide-gray-100">
+                    {tableProducts.map((tableProduct) => {
+                      const { product, quantity, id, selectedUnit } = tableProduct
+                      const draftValue = quantityDrafts[id]
+                      const displayQuantity = Number.isFinite(quantity) ? quantity : 0
+                      const inputValue = draftValue ?? String(displayQuantity)
+                      return (
+                        <div key={id} className="grid grid-cols-[1fr_auto_auto] items-center gap-2 px-3 py-2">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-gray-900">{product.name}</p>
+                            <p className="text-[11px] text-gray-500">{selectedUnit.name}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="text"
+                              inputMode="decimal"
+                              pattern="^\\d*(?:[\\.,]\\d+)?$"
+                              value={inputValue}
+                              onChange={(e) => handleQuantityChange(id, e.target.value)}
+                              onBlur={() => handleQuantityBlur(id)}
+                              className="w-20 h-8 text-center border border-gray-300 bg-white focus-visible:ring-2 focus-visible:ring-primary/30"
+                            />
+                          </div>
+                          <div className="flex justify-center">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleRemoveProduct(id)}
+                              className="h-7 w-7 text-red-600 hover:bg-red-50 hover:text-red-700"
+                              aria-label="Eliminar producto"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Summary */}
           {tableProducts.length > 0 && (
-            <div className="mt-6 bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+            <div className="mt-6 bg-white rounded-xl border border-gray-200 p-5 shadow-md">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="text-sm text-gray-700">
-                  <span className="font-bold">Productos:</span> <span className="font-semibold text-lg text-primary">{stats.totalProducts}</span>
-                  <span className="mx-2 text-gray-400">•</span>
-                  <span className="font-bold">Unidades:</span> <span className="font-semibold text-lg text-primary">{stats.totalItems}</span>
+                  <span className="font-bold">Productos:</span> <span className="font-semibold text-lg text-green-600">{stats.totalProducts}</span>
+                  <span className="mx-2 text-gray-400">|</span>
+                  <span className="font-bold">Unidades:</span> <span className="font-semibold text-lg text-green-600">{stats.totalItems}</span>
                   {selectedUser && (
                     <>
-                      <span className="mx-2 text-gray-400">•</span>
-                      <span className="font-bold">Usuario:</span> <span className="font-semibold text-lg text-primary">{selectedUser.firstName} {selectedUser.lastName}</span>
+                      <span className="mx-2 text-gray-400">|</span>
+                      <span className="font-bold">Usuario:</span> <span className="font-semibold text-lg text-green-600">{selectedUser.firstName} {selectedUser.lastName}</span>
                     </>
                   )}
                 </div>
                  <div className="flex items-center gap-3">
                     <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={handlePrint}
+                      disabled={!selectedAreaId || tableProducts.length === 0 || isPrinting}
+                      aria-label="Imprimir pedido"
+                      title="Imprimir pedido"
+                    >
+                      {isPrinting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={handleDownload}
+                      disabled={!selectedAreaId || tableProducts.length === 0 || isDownloading}
+                      aria-label="Descargar PDF"
+                      title="Descargar PDF"
+                    >
+                      {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                    </Button>
+                    <Button
                       onClick={() => setIsConfirmDialogOpen(true)}
-                      disabled={!selectedUserId || !selectedAreaId || isCreatingOrder || (existingOrder && existingOrder.status !== 'created')}
-                      className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-6 py-2 rounded-lg"
+                      disabled={!selectedUserId || !selectedAreaId || isCreatingOrder || (selectedAreaId ? blockedAreaIds.has(selectedAreaId) : false) || (existingOrder && existingOrder.status !== 'created')}
+                      className="bg-green-600 hover:bg-green-700 text-white font-semibold px-6 py-2 rounded-lg"
                     >
                       <Send className="h-4 w-4 mr-2" />
                       {isCreatingOrder 
@@ -899,7 +986,7 @@ const AdminFastOrdersPage = () => {
                       }
                     </Button>
                    <Badge variant="outline" className="text-xs bg-gray-800 text-white border-gray-700 font-mono">
-                     ⌘ Ctrl+Enter
+                     Ctrl+Enter
                    </Badge>
                  </div>
               </div>
@@ -928,7 +1015,7 @@ const AdminFastOrdersPage = () => {
                     <p className="text-sm font-semibold text-foreground mb-1">Pedido para:</p>
                     <p className="text-sm text-foreground">{selectedUser.firstName} {selectedUser.lastName}</p>
                     {areas.find(a => a.id === selectedAreaId) && (
-                      <p className="text-sm text-muted-foreground">Área: {areas.find(a => a.id === selectedAreaId)?.name}</p>
+                      <p className="text-sm text-muted-foreground">Area: {areas.find(a => a.id === selectedAreaId)?.name}</p>
                     )}
                   </div>
                 )}
@@ -962,18 +1049,38 @@ const AdminFastOrdersPage = () => {
              <DialogFooter className="gap-2">
                <Button
                  variant="outline"
+                 size="icon"
+                 onClick={handlePrint}
+                 disabled={!selectedAreaId || tableProducts.length === 0 || isPrinting}
+                 aria-label="Imprimir pedido"
+                 title="Imprimir pedido"
+               >
+                 {isPrinting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+               </Button>
+               <Button
+                 variant="outline"
+                 size="icon"
+                 onClick={handleDownload}
+                 disabled={!selectedAreaId || tableProducts.length === 0 || isDownloading}
+                 aria-label="Descargar PDF"
+                 title="Descargar PDF"
+               >
+                 {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+               </Button>
+               <Button
+                 variant="outline"
                  onClick={() => setIsConfirmDialogOpen(false)}
                  disabled={isCreatingOrder}
                >
                  Cancelar
                </Button>
-                <Button
-                  onClick={handleCreateOrder}
-                  disabled={isCreatingOrder}
-                  className="bg-green-600 hover:bg-green-700 text-white"
-                >
-                  {isCreatingOrder ? "Creando..." : "Crear Pedido"}
-                </Button>
+                  <Button
+                    onClick={handleCreateOrder}
+                    disabled={isCreatingOrder || !selectedUserId || !selectedAreaId || (selectedAreaId ? blockedAreaIds.has(selectedAreaId) : false)}
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                  >
+                   {isCreatingOrder ? "Creando..." : "Crear Pedido"}
+                 </Button>
              </DialogFooter>
            </DialogContent>
         </Dialog>
@@ -983,6 +1090,7 @@ const AdminFastOrdersPage = () => {
 }
 
 export default AdminFastOrdersPage
+
 
 
 
