@@ -342,19 +342,18 @@ const generateExcelReport = async (
     totalCell.alignment = { horizontal: 'left', vertical: 'middle' };
 
     // Calcular totales por company
+    // Regla: contar 1 por celda con datos (producto x company),
+    // aunque dentro de la celda existan varias cantidades.
     companies.forEach((company, colIndex) => {
       const cell = worksheet.getCell(currentRow, colIndex + 2);
 
-      // Sumar todas las cantidades para esta company en esta categoría
-      let totalItems = 0;
+      let totalCellsWithData = 0;
       sortedProducts.forEach(({ quantitiesByCompany }) => {
         const quantities = quantitiesByCompany.get(company.id) || [];
-        quantities.forEach(() => {
-          totalItems += 1;
-        });
+        if (quantities.length > 0) totalCellsWithData += 1;
       });
 
-      cell.value = totalItems > 0 ? totalItems : '';
+      cell.value = totalCellsWithData > 0 ? totalCellsWithData : '';
       // Total: tamaño 16, CON NEGRITA, sin unidad de medida
       cell.font = { name: 'Calibri', size: 16, bold: true, color: { argb: 'FF000000' } };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFCCCCCC' } };
@@ -437,3 +436,4 @@ const generateExcelReport = async (
 };
 
 export { generateExcelReport };
+

@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Users, Mail, Phone, MapPin, Calendar, ArrowUpRight, Plus, Search, Eye, Trash2, Loader2 } from 'lucide-react';
+import { Users, Mail, Phone, MapPin, Calendar, ArrowUpRight, Plus, Search, Eye, Trash2, Loader2, Pencil } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -40,7 +40,7 @@ export default function UsersPage() {
     order,
   });
   const isArrayResponse = Array.isArray(usersData);
-  const users = isArrayResponse ? usersData : usersData?.items ?? [];
+  const users = useMemo(() => (isArrayResponse ? usersData : usersData?.items ?? []), [isArrayResponse, usersData]);
 
   const filteredUsers = useMemo(() => {
     if (!isArrayResponse) return users;
@@ -338,6 +338,17 @@ export default function UsersPage() {
                             >
                               <Eye className="w-4 h-4" />
                             </Button>
+                            <Link href={`/dashboard/users/editar/${user.id}`}>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                                title="Editar"
+                                aria-label="Editar"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </Button>
+                            </Link>
                             <Button
                               variant="ghost"
                               size="sm"
