@@ -63,11 +63,14 @@ const AdminFastOrdersPage = () => {
   }, [])
 
   // Get all users, products, and areas for admin
-  const { data: usersData, isLoading: isLoadingUsers } = useUsersQuery()
+  const { data: usersData, isLoading: isLoadingUsers } = useUsersQuery({ page: 1, limit: 200 })
   const { data: productsData, isLoading, error } = useProductsQuery({ page: 1, limit: 100 })
   const { data: allAreas = [] } = useAreasQuery()
   
-  const users = useMemo(() => Array.isArray(usersData) ? usersData : [], [usersData])
+  const users = useMemo(
+    () => (Array.isArray(usersData) ? usersData : usersData?.items ?? []),
+    [usersData]
+  )
   const products = useMemo(() => productsData?.items || [], [productsData?.items])
   
   // Get today's date once to avoid hydration issues
@@ -305,15 +308,6 @@ const AdminFastOrdersPage = () => {
         // Product already in table with different unit - allow to add another variation
         console.log("[AdminFastOrdersPage] Product already in table with different variation - allowing to add")
       }
-    }
-
-    // Check if product with the SAME presentation already exists - this is not allowed
-    const existingProduct = tableProducts.find(tp => 
-      tp.product.id === foundProduct.id && tp.selectedUnitId === defaultUnitId
-    )
-    if (existingProduct) {
-      console.log("[AdminFastOrdersPage] Product with same presentation already exists - blocking")
-      return
     }
 
     // Generate a stable ID to avoid hydration issues

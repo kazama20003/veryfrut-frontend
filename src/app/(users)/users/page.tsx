@@ -197,11 +197,11 @@ export default function UsersPage() {
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false)
 
   const { isMobile, mounted } = useIsMobile()
-  const { cart, addToCart, getTotalItems, getTotalPrice, ...cartMethods } = useCart()
+  const { cart, addToCartAsDuplicate, getTotalItems, getTotalPrice, ...cartMethods } = useCart()
 
   const handleAddItemFromDrawer = useCallback(
     (product: Product, selectedUnitId: number, quantity: number) => {
-      addToCart(
+      addToCartAsDuplicate(
         {
           ...product,
           quantity,
@@ -210,14 +210,14 @@ export default function UsersPage() {
         selectedUnitId,
       )
     },
-    [addToCart],
+    [addToCartAsDuplicate],
   )
 
   const handleChangeCartItemUnit = useCallback(
     (item: (typeof cart)[number], nextUnitId: number) => {
       if (item.selectedUnitId === nextUnitId) return
       cartMethods.removeFromCart(item.id, item.selectedUnitId, item.cartItemId)
-      addToCart(
+      addToCartAsDuplicate(
         {
           ...item,
           selectedUnitId: nextUnitId,
@@ -225,7 +225,7 @@ export default function UsersPage() {
         nextUnitId,
       )
     },
-    [addToCart, cartMethods],
+    [addToCartAsDuplicate, cartMethods],
   )
   // Cargar datos
   const fetchData = useCallback(async () => {
@@ -481,7 +481,7 @@ export default function UsersPage() {
                   <ProductCardDashboard
                     key={product.id}
                     product={product}
-                    onAddToCart={(cartProduct) => addToCart(cartProduct, cartProduct.selectedUnitId)}
+                    onAddToCart={(cartProduct) => addToCartAsDuplicate(cartProduct, cartProduct.selectedUnitId)}
                   />
                 ))
               ) : (

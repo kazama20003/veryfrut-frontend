@@ -1,13 +1,16 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Users, Mail, Phone, MapPin, Calendar, ArrowUpRight, MoreVertical, Plus, Search } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import Link from 'next/link';
+import { Users, Mail, Phone, MapPin, Calendar, ArrowUpRight, Plus, Search, Eye, Trash2, Loader2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { useUsersQuery } from '@/lib/api/hooks/useUsers';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useDeleteUserMutation, useUsersQuery } from '@/lib/api/hooks/useUsers';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface User {
   id: number;
@@ -22,18 +25,60 @@ interface User {
 export default function UsersPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [sortBy, setSortBy] = useState<'createdAt' | 'firstName' | 'lastName' | 'email' | 'role' | 'id'>('createdAt');
+  const [order, setOrder] = useState<'desc' | 'asc'>('desc');
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const deleteMutation = useDeleteUserMutation();
 
-  const { data: users = [], error } = useUsersQuery({ 
+  const { data: usersData, error, isLoading } = useUsersQuery({ 
     page: currentPage,
-    limit: 10,
-    q: searchTerm 
+    limit,
+    q: searchTerm || undefined,
+    sortBy,
+    order,
   });
+  const isArrayResponse = Array.isArray(usersData);
+  const users = isArrayResponse ? usersData : usersData?.items ?? [];
 
-  const filteredUsers = Array.isArray(users) ? users.filter((user: User) =>
-    user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
-  ) : [];
+  const filteredUsers = useMemo(() => {
+    if (!isArrayResponse) return users;
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return users;
+    return users.filter((user: User) =>
+      user.firstName.toLowerCase().includes(term) ||
+      user.lastName.toLowerCase().includes(term) ||
+      user.email.toLowerCase().includes(term) ||
+      (user.phone || '').toLowerCase().includes(term)
+    );
+  }, [isArrayResponse, searchTerm, users]);
+
+  const total = isArrayResponse ? filteredUsers.length : usersData?.total ?? users.length;
+  const totalPages = isArrayResponse
+    ? Math.max(1, Math.ceil(total / limit))
+    : usersData?.totalPages ?? Math.max(1, Math.ceil(total / limit));
+
+  const pagedUsers = isArrayResponse
+    ? filteredUsers.slice((currentPage - 1) * limit, currentPage * limit)
+    : users;
+
+  const handleView = (user: User) => {
+    setSelectedUser(user);
+  };
+
+  const handleDelete = async (user: User) => {
+    if (!window.confirm(`Estas seguro de eliminar a ${user.firstName} ${user.lastName}?`)) return;
+    try {
+      setDeletingId(user.id);
+      await deleteMutation.mutateAsync(user.id);
+    } catch (err) {
+      console.error('[UsersPage] Error deleting user:', err);
+      alert('Error al eliminar el usuario');
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-6 bg-background">
@@ -44,10 +89,12 @@ export default function UsersPage() {
             <Separator orientation="vertical" className="mr-2 data-[orientation=vertical]:h-4" />
             <h1 className="text-base font-semibold">Usuarios</h1>
           </div>
-          <Button className="gap-2">
-            <Plus className="w-4 h-4" />
-            Nuevo Usuario
-          </Button>
+          <Link href="/dashboard/users/new">
+            <Button className="gap-2">
+              <Plus className="w-4 h-4" />
+              Nuevo Usuario
+            </Button>
+          </Link>
         </div>
       </header>
 
@@ -79,7 +126,7 @@ export default function UsersPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-2">
-              <div className="text-3xl font-bold text-foreground">{filteredUsers.length}</div>
+              <div className="text-3xl font-bold text-foreground">{total}</div>
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <ArrowUpRight className="w-3 h-3 text-green-600" /> Activos en el sistema
               </p>
@@ -97,7 +144,7 @@ export default function UsersPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-2">
-              <div className="text-3xl font-bold text-foreground">{Math.floor(filteredUsers.length * 0.7)}</div>
+              <div className="text-3xl font-bold text-foreground">{Math.floor(total * 0.7)}</div>
               <p className="text-xs text-muted-foreground">En última sesión</p>
             </CardContent>
           </Card>
@@ -113,7 +160,7 @@ export default function UsersPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-2">
-              <div className="text-3xl font-bold text-foreground">{Math.floor(filteredUsers.length * 0.15)}</div>
+              <div className="text-3xl font-bold text-foreground">{Math.floor(total * 0.15)}</div>
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <ArrowUpRight className="w-3 h-3 text-green-600" /> Registrados
               </p>
@@ -151,6 +198,57 @@ export default function UsersPage() {
               }}
             />
           </div>
+          <Select
+            value={sortBy}
+            onValueChange={(value) => {
+              setSortBy(value as typeof sortBy);
+              setCurrentPage(1);
+            }}
+          >
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Ordenar por" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="createdAt">createdAt</SelectItem>
+              <SelectItem value="firstName">firstName</SelectItem>
+              <SelectItem value="lastName">lastName</SelectItem>
+              <SelectItem value="email">email</SelectItem>
+              <SelectItem value="role">role</SelectItem>
+              <SelectItem value="id">id</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select
+            value={order}
+            onValueChange={(value) => {
+              setOrder(value as typeof order);
+              setCurrentPage(1);
+            }}
+          >
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Orden" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="desc">desc</SelectItem>
+              <SelectItem value="asc">asc</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select
+            value={limit.toString()}
+            onValueChange={(value) => {
+              setLimit(Number(value));
+              setCurrentPage(1);
+            }}
+          >
+            <SelectTrigger className="w-[120px]">
+              <SelectValue placeholder="Limite" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="5">5</SelectItem>
+              <SelectItem value="10">10</SelectItem>
+              <SelectItem value="20">20</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Users Table */}
@@ -158,10 +256,15 @@ export default function UsersPage() {
           <CardHeader className="border-b border-border pb-4">
             <div className="flex items-center justify-between">
               <CardTitle className="text-xl font-semibold">Lista de Usuarios</CardTitle>
-              <span className="text-sm text-muted-foreground">{filteredUsers.length} registros</span>
+              <span className="text-sm text-muted-foreground">
+                {pagedUsers.length} de {total} registros
+              </span>
             </div>
           </CardHeader>
           <CardContent className="pt-6">
+            {isLoading && (
+              <div className="mb-4 text-sm text-muted-foreground">Cargando usuarios...</div>
+            )}
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
@@ -174,14 +277,14 @@ export default function UsersPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredUsers.length === 0 ? (
+                  {pagedUsers.length === 0 ? (
                     <tr className="border-b border-border">
                       <td colSpan={5} className="py-12 px-4 text-center text-sm text-muted-foreground">
                         No hay usuarios disponibles
                       </td>
                     </tr>
                   ) : (
-                    filteredUsers.map((user: User) => (
+                    pagedUsers.map((user: User) => (
                       <tr key={user.id} className="border-b border-border hover:bg-muted/50 transition-colors">
                         <td className="py-4 px-4">
                           <div className="flex items-center gap-3">
@@ -224,9 +327,33 @@ export default function UsersPage() {
                           </div>
                         </td>
                         <td className="py-4 px-4 text-right">
-                          <button className="p-2 hover:bg-muted rounded-lg transition-colors">
-                            <MoreVertical className="w-4 h-4 text-muted-foreground" />
-                          </button>
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              title="Ver"
+                              aria-label="Ver"
+                              onClick={() => handleView(user)}
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                              title="Eliminar"
+                              aria-label="Eliminar"
+                              onClick={() => handleDelete(user)}
+                              disabled={deleteMutation.isPending && deletingId === user.id}
+                            >
+                              {deleteMutation.isPending && deletingId === user.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-4 h-4" />
+                              )}
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -234,9 +361,85 @@ export default function UsersPage() {
                 </tbody>
               </table>
             </div>
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t pt-3">
+              <div className="text-xs text-muted-foreground">
+                {total === 0 ? (
+                  <>Mostrando 0 a 0 de 0 usuarios</>
+                ) : (
+                  <>Mostrando {(currentPage - 1) * limit + 1} a {Math.min(currentPage * limit, total)} de {total} usuarios</>
+                )}
+              </div>
+              <div className="flex gap-2 items-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="h-8 text-xs"
+                >
+                  Anterior
+                </Button>
+                <div className="flex items-center gap-1 px-2">
+                  <span className="text-xs font-medium">
+                    Pag {currentPage} de {totalPages}
+                  </span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage >= totalPages}
+                  className="h-8 text-xs"
+                >
+                  Siguiente
+                </Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={!!selectedUser} onOpenChange={(open) => !open && setSelectedUser(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Detalle de usuario</DialogTitle>
+            <DialogDescription>Informacion basica del usuario seleccionado</DialogDescription>
+          </DialogHeader>
+          {selectedUser && (
+            <div className="space-y-3 text-sm">
+              <div>
+                <p className="text-muted-foreground">Nombre</p>
+                <p className="font-medium">{selectedUser.firstName} {selectedUser.lastName}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Email</p>
+                <p className="font-medium">{selectedUser.email}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Telefono</p>
+                <p className="font-medium">{selectedUser.phone || '-'}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Direccion</p>
+                <p className="font-medium">{selectedUser.address || '-'}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Fecha registro</p>
+                <p className="font-medium">
+                  {new Date(selectedUser.createdAt).toLocaleDateString('es-ES', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                  })}
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSelectedUser(null)}>Cerrar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

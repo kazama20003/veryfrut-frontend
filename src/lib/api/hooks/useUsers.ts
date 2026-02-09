@@ -103,12 +103,12 @@ export function useUpdateUserMutation(id: number) {
 /**
  * Mutation: Eliminar usuario
  */
-export function useDeleteUserMutation(id: number) {
+export function useDeleteUserMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: () => usersService.delete(id),
-    onSuccess: () => {
+    mutationFn: (id: number) => usersService.delete(id),
+    onSuccess: (_result, id) => {
       // Remover del cache
       queryClient.removeQueries({ queryKey: queryKeys.users.detail(id) });
 

@@ -150,37 +150,6 @@ export default function OrderHistoryDetailPage() {
 
     const step = 0.25
 
-    const existingItem = (order?.orderItems ?? []).find(
-      (item) => item.productId === selected.productId && item.unitMeasurementId === selected.unitMeasurementId
-    )
-
-    if (existingItem) {
-      const currentValue = Number.parseFloat(
-        (draftQuantities[existingItem.id] ?? `${existingItem.quantity}`).replace(",", ".")
-      )
-      const nextQuantity = (Number.isFinite(currentValue) ? currentValue : existingItem.quantity) + step
-      setDraftQuantities((prev) => ({ ...prev, [existingItem.id]: String(nextQuantity) }))
-      setProductSearch("")
-      return
-    }
-
-    const existingAddedIndex = addedItems.findIndex(
-      (item) => item.productId === selected.productId && item.unitMeasurementId === selected.unitMeasurementId
-    )
-
-    if (existingAddedIndex >= 0) {
-      setAddedItems((prev) =>
-        prev.map((item, index) => {
-          if (index !== existingAddedIndex) return item
-          const current = Number.parseFloat(item.quantity.replace(",", "."))
-          const nextQuantity = (Number.isFinite(current) ? current : 0) + step
-          return { ...item, quantity: String(nextQuantity) }
-        })
-      )
-      setProductSearch("")
-      return
-    }
-
     setAddedItems((prev) => [
       ...prev,
       {
