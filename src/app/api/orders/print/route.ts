@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import puppeteer from "puppeteer"
-import type { Browser } from "puppeteer"
+import { jsPDF } from "jspdf"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -17,23 +16,12 @@ interface PrintOrderPayload {
   items: PrintOrderItem[]
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;")
-}
-
 function formatQuantity(quantity: number): string {
   if (quantity % 1 === 0) return quantity.toFixed(0)
   return Number.parseFloat(quantity.toFixed(3)).toString().replace(".", ",")
 }
 
 export async function POST(request: NextRequest) {
-  let browser: Browser | null = null
-
   try {
     const body = (await request.json()) as PrintOrderPayload
     const areaName = body?.areaName?.trim()
@@ -44,139 +32,107 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "Invalid print payload" }, { status: 400 })
     }
 
-    const rows = items
-      .map((item) => {
-        return `
-          <tr>
-            <td>${escapeHtml(item.productName)}</td>
-            <td class="center">${escapeHtml(formatQuantity(Number(item.quantity) || 0))}</td>
-            <td>${escapeHtml(item.unitName)}</td>
-          </tr>
-        `
-      })
-      .join("")
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" })
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const pageHeight = doc.internal.pageSize.getHeight()
+    const margin = 12
+    const contentWidth = pageWidth - margin * 2
+    const topLimit = margin
+    const bottomLimit = pageHeight - margin
 
-    const html = `
-      <!DOCTYPE html>
-      <html lang="es">
-        <head>
-          <meta charset="utf-8" />
-          <title>Pedido</title>
-          <style>
-            * { box-sizing: border-box; }
-            body {
-              margin: 0;
-              font-family: Arial, sans-serif;
-              color: #1f2937;
-              font-size: 12px;
-              line-height: 1.4;
-            }
-            .page {
-              padding: 20px;
-            }
-            .header {
-              margin-bottom: 14px;
-            }
-            .title {
-              margin: 0 0 8px 0;
-              font-size: 20px;
-              font-weight: 700;
-            }
-            .meta {
-              margin: 0;
-              color: #4b5563;
-            }
-            table {
-              width: 100%;
-              border-collapse: collapse;
-              table-layout: fixed;
-            }
-            thead {
-              display: table-header-group;
-            }
-            th, td {
-              border: 1px solid #d1d5db;
-              padding: 8px;
-              text-align: left;
-              vertical-align: top;
-              word-break: break-word;
-            }
-            th {
-              background: #f3f4f6;
-              font-weight: 700;
-            }
-            .center {
-              text-align: center;
-            }
-            tr {
-              page-break-inside: avoid;
-              break-inside: avoid;
-            }
-            .notes {
-              margin-top: 14px;
-              padding: 10px;
-              border: 1px solid #e5e7eb;
-              background: #f9fafb;
-              border-radius: 4px;
-            }
-            @page {
-              size: A4;
-              margin: 12mm;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="page">
-            <div class="header">
-              <h1 class="title">Pedido de Carrito</h1>
-              <p class="meta"><strong>Area:</strong> ${escapeHtml(areaName)}</p>
-              <p class="meta"><strong>Fecha:</strong> ${new Date().toLocaleString("es-PE")}</p>
-            </div>
-            <table>
-              <thead>
-                <tr>
-                  <th style="width: 58%;">Producto</th>
-                  <th style="width: 18%;">Cantidad</th>
-                  <th style="width: 24%;">Unidad de medida</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${rows}
-              </tbody>
-            </table>
-            ${
-              observation
-                ? `<div class="notes"><strong>Observaciones:</strong> ${escapeHtml(observation)}</div>`
-                : ""
-            }
-          </div>
-        </body>
-      </html>
-    `
+    const colProductWidth = contentWidth * 0.58
+    const colQuantityWidth = contentWidth * 0.18
+    const colUnitWidth = contentWidth * 0.24
 
-    browser = await puppeteer.launch({
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    })
+    let cursorY = topLimit
 
-    const page = await browser.newPage()
-    await page.setContent(html, { waitUntil: "networkidle0" })
+    const drawHeader = () => {
+      doc.setFont("helvetica", "bold")
+      doc.setFontSize(16)
+      doc.text("Pedido de Carrito", margin, cursorY)
 
-    const pdf = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      margin: {
-        top: "12mm",
-        right: "12mm",
-        bottom: "12mm",
-        left: "12mm",
-      },
-    })
+      cursorY += 7
+      doc.setFont("helvetica", "normal")
+      doc.setFontSize(10)
+      doc.text(`Area: ${areaName}`, margin, cursorY)
+      cursorY += 5
+      doc.text(`Fecha: ${new Date().toLocaleString("es-PE")}`, margin, cursorY)
+      cursorY += 6
+    }
 
-    const pdfArrayBuffer = pdf.buffer.slice(pdf.byteOffset, pdf.byteOffset + pdf.byteLength) as ArrayBuffer
-    const pdfBlob = new Blob([pdfArrayBuffer], { type: "application/pdf" })
+    const drawTableHeader = () => {
+      doc.setFillColor(243, 244, 246)
+      doc.rect(margin, cursorY, contentWidth, 8, "F")
 
-    return new NextResponse(pdfBlob, {
+      doc.setDrawColor(209, 213, 219)
+      doc.rect(margin, cursorY, colProductWidth, 8)
+      doc.rect(margin + colProductWidth, cursorY, colQuantityWidth, 8)
+      doc.rect(margin + colProductWidth + colQuantityWidth, cursorY, colUnitWidth, 8)
+
+      doc.setFont("helvetica", "bold")
+      doc.setFontSize(10)
+      doc.text("Producto", margin + 2, cursorY + 5.5)
+      doc.text("Cantidad", margin + colProductWidth + 2, cursorY + 5.5)
+      doc.text("Unidad de medida", margin + colProductWidth + colQuantityWidth + 2, cursorY + 5.5)
+      cursorY += 8
+    }
+
+    const ensureSpace = (requiredHeight: number) => {
+      if (cursorY + requiredHeight <= bottomLimit) return
+      doc.addPage()
+      cursorY = topLimit
+      drawHeader()
+      drawTableHeader()
+    }
+
+    drawHeader()
+    drawTableHeader()
+
+    for (const item of items) {
+      const productName = item.productName?.trim() || "-"
+      const quantity = formatQuantity(Number(item.quantity) || 0)
+      const unitName = item.unitName?.trim() || "Unidad"
+
+      const productLines = doc.splitTextToSize(productName, colProductWidth - 4)
+      const quantityLines = doc.splitTextToSize(quantity, colQuantityWidth - 4)
+      const unitLines = doc.splitTextToSize(unitName, colUnitWidth - 4)
+
+      const maxLines = Math.max(productLines.length, quantityLines.length, unitLines.length, 1)
+      const rowHeight = Math.max(8, maxLines * 5 + 3)
+
+      ensureSpace(rowHeight)
+
+      doc.setDrawColor(209, 213, 219)
+      doc.rect(margin, cursorY, colProductWidth, rowHeight)
+      doc.rect(margin + colProductWidth, cursorY, colQuantityWidth, rowHeight)
+      doc.rect(margin + colProductWidth + colQuantityWidth, cursorY, colUnitWidth, rowHeight)
+
+      doc.setFont("helvetica", "normal")
+      doc.setFontSize(10)
+      doc.text(productLines, margin + 2, cursorY + 5)
+      doc.text(quantityLines, margin + colProductWidth + 2, cursorY + 5)
+      doc.text(unitLines, margin + colProductWidth + colQuantityWidth + 2, cursorY + 5)
+
+      cursorY += rowHeight
+    }
+
+    if (observation) {
+      const obsLines = doc.splitTextToSize(`Observaciones: ${observation}`, contentWidth - 6)
+      const obsHeight = Math.max(10, obsLines.length * 5 + 4)
+      ensureSpace(obsHeight + 4)
+      cursorY += 4
+
+      doc.setFillColor(249, 250, 251)
+      doc.setDrawColor(229, 231, 235)
+      doc.rect(margin, cursorY, contentWidth, obsHeight, "FD")
+      doc.setFont("helvetica", "normal")
+      doc.setFontSize(10)
+      doc.text(obsLines, margin + 3, cursorY + 5)
+    }
+
+    const pdfArrayBuffer = doc.output("arraybuffer")
+
+    return new NextResponse(pdfArrayBuffer, {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
@@ -186,9 +142,5 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("[print-order] Error generating pdf:", error)
     return NextResponse.json({ message: "Error generating print document" }, { status: 500 })
-  } finally {
-    if (browser) {
-      await browser.close()
-    }
   }
 }

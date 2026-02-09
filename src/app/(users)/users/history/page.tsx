@@ -223,7 +223,18 @@ export default function UsersHistoryPage() {
         body: JSON.stringify(payload),
       })
 
-      if (!response.ok) throw new Error("No se pudo generar PDF")
+      if (!response.ok) {
+        let backendMessage = "No se pudo generar PDF"
+        try {
+          const errorBody = await response.json()
+          if (typeof errorBody?.message === "string" && errorBody.message.trim()) {
+            backendMessage = errorBody.message
+          }
+        } catch {
+          // ignore json parse errors
+        }
+        throw new Error(backendMessage)
+      }
 
       const blob = await response.blob()
       const url = URL.createObjectURL(blob)
@@ -237,7 +248,8 @@ export default function UsersHistoryPage() {
       toast.success("Descarga lista")
     } catch (error) {
       console.error("[UsersHistoryPage] Error downloading order:", error)
-      toast.error("Error al descargar PDF")
+      const message = error instanceof Error ? error.message : "Error al descargar PDF"
+      toast.error(message)
     } finally {
       setDownloadingOrderId(null)
     }
