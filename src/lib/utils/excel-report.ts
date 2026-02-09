@@ -150,7 +150,7 @@ const generateExcelReport = async (
 
   // Fila 1 - Título
   const titleCell = worksheet.getCell(1, 1);
-  titleCell.value = finalDateRangeStr;
+  titleCell.value = `Fecha: ${finalDateRangeStr}`;
   titleCell.font = { name: 'Calibri', size: 16, bold: true, color: { argb: 'FF000000' } };
   titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
 
