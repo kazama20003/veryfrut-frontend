@@ -234,8 +234,23 @@ export default function SuppliersPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      <div className="flex h-14 items-center border-b border-slate-200 bg-white/90 px-4 backdrop-blur">
-        <SidebarTrigger className="h-9 w-9" />
+      <div className="flex h-14 items-center justify-between border-b border-slate-200 bg-white/90 px-4 backdrop-blur">
+        <div className="flex items-center gap-3">
+          <SidebarTrigger className="h-9 w-9" />
+          <span className="text-sm font-semibold text-slate-700">Proveedores</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Link href="/dashboard/supliers/create">
+            <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
+              Crear Proveedor
+            </Button>
+          </Link>
+          <Link href="/dashboard/supliers/purchases">
+            <Button size="sm" variant="outline">
+              Registrar Compra
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Hero Section */}
@@ -245,18 +260,6 @@ export default function SuppliersPage() {
           <p className="text-xl text-slate-300 mb-8 max-w-2xl">
             Administra proveedores, registra compras y controla tu inventario de forma eficiente.
           </p>
-          <div className="flex flex-wrap gap-4">
-            <Link href="/dashboard/supliers/create">
-              <Button className="bg-white text-slate-900 hover:bg-slate-100 font-semibold px-6 h-11">
-                + Crear Proveedor
-              </Button>
-            </Link>
-            <Link href="/dashboard/supliers/purchases">
-              <Button variant="outline" className="border-white text-white hover:bg-white/10 font-semibold px-6 h-11 bg-transparent">
-                + Registrar Compra
-              </Button>
-            </Link>
-          </div>
         </div>
       </div>
 
@@ -378,69 +381,6 @@ export default function SuppliersPage() {
           </Dialog>
         </div>
       </div>
-
-      {/* Features Section */}
-      <div className="max-w-7xl mx-auto px-6 py-12">
-        <h2 className="text-3xl font-bold text-slate-900 mb-12 text-center">Funcionalidades</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Create Suppliers */}
-          <Card className="shadow-lg hover:shadow-xl transition-shadow border-l-4 border-l-blue-500">
-            <CardHeader className="pb-3">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="bg-blue-100 p-2 rounded-lg">
-                  <Users className="h-6 w-6 text-blue-600" />
-                </div>
-                <CardTitle className="text-2xl text-slate-900">Crear Proveedores</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <CardDescription className="text-slate-600 mb-4">
-                Registra nuevos proveedores con todos sus datos de contacto e información adicional.
-              </CardDescription>
-              <div className="space-y-2 mb-6">
-                <p className="text-sm text-slate-700">✓ Datos de contacto completos</p>
-                <p className="text-sm text-slate-700">✓ Información de empresa</p>
-                <p className="text-sm text-slate-700">✓ Dirección y ubicación</p>
-                <p className="text-sm text-slate-700">✓ Historial de cambios</p>
-              </div>
-              <Link href="/dashboard/supliers/create">
-                <Button className="w-full bg-blue-600 hover:bg-blue-700">
-                  Ir a Crear Proveedor
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-
-          {/* Register Purchases */}
-          <Card className="shadow-lg hover:shadow-xl transition-shadow border-l-4 border-l-emerald-500">
-            <CardHeader className="pb-3">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="bg-emerald-100 p-2 rounded-lg">
-                  <ShoppingCart className="h-6 w-6 text-emerald-600" />
-                </div>
-                <CardTitle className="text-2xl text-slate-900">Registrar Compras</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <CardDescription className="text-slate-600 mb-4">
-                Registra compras a proveedores con detalles de productos y costos.
-              </CardDescription>
-              <div className="space-y-2 mb-6">
-                <p className="text-sm text-slate-700">✓ Múltiples productos por compra</p>
-                <p className="text-sm text-slate-700">✓ Cálculo automático de totales</p>
-                <p className="text-sm text-slate-700">✓ Seguimiento de estado</p>
-                <p className="text-sm text-slate-700">✓ Observaciones y notas</p>
-              </div>
-              <Link href="/dashboard/supliers/purchases">
-                <Button className="w-full bg-emerald-600 hover:bg-emerald-700">
-                  Ir a Registrar Compra
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
       {/* Suppliers and Purchases Section */}
       <div className="max-w-7xl mx-auto px-6 py-12">
         <h2 className="text-3xl font-bold text-slate-900 mb-8 text-center">Proveedores y Compras</h2>

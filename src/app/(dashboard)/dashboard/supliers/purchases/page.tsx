@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -23,7 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { ArrowLeft, Plus, Trash2, Loader, ShoppingCart, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Loader, ShoppingCart, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import type { CreatePurchaseInput, PurchaseItem, Purchase } from '@/types/supplier';
 import { useProductsQuery, useSuppliersQuery, useUnitMeasurementsQuery } from '@/lib/api';
@@ -35,6 +36,7 @@ export default function RegisterPurchasesPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const queryClient = useQueryClient();
+  const router = useRouter();
   const { data: suppliersData, isLoading: loadingSuppliers } = useSuppliersQuery();
   const { data: productsData } = useProductsQuery();
   const { data: unitMeasurements = [] } = useUnitMeasurementsQuery();
@@ -243,7 +245,7 @@ export default function RegisterPurchasesPage() {
           queryKey: queryKeys.suppliers.purchaseLists(Number(selectedSupplier)),
         });
         await queryClient.refetchQueries({ queryKey: queryKeys.suppliers.lists(), type: 'all' });
-        toast.success('Compra registrada');
+        toast.success('Compra creada exitosamente');
 
         setFormData({
           areaId: null,
@@ -252,6 +254,7 @@ export default function RegisterPurchasesPage() {
         });
         setSelectedSupplier('');
         setObservation('');
+        router.push('/dashboard/supliers');
       } else {
         toast.error('Error al registrar');
       }
@@ -287,21 +290,32 @@ export default function RegisterPurchasesPage() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="flex h-14 items-center justify-between border-b border-slate-200 bg-white/90 px-4 backdrop-blur">
+        <div className="flex items-center gap-3">
           <SidebarTrigger className="h-9 w-9" />
-          <Link href="/dashboard/supliers">
-            <Button variant="ghost" size="icon" className="h-10 w-10">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">Registrar Compras</h1>
-            <p className="text-slate-600 text-sm mt-1">Agrega productos del buscador y llena los precios en soles</p>
-          </div>
+          <span className="text-sm font-semibold text-slate-700">Proveedores</span>
         </div>
+        <div className="flex items-center gap-2">
+          <Link href="/dashboard/supliers">
+            <Button size="sm" variant="outline">Ver Proveedores</Button>
+          </Link>
+          <Link href="/dashboard/supliers/create">
+            <Button size="sm" variant="outline">Crear Proveedor</Button>
+          </Link>
+        </div>
+      </div>
+
+      <div className="bg-gradient-to-r from-slate-900 to-slate-800 px-6 py-12 text-white">
+        <div className="mx-auto max-w-7xl">
+          <h1 className="mb-3 text-4xl font-bold">Registrar Compras</h1>
+          <p className="max-w-2xl text-slate-300">
+            Agrega productos, cantidades y costos para registrar compras a proveedores.
+          </p>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-6 py-12">
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Proveedor y búsqueda */}

@@ -178,11 +178,32 @@ export default function SuppliersUsersPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
-      <div className="max-w-7xl mx-auto space-y-8">
-        <div className="flex items-center">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="flex h-14 items-center justify-between border-b border-slate-200 bg-white/90 px-4 backdrop-blur">
+        <div className="flex items-center gap-3">
           <SidebarTrigger className="h-9 w-9" />
+          <span className="text-sm font-semibold text-slate-700">Proveedores</span>
         </div>
+        <div className="flex items-center gap-2">
+          <Link href="/dashboard/supliers/create">
+            <Button size="sm" className="bg-blue-600 hover:bg-blue-700">Crear Proveedor</Button>
+          </Link>
+          <Link href="/dashboard/supliers/purchases">
+            <Button size="sm" variant="outline">Registrar Compra</Button>
+          </Link>
+        </div>
+      </div>
+
+      <div className="bg-gradient-to-r from-slate-900 to-slate-800 px-6 py-12 text-white">
+        <div className="mx-auto max-w-7xl">
+          <h1 className="mb-3 text-4xl font-bold">Gestión de Proveedores</h1>
+          <p className="max-w-2xl text-slate-300">
+            Administra proveedores con creación, edición y eliminación en una sola vista.
+          </p>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-6 py-12 space-y-8">
 
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>

@@ -4,13 +4,14 @@ import React from "react"
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, Plus, Loader } from 'lucide-react';
+import { Plus, Loader } from 'lucide-react';
 import { toast } from 'sonner';
 import type { CreateSupplierInput } from '@/types/supplier';
 import suppliersService, { type Suplier } from '@/lib/api/services/suppliers-service';
@@ -21,6 +22,7 @@ export default function CreateSupplierPage() {
   const [isLoading, setIsLoading] = useState(false);
 const [suppliers, setSuppliers] = useState<Suplier[]>([]);
   const queryClient = useQueryClient();
+  const router = useRouter();
 
   const [formData, setFormData] = useState<CreateSupplierInput>({
     name: '',
@@ -68,6 +70,7 @@ setIsLoading(true);
           email: '',
           address: '',
         });
+        router.push('/dashboard/supliers/users');
       } else {
         throw new Error('No se pudo crear el proveedor');
       }
@@ -87,26 +90,32 @@ setIsLoading(true);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <SidebarTrigger className="h-9 w-9" />
-            <Link href="/dashboard/supliers">
-              <Button variant="ghost" size="icon">
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-4xl font-bold text-slate-900">Crear Proveedor</h1>
-              <p className="text-slate-600 mt-1">Registra nuevos proveedores en el sistema</p>
-            </div>
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="flex h-14 items-center justify-between border-b border-slate-200 bg-white/90 px-4 backdrop-blur">
+        <div className="flex items-center gap-3">
+          <SidebarTrigger className="h-9 w-9" />
+          <span className="text-sm font-semibold text-slate-700">Proveedores</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Link href="/dashboard/supliers/users">
+            <Button size="sm" variant="outline">Ver Proveedores</Button>
+          </Link>
           <Link href="/dashboard/supliers/purchases">
-            <Button variant="outline">Ver Compras</Button>
+            <Button size="sm" variant="outline">Registrar Compra</Button>
           </Link>
         </div>
+      </div>
+
+      <div className="bg-gradient-to-r from-slate-900 to-slate-800 px-6 py-12 text-white">
+        <div className="mx-auto max-w-7xl">
+          <h1 className="mb-3 text-4xl font-bold">Crear Proveedor</h1>
+          <p className="max-w-2xl text-slate-300">
+            Registra nuevos proveedores y centraliza su información de contacto para futuras compras.
+          </p>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-6 py-12">
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Form Section */}
