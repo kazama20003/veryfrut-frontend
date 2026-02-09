@@ -1,10 +1,21 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useDeleteOrderMutation, useOrdersQuery } from '@/lib/api';
 import { Order } from '@/types/order';
 import { ReportDialog } from './report-dialog';
+import { Separator } from '@/components/ui/separator';
+import { SidebarTrigger } from '@/components/ui/sidebar';
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb';
 import {
   Card,
   CardContent,
@@ -106,6 +117,26 @@ export default function OrdersPage() {
 
   return (
     <div className='h-full w-full flex flex-col bg-background overflow-hidden'>
+      <header className='flex h-16 shrink-0 items-center gap-2 bg-white border-b border-border'>
+        <div className='flex items-center gap-2 px-6'>
+          <SidebarTrigger className='-ml-1' />
+          <Separator orientation='vertical' className='mr-2 data-[orientation=vertical]:h-4' />
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink asChild>
+                  <Link href='/dashboard'>Dashboard</Link>
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage>Ordenes</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+        </div>
+      </header>
+
       <div className='h-full flex flex-col p-6 overflow-y-auto'>
         <div className='mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between'>
           <div>

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -233,6 +234,10 @@ export default function SuppliersPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="flex h-14 items-center border-b border-slate-200 bg-white/90 px-4 backdrop-blur">
+        <SidebarTrigger className="h-9 w-9" />
+      </div>
+
       {/* Hero Section */}
       <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white px-6 py-16">
         <div className="max-w-7xl mx-auto">

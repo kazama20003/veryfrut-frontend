@@ -278,7 +278,7 @@ const generateExcelReport = async (
           quantities.forEach((q) => {
             const key = isRangeMode
               ? `${q.areaId}__${q.unitName}__${q.dateKey || 'no-date'}__${q.entryKey}`
-              : `${q.areaId}__${q.unitName}`;
+              : `${q.areaId}__${q.unitName}__${q.entryKey}`;
             const current = groupedByAreaAndUnit.get(key);
             if (current) {
               current.quantity += q.quantity;

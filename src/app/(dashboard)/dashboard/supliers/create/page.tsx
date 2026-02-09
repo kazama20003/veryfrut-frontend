@@ -6,6 +6,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -91,6 +92,7 @@ setIsLoading(true);
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
+            <SidebarTrigger className="h-9 w-9" />
             <Link href="/dashboard/supliers">
               <Button variant="ghost" size="icon">
                 <ArrowLeft className="h-5 w-5" />

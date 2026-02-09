@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -290,6 +291,7 @@ export default function RegisterPurchasesPage() {
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
+          <SidebarTrigger className="h-9 w-9" />
           <Link href="/dashboard/supliers">
             <Button variant="ghost" size="icon" className="h-10 w-10">
               <ArrowLeft className="h-5 w-5" />
