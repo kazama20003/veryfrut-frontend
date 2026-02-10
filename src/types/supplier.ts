@@ -52,6 +52,7 @@ export interface Purchase {
   supplierId: number;
   areaId?: number;
   totalAmount: number;
+  purchaseDate?: string;
   status: 'created' | 'processing' | 'completed' | 'cancelled';
   paid: boolean;
   paymentDate?: string;
@@ -64,12 +65,14 @@ export interface Purchase {
 export interface CreatePurchaseInput {
   areaId?: number | null;
   totalAmount: number;
+  purchaseDate?: string;
   purchaseItems: PurchaseItem[];
 }
 
 export interface UpdatePurchaseInput {
   status?: 'created' | 'processing' | 'completed' | 'cancelled';
   paid?: boolean;
+  purchaseDate?: string;
   paymentDate?: Date;
   observation?: string;
 }

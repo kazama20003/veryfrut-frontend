@@ -48,6 +48,7 @@ export default function SuppliersPage() {
     purchase: Purchase;
   } | null>(null);
   const [editPaid, setEditPaid] = useState(false);
+  const [editPurchaseDate, setEditPurchaseDate] = useState('');
   const [search, setSearch] = useState('');
 
   useEffect(() => {
@@ -79,6 +80,18 @@ export default function SuppliersPage() {
     if (typeof item.unitMeasurementId === 'number') return unitMeasurementsMap.get(item.unitMeasurementId)?.name || `Unidad ${item.unitMeasurementId}`;
     return '-';
   };
+  const getPurchaseDate = (purchase: Purchase) => purchase.purchaseDate || purchase.createdAt;
+
+  const toDateInputValue = (value?: string) => {
+    if (!value) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
   const handleDeletePurchase = async (supplierId: number, purchaseId: number) => {
     if (!confirm('¿Eliminar esta compra?')) return;
@@ -101,6 +114,7 @@ export default function SuppliersPage() {
   const openEditPurchase = (supplierId: number, purchase: Purchase) => {
     setEditingPurchase({ supplierId, purchase });
     setEditPaid(Boolean(purchase.paid));
+    setEditPurchaseDate(toDateInputValue(getPurchaseDate(purchase)));
     setEditOpen(true);
   };
 
@@ -111,6 +125,7 @@ export default function SuppliersPage() {
       await suppliersService.updatePurchase(editingPurchase.purchase.id, {
         status: 'created',
         paid: editPaid,
+        purchaseDate: editPurchaseDate || undefined,
       });
       toast.success('Compra actualizada');
       setEditOpen(false);
@@ -415,7 +430,10 @@ export default function SuppliersPage() {
           open={editOpen}
           onOpenChange={(open) => {
             setEditOpen(open);
-            if (!open) setEditingPurchase(null);
+            if (!open) {
+              setEditingPurchase(null);
+              setEditPurchaseDate('');
+            }
           }}
         >
           <DialogContent>
@@ -427,6 +445,16 @@ export default function SuppliersPage() {
             </DialogHeader>
 
             <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-purchase-date">Fecha de compra</Label>
+                <Input
+                  id="edit-purchase-date"
+                  type="date"
+                  value={editPurchaseDate}
+                  onChange={(e) => setEditPurchaseDate(e.target.value)}
+                />
+              </div>
+
               <div className="space-y-2">
                 <Label>Pagado</Label>
                 <Select
@@ -529,7 +557,7 @@ export default function SuppliersPage() {
                               <tr key={purchase.id} className="border-b hover:bg-slate-50 transition">
                                 <td className="p-3 text-slate-600">#{purchase.id}</td>
                                 <td className="p-3 text-slate-600">
-                                  {new Date(purchase.createdAt).toLocaleDateString('es-ES')}
+                                  {new Date(getPurchaseDate(purchase)).toLocaleDateString('es-ES')}
                                 </td>
                                 <td className="p-3">
                                   <Dialog>
@@ -545,7 +573,7 @@ export default function SuppliersPage() {
                                       <DialogHeader>
                                         <DialogTitle>Items de compra #{purchase.id}</DialogTitle>
                                         <DialogDescription>
-                                          {supplier.name} • {new Date(purchase.createdAt).toLocaleDateString('es-ES')}
+                                          {supplier.name} • {new Date(getPurchaseDate(purchase)).toLocaleDateString('es-ES')}
                                         </DialogDescription>
                                       </DialogHeader>
 

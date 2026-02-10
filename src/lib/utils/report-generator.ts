@@ -52,14 +52,14 @@ export async function generateDailyReportByClient(options: ReportOptions) {
 
     const purchases = supplier.purchases || [];
 const filteredPurchases = purchases.filter((p: Purchase) => {
-      const purchaseDate = new Date(p.createdAt);
+      const purchaseDate = new Date(p.purchaseDate || p.createdAt);
       if (startDate && purchaseDate < startDate) return false;
       if (endDate && purchaseDate > endDate) return false;
       return true;
     });
 
     filteredPurchases.forEach((purchase: Purchase) => {
-      const dateKey = new Date(purchase.createdAt).toLocaleDateString('es-ES');
+      const dateKey = new Date(purchase.purchaseDate || purchase.createdAt).toLocaleDateString('es-ES');
       const dayMap = clientData.get(supplier.id)!;
 
       if (!dayMap.has(dateKey)) {
@@ -175,7 +175,7 @@ export async function generateReportByProductUnit(options: ReportOptions) {
 
   suppliers.forEach((supplier) => {
     supplier.purchases?.forEach((purchase: Purchase) => {
-      const purchaseDate = new Date(purchase.createdAt);
+      const purchaseDate = new Date(purchase.purchaseDate || purchase.createdAt);
       if (startDate && purchaseDate < startDate) return;
       if (endDate && purchaseDate > endDate) return;
 

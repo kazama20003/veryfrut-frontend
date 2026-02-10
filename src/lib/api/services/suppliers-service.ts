@@ -17,6 +17,7 @@ export interface CreatePurchaseItemDto {
 export interface CreatePurchaseDto {
   areaId?: number | null;
   totalAmount: number;
+  purchaseDate?: string;
   purchaseItems: CreatePurchaseItemDto[];
 }
 
@@ -32,6 +33,7 @@ export interface CreateSuplierDto {
 export interface UpdatePurchaseDto {
   status?: 'created' | 'processing' | 'completed' | 'cancelled';
   paid?: boolean;
+  purchaseDate?: string;
   paymentDate?: Date;
   observation?: string;
 }
@@ -57,6 +59,7 @@ export interface Purchase {
   suplierId: number;
   areaId?: number;
   totalAmount: number;
+  purchaseDate?: string;
   status: 'created' | 'processing' | 'completed' | 'cancelled';
   paid: boolean;
   paymentDate?: string;
@@ -315,10 +318,32 @@ class SuppliersService {
   /**
    * Eliminar compra por ID
    */
-  async deletePurchase(purchaseId: string | number) {
-    const response = await axiosInstance.delete<{ success: boolean } | ApiResponse<{ success: boolean }>>(`/supliers/purchases/${purchaseId}`);
-    const data = (response.data as ApiResponse<{ success: boolean }>)?.data || response.data;
-    return data || { success: false };
+  async deletePurchase(purchaseId: string | number): Promise<{ success: boolean; message?: string }> {
+    const response = await axiosInstance.delete<
+      { success?: boolean; message?: string } | ApiResponse<{ success?: boolean; message?: string }>
+    >(`/supliers/purchases/${purchaseId}`);
+
+    const payload = (response.data as ApiResponse<{ success?: boolean; message?: string }>)?.data || response.data;
+
+    if (payload && typeof payload === 'object') {
+      if ('success' in payload) {
+        return {
+          success: Boolean((payload as { success?: boolean }).success),
+          message: (payload as { message?: string }).message,
+        };
+      }
+
+      if ('message' in payload) {
+        const message = String((payload as { message?: string }).message ?? '');
+        const normalized = message.toLowerCase();
+        const successByMessage = normalized.includes('eliminad');
+        return { success: successByMessage, message };
+      }
+    }
+
+    return {
+      success: response.status >= 200 && response.status < 300,
+    };
   }
 }
 

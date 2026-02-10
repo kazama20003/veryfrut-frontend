@@ -33,6 +33,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import queryKeys from '@/lib/api/queryKeys';
 
 export default function RegisterPurchasesPage() {
+  const today = new Date().toISOString().slice(0, 10);
   const [isLoading, setIsLoading] = useState(false);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const queryClient = useQueryClient();
@@ -84,6 +85,7 @@ export default function RegisterPurchasesPage() {
   const [formData, setFormData] = useState<CreatePurchaseInput>({
     areaId: null,
     totalAmount: 0,
+    purchaseDate: today,
     purchaseItems: [],
   });
 
@@ -276,6 +278,7 @@ export default function RegisterPurchasesPage() {
       const purchaseData = {
         areaId: formData.areaId,
         totalAmount: formData.totalAmount,
+        purchaseDate: formData.purchaseDate,
         purchaseItems: formData.purchaseItems,
       };
 
@@ -303,6 +306,7 @@ export default function RegisterPurchasesPage() {
         setFormData({
           areaId: null,
           totalAmount: 0,
+          purchaseDate: today,
           purchaseItems: [],
         });
         setSelectedSupplier('');
@@ -377,7 +381,7 @@ export default function RegisterPurchasesPage() {
               <CardTitle className="text-base text-slate-900">Información de la Compra</CardTitle>
             </CardHeader>
             <CardContent className="pt-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Proveedor */}
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-slate-700">Proveedor *</Label>
@@ -407,6 +411,22 @@ export default function RegisterPurchasesPage() {
                 </div>
 
                 {/* Búsqueda de productos */}
+                <div className="space-y-2">
+                  <Label htmlFor="purchase-date" className="text-sm font-medium text-slate-700">Fecha de compra</Label>
+                  <Input
+                    id="purchase-date"
+                    type="date"
+                    value={formData.purchaseDate || ''}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        purchaseDate: e.target.value,
+                      }))
+                    }
+                    className="h-10 border-slate-200 text-sm"
+                  />
+                </div>
+
                 <div className="space-y-2 relative">
                   <Label className="text-sm font-medium text-slate-700">Buscar Producto</Label>
                   <div className="relative">
@@ -679,7 +699,7 @@ export default function RegisterPurchasesPage() {
                 type="button"
                 variant="outline"
                 onClick={() => {
-                  setFormData({ areaId: null, totalAmount: 0, purchaseItems: [] });
+                  setFormData({ areaId: null, totalAmount: 0, purchaseDate: today, purchaseItems: [] });
                   setSelectedSupplier('');
                   setObservation('');
                 }}
@@ -722,7 +742,7 @@ export default function RegisterPurchasesPage() {
                       <div>
                         <p className="text-sm font-semibold text-slate-900">Compra #{purchase.id}</p>
                         <p className="text-xs text-slate-500">
-                          {new Date(purchase.createdAt).toLocaleDateString('es-ES')}
+                          {new Date(purchase.purchaseDate || purchase.createdAt).toLocaleDateString('es-ES')}
                         </p>
                       </div>
                       <span className="text-xs font-medium px-2 py-1 rounded bg-blue-100 text-blue-800">
@@ -762,7 +782,7 @@ export default function RegisterPurchasesPage() {
                       <TableRow key={purchase.id} className="border-b last:border-b-0 hover:bg-slate-50">
                         <TableCell className="text-slate-700 text-sm py-3">#{purchase.id}</TableCell>
                         <TableCell className="text-slate-700 text-sm py-3">
-                          {new Date(purchase.createdAt).toLocaleDateString('es-ES')}
+                          {new Date(purchase.purchaseDate || purchase.createdAt).toLocaleDateString('es-ES')}
                         </TableCell>
                         <TableCell className="text-right font-semibold text-slate-900 text-sm py-3">
                           S/. {purchase.totalAmount.toFixed(2)}
