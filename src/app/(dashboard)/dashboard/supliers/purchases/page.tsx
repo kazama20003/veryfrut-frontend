@@ -79,6 +79,7 @@ export default function RegisterPurchasesPage() {
   const [observation, setObservation] = useState('');
   const [searchProduct, setSearchProduct] = useState('');
   const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const [itemInputDrafts, setItemInputDrafts] = useState<Record<string, string>>({});
 
   const [formData, setFormData] = useState<CreatePurchaseInput>({
     areaId: null,
@@ -146,18 +147,69 @@ export default function RegisterPurchasesPage() {
     field: keyof PurchaseItem,
     value: string | number
   ) => {
-    const updatedItems = [...formData.purchaseItems];
-    updatedItems[index] = { ...updatedItems[index], [field]: value };
+    setFormData((prev) => {
+      const updatedItems = [...prev.purchaseItems];
+      updatedItems[index] = { ...updatedItems[index], [field]: value };
 
-    const total = updatedItems.reduce(
-      (sum, item) => sum + (Number(item.quantity) * Number(item.unitCost) || 0),
-      0
-    );
+      const total = updatedItems.reduce(
+        (sum, item) => sum + (Number(item.quantity) * Number(item.unitCost) || 0),
+        0
+      );
 
-    setFormData({
-      ...formData,
-      purchaseItems: updatedItems,
-      totalAmount: total,
+      return {
+        ...prev,
+        purchaseItems: updatedItems,
+        totalAmount: total,
+      };
+    });
+  };
+
+  type NumericPurchaseField = 'quantity' | 'unitCost';
+
+  const getDraftKey = (index: number, field: NumericPurchaseField) => `${index}-${field}`;
+
+  const parseDecimalInput = (value: string): number | null => {
+    const normalized = value.trim().replace(',', '.');
+    if (!normalized || normalized === '.') return null;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  const handleNumericInputChange = (
+    index: number,
+    field: NumericPurchaseField,
+    rawValue: string,
+    minValue: number
+  ) => {
+    const draftKey = getDraftKey(index, field);
+    setItemInputDrafts((prev) => ({ ...prev, [draftKey]: rawValue }));
+
+    const parsed = parseDecimalInput(rawValue);
+    if (parsed === null) return;
+
+    handleItemChange(index, field, Math.max(minValue, parsed));
+  };
+
+  const handleNumericInputBlur = (
+    index: number,
+    field: NumericPurchaseField,
+    fallbackValue: number,
+    minValue: number
+  ) => {
+    const draftKey = getDraftKey(index, field);
+    const item = formData.purchaseItems[index];
+    if (!item) return;
+
+    const rawValue = itemInputDrafts[draftKey] ?? String(item[field]);
+    const parsed = parseDecimalInput(rawValue);
+    const nextValue = Math.max(minValue, parsed ?? fallbackValue);
+
+    handleItemChange(index, field, nextValue);
+
+    setItemInputDrafts((prev) => {
+      const next = { ...prev };
+      delete next[draftKey];
+      return next;
     });
   };
 
@@ -192,6 +244,7 @@ export default function RegisterPurchasesPage() {
       purchaseItems: updatedItems,
       totalAmount: total,
     });
+    setItemInputDrafts({});
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -454,24 +507,25 @@ export default function RegisterPurchasesPage() {
                               </TableCell>
                               <TableCell className="text-right py-3">
                                 <Input
-                                  type="number"
-                                  min="1"
-                                  value={item.quantity}
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={itemInputDrafts[getDraftKey(index, 'quantity')] ?? String(item.quantity)}
                                   onChange={(e) =>
-                                    handleItemChange(index, 'quantity', Number(e.target.value))
+                                    handleNumericInputChange(index, 'quantity', e.target.value, 1)
                                   }
+                                  onBlur={() => handleNumericInputBlur(index, 'quantity', 1, 1)}
                                   className="w-16 h-8 text-right border-slate-200 text-sm"
                                 />
                               </TableCell>
                               <TableCell className="text-right py-3">
                                 <Input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={item.unitCost}
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={itemInputDrafts[getDraftKey(index, 'unitCost')] ?? String(item.unitCost)}
                                   onChange={(e) =>
-                                    handleItemChange(index, 'unitCost', Number(e.target.value))
+                                    handleNumericInputChange(index, 'unitCost', e.target.value, 0)
                                   }
+                                  onBlur={() => handleNumericInputBlur(index, 'unitCost', 0, 0)}
                                   className="w-20 h-8 text-right border-slate-200 text-sm"
                                 />
                               </TableCell>
