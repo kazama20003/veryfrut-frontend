@@ -52,7 +52,6 @@ const AdminFastOrdersPage = () => {
   const [areas, setAreas] = useState<Array<{id: number; name: string}>>([])
   const [blockedAreaIds, setBlockedAreaIds] = useState<Set<number>>(new Set())
   const [orderObservations, setOrderObservations] = useState<string>("")
-  const [shouldCheckOrder, setShouldCheckOrder] = useState(false)
   const [existingOrder, setExistingOrder] = useState<{id: number; status: string; areaId: number; totalAmount: number} | undefined>(undefined)
   
   // Track orders created in this session to prevent duplicates
@@ -128,23 +127,20 @@ const AdminFastOrdersPage = () => {
   }, [allAreas, selectedUser, selectedUserId])
 
   const checkOrderData = useMemo(() => {
-    if (!selectedAreaId || !shouldCheckOrder) return null
+    if (!selectedAreaId || !selectedUserId) return null
     return {
       areaId: selectedAreaId.toString(),
       date: todayDate,
     }
-  }, [selectedAreaId, shouldCheckOrder, todayDate])
+  }, [selectedAreaId, selectedUserId, todayDate])
 
   const { data: existingOrderData, isLoading: isCheckingOrder } = useCheckOrderQuery(
     checkOrderData,
-    shouldCheckOrder
+    Boolean(checkOrderData)
   ) as { data: CheckOrderResponse | undefined, isLoading: boolean }
 
   useEffect(() => {
-    if (selectedAreaId && selectedUserId) {
-      setShouldCheckOrder(true)
-    } else {
-      setShouldCheckOrder(false)
+    if (!selectedAreaId || !selectedUserId) {
       setExistingOrder(undefined)
     }
   }, [selectedAreaId, selectedUserId])
@@ -160,15 +156,15 @@ const AdminFastOrdersPage = () => {
   }, [areas, blockedAreaIds, selectedAreaId])
 
   useEffect(() => {
-    if (existingOrderData && shouldCheckOrder) {
+    const checkedAreaId = checkOrderData?.areaId ? Number.parseInt(checkOrderData.areaId, 10) : undefined
+
+    if (existingOrderData && checkedAreaId) {
       if (existingOrderData.exists) {
-        if (selectedAreaId) {
-          setBlockedAreaIds((prev) => {
-            const next = new Set(prev)
-            next.add(selectedAreaId)
-            return next
-          })
-        }
+        setBlockedAreaIds((prev) => {
+          const next = new Set(prev)
+          next.add(checkedAreaId)
+          return next
+        })
 
         if (existingOrderData.order) {
           setExistingOrder(existingOrderData.order)
@@ -176,19 +172,17 @@ const AdminFastOrdersPage = () => {
           setExistingOrder({
             id: 0,
             status: "unknown",
-            areaId: selectedAreaId || 0,
+            areaId: checkedAreaId,
             totalAmount: 0,
           })
         }
-        setShouldCheckOrder(false)
       } else if (existingOrderData.exists === false) {
-        setShouldCheckOrder(false)
         setExistingOrder(undefined)
       }
-    } else if (!existingOrderData && shouldCheckOrder && !isCheckingOrder) {
-      setShouldCheckOrder(false)
+    } else if (!existingOrderData && checkOrderData && !isCheckingOrder) {
+      setExistingOrder(undefined)
     }
-  }, [existingOrderData, shouldCheckOrder, isCheckingOrder, selectedAreaId])
+  }, [checkOrderData, existingOrderData, isCheckingOrder])
 
   if (error) {
     console.error("[AdminFastOrdersPage] Error loading products:", error)
