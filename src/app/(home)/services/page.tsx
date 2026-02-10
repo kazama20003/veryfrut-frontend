@@ -47,7 +47,7 @@ export default function ServicesPage() {
           </div>
           <div className="relative h-96 rounded-[24px] overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.1)]">
             <Image
-              src="https://res.cloudinary.com/demzflxgq/image/upload/v1770447237/images---2021-04-21T110903.378_aihmpi.jpg"
+              src="https://res.cloudinary.com/dhkb93mix/image/upload/v1770755728/WhatsApp_Image_2026-02-10_at_3.09.59_PM_kdtscc.jpg"
               alt="Distribución Mayorista"
               fill
               className="object-cover"
