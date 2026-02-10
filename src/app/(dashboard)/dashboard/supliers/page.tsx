@@ -30,7 +30,7 @@ import {
   generateDailyReportByClient,
   generateReportByProductUnit,
 } from '@/lib/utils/report-generator';
-import suppliersService, { type Purchase } from '@/lib/api/services/suppliers-service';
+import suppliersService, { type Purchase, type PurchaseItem } from '@/lib/api/services/suppliers-service';
 import { useQueryClient } from '@tanstack/react-query';
 import queryKeys from '@/lib/api/queryKeys';
 
@@ -49,6 +49,9 @@ export default function SuppliersPage() {
   } | null>(null);
   const [editPaid, setEditPaid] = useState(false);
   const [editPurchaseDate, setEditPurchaseDate] = useState('');
+  const [editItems, setEditItems] = useState<PurchaseItem[]>([]);
+  const [originalEditItems, setOriginalEditItems] = useState<PurchaseItem[]>([]);
+  const [editItemDrafts, setEditItemDrafts] = useState<Record<string, string>>({});
   const [search, setSearch] = useState('');
 
   useEffect(() => {
@@ -115,18 +118,137 @@ export default function SuppliersPage() {
     setEditingPurchase({ supplierId, purchase });
     setEditPaid(Boolean(purchase.paid));
     setEditPurchaseDate(toDateInputValue(getPurchaseDate(purchase)));
+    const initialItems = (purchase.purchaseItems || []).map((item) => ({ ...item }));
+    setEditItems(initialItems);
+    setOriginalEditItems(initialItems);
+    setEditItemDrafts({});
     setEditOpen(true);
   };
+
+  type EditableNumericField = 'quantity' | 'unitCost';
+
+  const getDraftKey = (itemId: number, field: EditableNumericField) => `${itemId}-${field}`;
+
+  const parseDecimalInput = (value: string): number | null => {
+    const normalized = value.trim().replace(',', '.');
+    if (!normalized || normalized === '.') return null;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  const updateEditItemField = (itemId: number, field: EditableNumericField, value: number) => {
+    setEditItems((prev) =>
+      prev.map((item) => (item.id === itemId ? { ...item, [field]: value } : item))
+    );
+  };
+
+  const handleEditNumericInputChange = (
+    itemId: number,
+    field: EditableNumericField,
+    rawValue: string,
+    minValue: number
+  ) => {
+    const draftKey = getDraftKey(itemId, field);
+    setEditItemDrafts((prev) => ({ ...prev, [draftKey]: rawValue }));
+
+    const parsed = parseDecimalInput(rawValue);
+    if (parsed === null) return;
+
+    updateEditItemField(itemId, field, Math.max(minValue, parsed));
+  };
+
+  const handleEditNumericInputBlur = (
+    itemId: number,
+    field: EditableNumericField,
+    fallbackValue: number,
+    minValue: number
+  ) => {
+    const draftKey = getDraftKey(itemId, field);
+    const item = editItems.find((entry) => entry.id === itemId);
+    if (!item) return;
+
+    const rawValue = editItemDrafts[draftKey] ?? String(item[field]);
+    const parsed = parseDecimalInput(rawValue);
+    const nextValue = Math.max(minValue, parsed ?? fallbackValue);
+
+    updateEditItemField(itemId, field, nextValue);
+
+    setEditItemDrafts((prev) => {
+      const next = { ...prev };
+      delete next[draftKey];
+      return next;
+    });
+  };
+
+  const handleRemoveEditItem = (itemId: number) => {
+    setEditItems((prev) => prev.filter((item) => item.id !== itemId));
+    setEditItemDrafts((prev) => {
+      const next = { ...prev };
+      delete next[getDraftKey(itemId, 'quantity')];
+      delete next[getDraftKey(itemId, 'unitCost')];
+      return next;
+    });
+  };
+
+  const computedEditTotal = editItems.reduce(
+    (sum, item) => sum + (Number(item.quantity) * Number(item.unitCost) || 0),
+    0
+  );
 
   const handleSaveEdit = async () => {
     if (!editingPurchase) return;
 
     try {
       await suppliersService.updatePurchase(editingPurchase.purchase.id, {
-        status: 'created',
         paid: editPaid,
         purchaseDate: editPurchaseDate || undefined,
       });
+
+      const originalById = new Map<number, PurchaseItem>(
+        originalEditItems.map((item) => [item.id, item])
+      );
+      const currentIds = new Set<number>(editItems.map((item) => item.id));
+
+      const itemUpdates = editItems.map(async (item) => {
+        const original = originalById.get(item.id);
+        if (!original) return;
+
+        const payload: {
+          quantity?: number;
+          unitCost?: number;
+          description?: string;
+          productId?: number;
+          unitMeasurementId?: number;
+        } = {};
+
+        if (Number(item.quantity) !== Number(original.quantity)) {
+          payload.quantity = Number(item.quantity);
+        }
+        if (Number(item.unitCost) !== Number(original.unitCost)) {
+          payload.unitCost = Number(item.unitCost);
+        }
+        if ((item.description || '') !== (original.description || '')) {
+          payload.description = item.description;
+        }
+        if ((item.productId ?? null) !== (original.productId ?? null)) {
+          payload.productId = item.productId;
+        }
+        if ((item.unitMeasurementId ?? null) !== (original.unitMeasurementId ?? null)) {
+          payload.unitMeasurementId = item.unitMeasurementId;
+        }
+
+        if (Object.keys(payload).length === 0) return;
+        await suppliersService.updatePurchaseItem(item.id, payload);
+      });
+
+      const deletedIds = originalEditItems
+        .filter((item) => !currentIds.has(item.id))
+        .map((item) => item.id);
+
+      const itemDeletes = deletedIds.map((itemId) => suppliersService.deletePurchaseItem(itemId));
+
+      await Promise.all([...itemUpdates, ...itemDeletes]);
+
       toast.success('Compra actualizada');
       setEditOpen(false);
       await queryClient.invalidateQueries({ queryKey: queryKeys.suppliers.lists() });
@@ -433,10 +555,13 @@ export default function SuppliersPage() {
             if (!open) {
               setEditingPurchase(null);
               setEditPurchaseDate('');
+              setEditItems([]);
+              setOriginalEditItems([]);
+              setEditItemDrafts({});
             }
           }}
         >
-          <DialogContent>
+          <DialogContent className="w-[95vw] max-w-3xl max-h-[85vh] overflow-y-auto p-4 sm:p-6">
             <DialogHeader>
               <DialogTitle>Editar compra</DialogTitle>
               <DialogDescription>
@@ -454,6 +579,125 @@ export default function SuppliersPage() {
                   onChange={(e) => setEditPurchaseDate(e.target.value)}
                 />
               </div>
+
+              {editItems.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Items</Label>
+                  <div className="max-h-72 overflow-y-auto rounded-md border border-slate-200 p-2 sm:p-3">
+                    <div className="space-y-3 md:hidden">
+                      {editItems.map((item) => (
+                        <div key={item.id} className="rounded-md border border-slate-200 bg-white p-3">
+                          <p className="mb-3 text-sm font-semibold text-slate-800">{item.product?.name || item.description || '-'}</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <Label className="text-xs text-slate-600">Cantidad</Label>
+                              <Input
+                                type="text"
+                                inputMode="decimal"
+                                value={editItemDrafts[getDraftKey(item.id, 'quantity')] ?? String(item.quantity)}
+                                onChange={(e) =>
+                                  handleEditNumericInputChange(item.id, 'quantity', e.target.value, 1)
+                                }
+                                onBlur={() => handleEditNumericInputBlur(item.id, 'quantity', 1, 1)}
+                                className="mt-1 h-9 text-right"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs text-slate-600">Precio</Label>
+                              <Input
+                                type="text"
+                                inputMode="decimal"
+                                value={editItemDrafts[getDraftKey(item.id, 'unitCost')] ?? String(item.unitCost)}
+                                onChange={(e) =>
+                                  handleEditNumericInputChange(item.id, 'unitCost', e.target.value, 0)
+                                }
+                                onBlur={() => handleEditNumericInputBlur(item.id, 'unitCost', 0, 0)}
+                                className="mt-1 h-9 text-right"
+                              />
+                            </div>
+                          </div>
+                          <div className="mt-3 flex items-center justify-between">
+                            <p className="text-sm font-semibold text-slate-900">
+                              Subtotal: S/. {(item.quantity * item.unitCost).toLocaleString('es-ES', { maximumFractionDigits: 2 })}
+                            </p>
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              className="h-8 px-2"
+                              onClick={() => handleRemoveEditItem(item.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="hidden md:block">
+                      <table className="w-full text-sm">
+                        <thead className="bg-slate-50">
+                          <tr>
+                            <th className="p-2 text-left font-semibold text-slate-700">Producto</th>
+                            <th className="p-2 text-right font-semibold text-slate-700">Cantidad</th>
+                            <th className="p-2 text-right font-semibold text-slate-700">Precio</th>
+                            <th className="p-2 text-right font-semibold text-slate-700">Subtotal</th>
+                            <th className="p-2 text-center font-semibold text-slate-700">Accion</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {editItems.map((item) => (
+                            <tr key={item.id} className="border-t">
+                              <td className="p-2 text-slate-700">{item.product?.name || item.description || '-'}</td>
+                              <td className="p-2 text-right">
+                                <Input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={editItemDrafts[getDraftKey(item.id, 'quantity')] ?? String(item.quantity)}
+                                  onChange={(e) =>
+                                    handleEditNumericInputChange(item.id, 'quantity', e.target.value, 1)
+                                  }
+                                  onBlur={() => handleEditNumericInputBlur(item.id, 'quantity', 1, 1)}
+                                  className="ml-auto h-8 w-24 text-right"
+                                />
+                              </td>
+                              <td className="p-2 text-right">
+                                <Input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={editItemDrafts[getDraftKey(item.id, 'unitCost')] ?? String(item.unitCost)}
+                                  onChange={(e) =>
+                                    handleEditNumericInputChange(item.id, 'unitCost', e.target.value, 0)
+                                  }
+                                  onBlur={() => handleEditNumericInputBlur(item.id, 'unitCost', 0, 0)}
+                                  className="ml-auto h-8 w-28 text-right"
+                                />
+                              </td>
+                              <td className="p-2 text-right font-semibold text-slate-900">
+                                S/. {(item.quantity * item.unitCost).toLocaleString('es-ES', { maximumFractionDigits: 2 })}
+                              </td>
+                              <td className="p-2 text-center">
+                                <Button
+                                  type="button"
+                                  variant="destructive"
+                                  size="sm"
+                                  className="h-8 px-2"
+                                  onClick={() => handleRemoveEditItem(item.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  <p className="text-right text-sm font-semibold text-slate-900">
+                    Total calculado: S/. {computedEditTotal.toLocaleString('es-ES', { maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label>Pagado</Label>

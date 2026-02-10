@@ -38,6 +38,14 @@ export interface UpdatePurchaseDto {
   observation?: string;
 }
 
+export interface UpdatePurchaseItemDto {
+  productId?: number;
+  description?: string;
+  quantity?: number;
+  unitMeasurementId?: number;
+  unitCost?: number;
+}
+
 export type UpdateSuplierDto = Partial<CreateSuplierDto>;
 
 // Tipos de respuesta
@@ -313,6 +321,49 @@ class SuppliersService {
     const response = await axiosInstance.patch<Purchase | ApiResponse<Purchase>>(`/supliers/purchases/${purchaseId}`, data);
     const responseData = (response.data as ApiResponse<Purchase>)?.data || response.data;
     return responseData && typeof responseData === 'object' && 'id' in responseData ? responseData : undefined;
+  }
+
+  /**
+   * Actualizar item de compra por ID
+   */
+  async updatePurchaseItem(itemId: string | number, data: UpdatePurchaseItemDto) {
+    const response = await axiosInstance.patch<PurchaseItem | ApiResponse<PurchaseItem>>(
+      `/supliers/purchases/items/${itemId}`,
+      data
+    );
+    const responseData = (response.data as ApiResponse<PurchaseItem>)?.data || response.data;
+    return responseData && typeof responseData === 'object' && 'id' in responseData ? responseData : undefined;
+  }
+
+  /**
+   * Eliminar item de compra por ID
+   */
+  async deletePurchaseItem(itemId: string | number): Promise<{ success: boolean; message?: string }> {
+    const response = await axiosInstance.delete<
+      { success?: boolean; message?: string } | ApiResponse<{ success?: boolean; message?: string }>
+    >(`/supliers/purchases/items/${itemId}`);
+
+    const payload = (response.data as ApiResponse<{ success?: boolean; message?: string }>)?.data || response.data;
+
+    if (payload && typeof payload === 'object') {
+      if ('success' in payload) {
+        return {
+          success: Boolean((payload as { success?: boolean }).success),
+          message: (payload as { message?: string }).message,
+        };
+      }
+
+      if ('message' in payload) {
+        const message = String((payload as { message?: string }).message ?? '');
+        const normalized = message.toLowerCase();
+        const successByMessage = normalized.includes('eliminad');
+        return { success: successByMessage, message };
+      }
+    }
+
+    return {
+      success: response.status >= 200 && response.status < 300,
+    };
   }
 
   /**
