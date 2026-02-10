@@ -32,16 +32,13 @@ import {
 
 interface TableProduct {
   id: string
-  product: Product
+  product: Product | null
   quantity: number // Supports decimal values
-  selectedUnitId: number
-  selectedUnit: ProductUnit['unitMeasurement']
+  selectedUnitId: number | null
+  selectedUnit: ProductUnit['unitMeasurement'] | null
+  productSearch: string
+  isProductPickerOpen: boolean
   isEditing: boolean
-}
-
-interface PendingProductCard {
-  id: string
-  search: string
 }
 
 interface ExistingOrderLite {
@@ -55,7 +52,6 @@ const AdminFastOrdersPage = () => {
   const router = useRouter()
   const [tableProducts, setTableProducts] = useState<TableProduct[]>([])
   const [quantityDrafts, setQuantityDrafts] = useState<Record<string, string>>({})
-  const [pendingProductCards, setPendingProductCards] = useState<PendingProductCard[]>([])
   const [selectedUserId, setSelectedUserId] = useState<number | undefined>()
   const [selectedAreaId, setSelectedAreaId] = useState<number | undefined>()
   const [isCreatingOrder, setIsCreatingOrder] = useState(false)
@@ -247,62 +243,66 @@ const AdminFastOrdersPage = () => {
     })
   }, [products])
 
-  const buildTableProductFromOption = useCallback((key: string) => {
-    if (!selectedUserId || !selectedAreaId) {
-      toast.error("Selecciona usuario y area antes de agregar productos.")
-      return undefined
-    }
-
-    const selectedOption = productUnitOptions.find((option) => option.key === key)
-    if (!selectedOption) return undefined
-
-    const product = products.find((p) => p.id === selectedOption.productId)
-    if (!product) return undefined
-
-    const selectedProductUnit = product.productUnits?.find((unit) => unit.id === selectedOption.productUnitId)
-    const selectedUnit = selectedProductUnit?.unitMeasurement || { id: 0, name: "Unidad", description: "" }
-    const selectedUnitId = selectedProductUnit?.id || 0
-
-    const uniqueId = Math.random().toString(36).slice(2, 11)
-    const newTableProduct: TableProduct = {
-      id: `${product.id}-${selectedUnitId}-${uniqueId}`,
-      product,
-      quantity: 0,
-      selectedUnitId,
-      selectedUnit,
-      isEditing: true,
-    }
-
-    return newTableProduct
-  }, [productUnitOptions, products, selectedAreaId, selectedUserId])
-
-  const handleAddPendingProductCard = useCallback(() => {
+  const handleAddProductRow = useCallback(() => {
     if (!selectedUserId || !selectedAreaId) {
       toast.error("Selecciona usuario y area antes de agregar productos.")
       return
     }
 
-    const cardId = Math.random().toString(36).slice(2, 11)
-    setPendingProductCards((prev) => [...prev, { id: cardId, search: "" }])
+    const rowId = Math.random().toString(36).slice(2, 11)
+    setTableProducts((prev) => [
+      ...prev,
+      {
+        id: `pending-${rowId}`,
+        product: null,
+        quantity: 0,
+        selectedUnitId: null,
+        selectedUnit: null,
+        productSearch: "",
+        isProductPickerOpen: true,
+        isEditing: true,
+      },
+    ])
   }, [selectedAreaId, selectedUserId])
 
-  const handlePendingSearchChange = useCallback((cardId: string, value: string) => {
-    setPendingProductCards((prev) =>
-      prev.map((card) => (card.id === cardId ? { ...card, search: value } : card)),
+  const handleRowProductSearchChange = useCallback((rowId: string, value: string) => {
+    setTableProducts((prev) =>
+      prev.map((row) => (row.id === rowId ? { ...row, productSearch: value } : row)),
     )
   }, [])
 
-  const handleRemovePendingCard = useCallback((cardId: string) => {
-    setPendingProductCards((prev) => prev.filter((card) => card.id !== cardId))
+  const handleToggleRowProductPicker = useCallback((rowId: string, isOpen: boolean) => {
+    setTableProducts((prev) =>
+      prev.map((row) => (row.id === rowId ? { ...row, isProductPickerOpen: isOpen } : row)),
+    )
   }, [])
 
-  const handleSelectPendingProduct = useCallback((cardId: string, optionKey: string) => {
-    const newTableProduct = buildTableProductFromOption(optionKey)
-    if (!newTableProduct) return
+  const handleSelectProductForRow = useCallback((rowId: string, optionKey: string) => {
+    const selectedOption = productUnitOptions.find((option) => option.key === optionKey)
+    if (!selectedOption) return
 
-    setTableProducts((prev) => [...prev, newTableProduct])
-    setPendingProductCards((prev) => prev.filter((card) => card.id !== cardId))
-  }, [buildTableProductFromOption])
+    const product = products.find((p) => p.id === selectedOption.productId)
+    if (!product) return
+
+    const selectedProductUnit = product.productUnits?.find((unit) => unit.id === selectedOption.productUnitId)
+    const selectedUnit = selectedProductUnit?.unitMeasurement || { id: 0, name: "Unidad", description: "" }
+    const selectedUnitId = selectedProductUnit?.id || 0
+
+    setTableProducts((prev) =>
+      prev.map((row) =>
+        row.id === rowId
+          ? {
+              ...row,
+              product,
+              selectedUnitId,
+              selectedUnit,
+              isProductPickerOpen: false,
+              productSearch: "",
+            }
+          : row,
+      ),
+    )
+  }, [productUnitOptions, products])
 
   const handleUpdateQuantity = useCallback((tableProductId: string, newQuantity: number) => {
     if (newQuantity < 0) return
@@ -345,6 +345,7 @@ const AdminFastOrdersPage = () => {
   const handleUpdateUnit = useCallback((tableProductId: string, newUnitId: number) => {
     setTableProducts(prev => prev.map(tp => {
       if (tp.id === tableProductId) {
+        if (!tp.product) return tp
         const selectedUnit = tp.product.productUnits?.find(u => u.id === newUnitId)?.unitMeasurement || tp.selectedUnit
         return { ...tp, selectedUnitId: newUnitId, selectedUnit }
       }
@@ -359,16 +360,15 @@ const AdminFastOrdersPage = () => {
 
   // Clear all products
   const handleClearAll = useCallback(() => {
-    if (tableProducts.length === 0 && pendingProductCards.length === 0) {
+    if (tableProducts.length === 0) {
       return
     }
 
     if (window.confirm(`Deseas eliminar los ${tableProducts.length} productos?`)) {
       setTableProducts([])
       setQuantityDrafts({})
-      setPendingProductCards([])
     }
-  }, [pendingProductCards.length, tableProducts.length])
+  }, [tableProducts.length])
 
   // Create order
   const handleCreateOrder = async () => {
@@ -382,7 +382,23 @@ const AdminFastOrdersPage = () => {
       return
     }
 
-    if (tableProducts.some((tp) => !tp.quantity || tp.quantity <= 0)) {
+    const hasIncompleteRows = tableProducts.some((tp) => !tp.product || !tp.selectedUnitId || !tp.selectedUnit)
+    if (hasIncompleteRows) {
+      toast.error("Completa o elimina las filas sin producto antes de crear el pedido.")
+      return
+    }
+
+    const readyProducts = tableProducts.filter(
+      (tp): tp is TableProduct & { product: Product; selectedUnitId: number; selectedUnit: ProductUnit["unitMeasurement"] } =>
+        Boolean(tp.product && tp.selectedUnitId && tp.selectedUnit),
+    )
+
+    if (readyProducts.length === 0) {
+      toast.error("Por favor agrega al menos un producto valido")
+      return
+    }
+
+    if (readyProducts.some((tp) => !tp.quantity || tp.quantity <= 0)) {
       toast.error("No puedes crear un pedido con cantidad 0. Ajusta las cantidades.")
       return
     }
@@ -419,7 +435,7 @@ const AdminFastOrdersPage = () => {
     setIsCreatingOrder(true)
     try {
       // Crear orderItems con la estructura exacta que espera el backend
-      const orderItems = tableProducts.map(tp => {
+      const orderItems = readyProducts.map(tp => {
         // IMPORTANT: Use unitMeasurementId from the selected unit, not the ProductUnit id
         const selectedUnit = tp.product.productUnits?.find(u => u.id === tp.selectedUnitId);
         const unitMeasurementId = selectedUnit?.unitMeasurementId || tp.selectedUnitId;
@@ -442,7 +458,7 @@ const AdminFastOrdersPage = () => {
       const orderData: CreateOrderDto = {
         userId: selectedUserId,
         areaId: selectedAreaId,
-        totalAmount: tableProducts.reduce((sum, tp) => sum + (tp.quantity * (tp.product.price || 0)), 0),
+        totalAmount: readyProducts.reduce((sum, tp) => sum + (tp.quantity * (tp.product.price || 0)), 0),
         status: 'created',
         observation: orderObservations.trim() || undefined,
         orderItems: orderItems,
@@ -488,7 +504,8 @@ const AdminFastOrdersPage = () => {
       return
     }
 
-    if (tableProducts.length === 0) {
+    const printableProducts = tableProducts.filter((tp) => tp.product && tp.selectedUnit)
+    if (printableProducts.length === 0) {
       toast.error("No hay productos para imprimir")
       return
     }
@@ -499,10 +516,10 @@ const AdminFastOrdersPage = () => {
       const payload = {
         areaName: selectedAreaName || `Area ${selectedAreaId}`,
         observation: orderObservations || "",
-        items: tableProducts.map((tp) => ({
-          productName: tp.product.name,
+        items: printableProducts.map((tp) => ({
+          productName: tp.product!.name,
           quantity: tp.quantity,
-          unitName: tp.selectedUnit.name,
+          unitName: tp.selectedUnit!.name,
         })),
       }
 
@@ -541,7 +558,8 @@ const AdminFastOrdersPage = () => {
       return
     }
 
-    if (tableProducts.length === 0) {
+    const downloadableProducts = tableProducts.filter((tp) => tp.product && tp.selectedUnit)
+    if (downloadableProducts.length === 0) {
       toast.error("No hay productos para descargar")
       return
     }
@@ -552,10 +570,10 @@ const AdminFastOrdersPage = () => {
       const payload = {
         areaName: selectedAreaName || `Area ${selectedAreaId}`,
         observation: orderObservations || "",
-        items: tableProducts.map((tp) => ({
-          productName: tp.product.name,
+        items: downloadableProducts.map((tp) => ({
+          productName: tp.product!.name,
           quantity: tp.quantity,
-          unitName: tp.selectedUnit.name,
+          unitName: tp.selectedUnit!.name,
         })),
       }
 
@@ -586,11 +604,16 @@ const AdminFastOrdersPage = () => {
     }
   }, [orderObservations, selectedAreaId, selectedAreaName, tableProducts, todayDate])
 
+  const readyTableProducts = useMemo(
+    () => tableProducts.filter((tp): tp is TableProduct & { product: Product; selectedUnit: ProductUnit["unitMeasurement"]; selectedUnitId: number } => Boolean(tp.product && tp.selectedUnit && tp.selectedUnitId)),
+    [tableProducts],
+  )
+
   const stats = useMemo(() => ({
-    totalProducts: tableProducts.length,
-    totalItems: tableProducts.reduce((sum, tp) => sum + tp.quantity, 0),
+    totalProducts: readyTableProducts.length,
+    totalItems: readyTableProducts.reduce((sum, tp) => sum + tp.quantity, 0),
     totalPrice: 0 // Price calculation removed from frontend
-  }), [tableProducts])
+  }), [readyTableProducts])
 
   if (!isMounted) {
     return (
@@ -646,8 +669,8 @@ const AdminFastOrdersPage = () => {
         </header>
 
         <main className="flex-1 p-4 sm:p-6">
-          {/* User, Area and Product Selection */}
-          <div className="mb-6 grid gap-5 grid-cols-1 sm:grid-cols-3">
+          {/* User and Area Selection */}
+          <div className="mb-6 grid gap-5 grid-cols-1 sm:grid-cols-2">
             {/* User Selection */}
             <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
               <label className="text-sm font-semibold text-gray-700 block mb-3 flex items-center gap-2">
@@ -660,7 +683,8 @@ const AdminFastOrdersPage = () => {
                   setSelectedUserId(parseInt(value))
                   setSelectedAreaId(undefined) // Reset area when user changes
                   setExistingOrder(undefined) // Reset existing order
-                  setPendingProductCards([])
+                  setTableProducts([])
+                  setQuantityDrafts({})
                 }}
               >
                 <SelectTrigger className="rounded-lg border-gray-300" data-testid="user-select">
@@ -693,7 +717,8 @@ const AdminFastOrdersPage = () => {
                 value={selectedAreaId?.toString()} 
                 onValueChange={(value) => {
                   setSelectedAreaId(parseInt(value))
-                  setPendingProductCards([])
+                  setTableProducts([])
+                  setQuantityDrafts({})
                 }}
                 disabled={!selectedUserId}
               >
@@ -758,96 +783,24 @@ const AdminFastOrdersPage = () => {
               )}
             </div>
 
-            {/* Product Selection */}
-            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-md">
-              <div className="flex items-center justify-between gap-2 mb-3">
-                <label className="text-sm font-semibold text-gray-700 block">
-                  Productos
-                </label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleAddPendingProductCard}
-                  disabled={!selectedUserId || !selectedAreaId}
-                  className="gap-2"
-                >
-                  <Plus className="h-4 w-4" />
-                  Agregar producto
-                </Button>
-              </div>
-
-              {!selectedUserId || !selectedAreaId ? (
-                <div className="rounded-lg border border-dashed border-gray-300 px-3 py-4 text-sm text-gray-500">
-                  Selecciona usuario y area para agregar productos.
-                </div>
-              ) : pendingProductCards.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-gray-300 px-3 py-4 text-sm text-gray-500">
-                  Presiona &quot;Agregar producto&quot; para crear una card vacia.
-                </div>
-              ) : (
-                <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
-                  {pendingProductCards.map((card, index) => {
-                    const search = card.search.trim().toLowerCase()
-                    const filteredOptions = (!search
-                      ? productUnitOptions.slice(0, 12)
-                      : productUnitOptions.filter((option) => option.label.toLowerCase().includes(search)).slice(0, 12)
-                    )
-
-                    return (
-                      <div key={card.id} className="rounded-lg border border-gray-200 p-3 bg-gray-50/60">
-                        <div className="flex items-center justify-between gap-2 mb-2">
-                          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                            Producto {index + 1}
-                          </p>
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => handleRemovePendingCard(card.id)}
-                            className="h-7 w-7 text-red-600 hover:bg-red-50 hover:text-red-700"
-                            aria-label="Quitar card"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-
-                        <Input
-                          value={card.search}
-                          onChange={(event) => handlePendingSearchChange(card.id, event.target.value)}
-                          placeholder="Buscar producto - unidad"
-                          className="rounded-lg border-gray-300 bg-white"
-                        />
-
-                        <div className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100 bg-white">
-                          {filteredOptions.length > 0 ? (
-                            filteredOptions.map((option) => (
-                              <button
-                                key={option.key}
-                                type="button"
-                                onClick={() => handleSelectPendingProduct(card.id, option.key)}
-                                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 transition-colors flex items-center justify-between gap-2"
-                              >
-                                <span className="truncate">{option.label}</span>
-                                <Plus className="h-4 w-4 flex-shrink-0 text-green-600" />
-                              </button>
-                            ))
-                          ) : (
-                            <div className="px-3 py-3 text-sm text-gray-500">
-                              No hay coincidencias para este producto.
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
           </div>
 
           {/* Products Table */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-md overflow-hidden">
+            <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 sm:px-6">
+              <p className="text-sm font-semibold text-gray-700">Productos en tabla</p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleAddProductRow}
+                disabled={!selectedUserId || !selectedAreaId}
+                className="gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Agregar producto
+              </Button>
+            </div>
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
@@ -889,71 +842,128 @@ const AdminFastOrdersPage = () => {
                             <Package className="h-8 w-8 text-gray-400" />
                           </div>
                           <h3 className="text-lg font-bold text-gray-900">Tabla vacia</h3>
-                          <p className="text-gray-600 mt-2">Selecciona un usuario, un area y busca productos para agregarlos automaticamente</p>
+                          <p className="text-gray-600 mt-2">Agrega una fila y elige el producto desde el buscador de la tabla</p>
                         </div>
                       </td>
                     </tr>
                   ) : (
                     tableProducts.map((tableProduct) => {
-                      const { product, quantity, id, selectedUnit, isEditing } = tableProduct
+                      const { product, quantity, id, selectedUnit, isEditing, productSearch, isProductPickerOpen } = tableProduct
                       const draftValue = quantityDrafts[id]
                       const displayQuantity = Number.isFinite(quantity) ? quantity : 0
                       const inputValue = draftValue ?? String(displayQuantity)
+                      const hasProduct = Boolean(product && selectedUnit && tableProduct.selectedUnitId)
+                      const search = productSearch.trim().toLowerCase()
+                      const filteredOptions = (!search
+                        ? productUnitOptions.slice(0, 8)
+                        : productUnitOptions.filter((option) => option.label.toLowerCase().includes(search)).slice(0, 8)
+                      )
 
                       return (
                         <tr key={id} className="hover:bg-gray-50 transition-colors duration-150">
                           {/* Producto */}
                           <td className="px-6 py-4">
-                             <div>
-                               <div className="text-sm font-medium text-gray-900">{product.name}</div>
-                               <div className="text-sm text-gray-500 truncate max-w-xs">{product.description}</div>
-                             </div>
+                            {!hasProduct || isProductPickerOpen ? (
+                              <div className="space-y-2">
+                                <Input
+                                  value={productSearch}
+                                  onChange={(event) => handleRowProductSearchChange(id, event.target.value)}
+                                  placeholder="Buscar producto - unidad"
+                                  className="h-9 rounded-lg border-gray-300 bg-white"
+                                />
+                                <div className="max-h-40 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100 bg-white">
+                                  {filteredOptions.length > 0 ? (
+                                    filteredOptions.map((option) => (
+                                      <button
+                                        key={option.key}
+                                        type="button"
+                                        onClick={() => handleSelectProductForRow(id, option.key)}
+                                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 transition-colors flex items-center justify-between gap-2"
+                                      >
+                                        <span className="truncate">{option.label}</span>
+                                        <Plus className="h-4 w-4 flex-shrink-0 text-green-600" />
+                                      </button>
+                                    ))
+                                  ) : (
+                                    <div className="px-3 py-3 text-sm text-gray-500">No hay coincidencias</div>
+                                  )}
+                                </div>
+                                {hasProduct && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleToggleRowProductPicker(id, false)}
+                                    className="h-7 px-2 text-xs"
+                                  >
+                                    Cerrar buscador
+                                  </Button>
+                                )}
+                              </div>
+                            ) : (
+                              <div>
+                                <div className="text-sm font-medium text-gray-900">{product!.name}</div>
+                                <div className="text-sm text-gray-500 truncate max-w-xs">{product!.description}</div>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleToggleRowProductPicker(id, true)}
+                                  className="h-7 px-2 mt-1 text-xs text-blue-700 hover:text-blue-800"
+                                >
+                                  Cambiar producto
+                                </Button>
+                              </div>
+                            )}
                           </td>
                           
                           {/* Presentacion */}
                           <td className="px-6 py-4">
-                            {isEditing ? (
+                            {isEditing && hasProduct ? (
                               <Select
-                                value={tableProduct.selectedUnitId.toString()}
+                                value={tableProduct.selectedUnitId!.toString()}
                                 onValueChange={(value) => handleUpdateUnit(id, parseInt(value))}
                               >
                                 <SelectTrigger className="h-10 w-48 border border-gray-300 bg-white rounded-lg font-semibold">
                                   <SelectValue placeholder="Selecciona presentacion" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {product.productUnits?.map((unit) => (
+                                  {product!.productUnits?.map((unit) => (
                                     <SelectItem key={unit.id} value={unit.id.toString()}>
                                       {unit.unitMeasurement.name}
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
-                            ) : (
+                            ) : hasProduct ? (
                               <div className="inline-block">
                                 <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 px-4 py-1.5 text-sm font-semibold rounded-lg cursor-default">
-                                  {selectedUnit.name}
+                                  {selectedUnit!.name}
                                 </Badge>
                               </div>
+                            ) : (
+                              <span className="text-xs text-gray-500">Selecciona producto</span>
                             )}
                           </td>
                           
                            {/* Cantidad */}
                            <td className="px-6 py-4">
-                             <div className="flex items-center justify-center gap-2">
+                              <div className="flex items-center justify-center gap-2">
                                <Input
                                  type="text"
                                  inputMode="decimal"
                                  pattern="^\\d*(?:[\\.,]\\d+)?$"
-                                 value={inputValue}
-                                 onChange={(e) => handleQuantityChange(id, e.target.value)}
-                                 onBlur={() => handleQuantityBlur(id)}
-                                 className="w-20 h-8 text-center border border-gray-300 bg-white focus-visible:ring-2 focus-visible:ring-primary/30"
-                               />
-                               <span className="text-sm text-gray-600 min-w-fit">
-                                 {selectedUnit.name}
-                               </span>
-                             </div>
-                           </td>
+                                  value={inputValue}
+                                  onChange={(e) => handleQuantityChange(id, e.target.value)}
+                                  onBlur={() => handleQuantityBlur(id)}
+                                  className="w-20 h-8 text-center border border-gray-300 bg-white focus-visible:ring-2 focus-visible:ring-primary/30"
+                                  disabled={!hasProduct}
+                                />
+                                <span className="text-sm text-gray-600 min-w-fit">
+                                  {selectedUnit?.name || "-"}
+                                </span>
+                              </div>
+                            </td>
                            
                           {/* Acciones */}
                           <td className="px-6 py-4">
@@ -992,7 +1002,7 @@ const AdminFastOrdersPage = () => {
                     <Package className="h-7 w-7 text-gray-400" />
                   </div>
                   <h3 className="text-base font-bold text-gray-900">Tabla vacia</h3>
-                  <p className="mt-1 text-sm text-gray-600">Busca productos para agregarlos automaticamente</p>
+                  <p className="mt-1 text-sm text-gray-600">Agrega una fila y elige productos desde la tabla</p>
                 </div>
               ) : (
                 <div className="rounded-lg border border-gray-200 overflow-hidden">
@@ -1003,15 +1013,59 @@ const AdminFastOrdersPage = () => {
                   </div>
                   <div className="divide-y divide-gray-100">
                     {tableProducts.map((tableProduct) => {
-                      const { product, quantity, id, selectedUnit } = tableProduct
+                      const { product, quantity, id, selectedUnit, productSearch, isProductPickerOpen } = tableProduct
                       const draftValue = quantityDrafts[id]
                       const displayQuantity = Number.isFinite(quantity) ? quantity : 0
                       const inputValue = draftValue ?? String(displayQuantity)
+                      const hasProduct = Boolean(product && selectedUnit && tableProduct.selectedUnitId)
+                      const search = productSearch.trim().toLowerCase()
+                      const filteredOptions = (!search
+                        ? productUnitOptions.slice(0, 6)
+                        : productUnitOptions.filter((option) => option.label.toLowerCase().includes(search)).slice(0, 6)
+                      )
                       return (
                         <div key={id} className="grid grid-cols-[1fr_auto_auto] items-center gap-2 px-3 py-2">
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-gray-900">{product.name}</p>
-                            <p className="text-[11px] text-gray-500">{selectedUnit.name}</p>
+                            {!hasProduct || isProductPickerOpen ? (
+                              <div className="space-y-2">
+                                <Input
+                                  value={productSearch}
+                                  onChange={(event) => handleRowProductSearchChange(id, event.target.value)}
+                                  placeholder="Buscar producto"
+                                  className="h-8 text-xs rounded-lg border-gray-300 bg-white"
+                                />
+                                <div className="max-h-28 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100 bg-white">
+                                  {filteredOptions.length > 0 ? (
+                                    filteredOptions.map((option) => (
+                                      <button
+                                        key={option.key}
+                                        type="button"
+                                        onClick={() => handleSelectProductForRow(id, option.key)}
+                                        className="w-full px-2 py-1.5 text-left text-xs hover:bg-gray-50 transition-colors"
+                                      >
+                                        <span className="truncate block">{option.label}</span>
+                                      </button>
+                                    ))
+                                  ) : (
+                                    <div className="px-2 py-2 text-xs text-gray-500">Sin coincidencias</div>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <p className="truncate text-sm font-semibold text-gray-900">{product!.name}</p>
+                                <p className="text-[11px] text-gray-500">{selectedUnit!.name}</p>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleToggleRowProductPicker(id, true)}
+                                  className="h-6 px-1 text-[11px] text-blue-700"
+                                >
+                                  Cambiar
+                                </Button>
+                              </>
+                            )}
                           </div>
                           <div className="flex items-center gap-2">
                             <Input
@@ -1022,6 +1076,7 @@ const AdminFastOrdersPage = () => {
                               onChange={(e) => handleQuantityChange(id, e.target.value)}
                               onBlur={() => handleQuantityBlur(id)}
                               className="w-20 h-8 text-center border border-gray-300 bg-white focus-visible:ring-2 focus-visible:ring-primary/30"
+                              disabled={!hasProduct}
                             />
                           </div>
                           <div className="flex justify-center">
@@ -1045,7 +1100,7 @@ const AdminFastOrdersPage = () => {
           </div>
 
           {/* Summary */}
-          {tableProducts.length > 0 && (
+          {readyTableProducts.length > 0 && (
             <div className="mt-6 bg-white rounded-xl border border-gray-200 p-5 shadow-md">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="text-sm text-gray-700">
@@ -1064,7 +1119,7 @@ const AdminFastOrdersPage = () => {
                       variant="outline"
                       size="icon"
                       onClick={handlePrint}
-                      disabled={!selectedAreaId || tableProducts.length === 0 || isPrinting}
+                      disabled={!selectedAreaId || readyTableProducts.length === 0 || isPrinting}
                       aria-label="Imprimir pedido"
                       title="Imprimir pedido"
                     >
@@ -1074,7 +1129,7 @@ const AdminFastOrdersPage = () => {
                       variant="outline"
                       size="icon"
                       onClick={handleDownload}
-                      disabled={!selectedAreaId || tableProducts.length === 0 || isDownloading}
+                      disabled={!selectedAreaId || readyTableProducts.length === 0 || isDownloading}
                       aria-label="Descargar PDF"
                       title="Descargar PDF"
                     >
@@ -1129,7 +1184,7 @@ const AdminFastOrdersPage = () => {
                 <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
                   <p className="text-sm font-semibold text-gray-700 mb-2">Resumen:</p>
                   <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {tableProducts.map((tp) => (
+                    {readyTableProducts.map((tp) => (
                       <div key={tp.id} className="flex justify-between text-sm">
                         <span className="text-gray-700">{tp.product.name}</span>
                         <span className="font-semibold">{tp.quantity % 1 === 0 ? tp.quantity : tp.quantity.toFixed(2)} {tp.selectedUnit.name}</span>
@@ -1157,7 +1212,7 @@ const AdminFastOrdersPage = () => {
                  variant="outline"
                  size="icon"
                  onClick={handlePrint}
-                 disabled={!selectedAreaId || tableProducts.length === 0 || isPrinting}
+                 disabled={!selectedAreaId || readyTableProducts.length === 0 || isPrinting}
                  aria-label="Imprimir pedido"
                  title="Imprimir pedido"
                >
@@ -1167,7 +1222,7 @@ const AdminFastOrdersPage = () => {
                  variant="outline"
                  size="icon"
                  onClick={handleDownload}
-                 disabled={!selectedAreaId || tableProducts.length === 0 || isDownloading}
+                 disabled={!selectedAreaId || readyTableProducts.length === 0 || isDownloading}
                  aria-label="Descargar PDF"
                  title="Descargar PDF"
                >
