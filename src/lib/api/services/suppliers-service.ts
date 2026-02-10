@@ -127,6 +127,42 @@ class SuppliersService {
       return payload as PaginatedSupliersResponse;
     }
 
+    const raw = payload as
+      | (ApiResponse<Suplier[] | { data?: Suplier[]; meta?: { page?: number; limit?: number; total?: number; totalPages?: number } }> & {
+          data?: Suplier[] | { data?: Suplier[]; meta?: { page?: number; limit?: number; total?: number; totalPages?: number } };
+          meta?: { page?: number; limit?: number; total?: number; totalPages?: number };
+        })
+      | { data?: Suplier[]; meta?: { page?: number; limit?: number; total?: number; totalPages?: number } };
+
+    if (raw && typeof raw === 'object' && 'data' in raw && Array.isArray(raw.data)) {
+      const meta = raw.meta || {};
+      const items = raw.data;
+      const limit = meta.limit ?? items.length;
+      const total = meta.total ?? items.length;
+      return {
+        data: items,
+        total,
+        page: meta.page ?? 1,
+        limit,
+        totalPages: meta.totalPages ?? Math.max(1, Math.ceil(total / (limit || 1))),
+      };
+    }
+
+    if (raw && typeof raw === 'object' && 'data' in raw && raw.data && typeof raw.data === 'object' && 'data' in raw.data && Array.isArray(raw.data.data)) {
+      const wrapped = raw.data;
+      const meta = wrapped.meta || {};
+      const items = wrapped.data;
+      const limit = meta.limit ?? items.length;
+      const total = meta.total ?? items.length;
+      return {
+        data: items,
+        total,
+        page: meta.page ?? 1,
+        limit,
+        totalPages: meta.totalPages ?? Math.max(1, Math.ceil(total / (limit || 1))),
+      };
+    }
+
     const data = (payload as ApiResponse<Suplier[]>)?.data || payload;
     if (Array.isArray(data)) {
       return { data, total: data.length, page: 1, limit: data.length, totalPages: 1 };
