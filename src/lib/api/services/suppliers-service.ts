@@ -32,7 +32,6 @@ export interface CreateSuplierDto {
 export interface UpdatePurchaseDto {
   status?: 'created' | 'processing' | 'completed' | 'cancelled';
   paid?: boolean;
-  totalAmount?: number;
   paymentDate?: Date;
   observation?: string;
 }

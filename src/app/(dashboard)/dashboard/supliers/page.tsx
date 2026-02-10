@@ -48,7 +48,7 @@ export default function SuppliersPage() {
     purchase: Purchase;
   } | null>(null);
   const [editPaid, setEditPaid] = useState(false);
-  const [editTotalAmount, setEditTotalAmount] = useState('');
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     void refetch();
@@ -101,24 +101,16 @@ export default function SuppliersPage() {
   const openEditPurchase = (supplierId: number, purchase: Purchase) => {
     setEditingPurchase({ supplierId, purchase });
     setEditPaid(Boolean(purchase.paid));
-    setEditTotalAmount(String(purchase.totalAmount ?? 0));
     setEditOpen(true);
   };
 
   const handleSaveEdit = async () => {
     if (!editingPurchase) return;
-    const normalizedAmount = editTotalAmount.trim().replace(',', '.');
-    const parsedAmount = Number(normalizedAmount);
-    if (!normalizedAmount || !Number.isFinite(parsedAmount) || parsedAmount < 0) {
-      toast.error('Ingresa un monto valido en soles');
-      return;
-    }
 
     try {
       await suppliersService.updatePurchase(editingPurchase.purchase.id, {
         status: 'created',
         paid: editPaid,
-        totalAmount: parsedAmount,
       });
       toast.success('Compra actualizada');
       setEditOpen(false);
@@ -205,6 +197,20 @@ export default function SuppliersPage() {
   const totalAmount = suppliers.reduce((sum, supplier) => {
     return sum + (supplier.purchases?.reduce((purchaseSum, purchase) => purchaseSum + (purchase.totalAmount || 0), 0) || 0);
   }, 0);
+  const normalizedSearch = search.trim().toLowerCase();
+  const filteredSuppliers = suppliers.filter((supplier) => {
+    if (!normalizedSearch) return true;
+    return [
+      supplier.name,
+      supplier.companyName,
+      supplier.contactName,
+      supplier.email,
+      supplier.phone,
+      supplier.address,
+    ]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(normalizedSearch));
+  });
 
   const stats = [
     {
@@ -391,6 +397,18 @@ export default function SuppliersPage() {
       {/* Suppliers and Purchases Section */}
       <div className="max-w-7xl mx-auto px-6 py-12">
         <h2 className="text-3xl font-bold text-slate-900 mb-8 text-center">Proveedores y Compras</h2>
+        <div className="mb-8">
+          <Label htmlFor="supplier-search" className="mb-2 block">
+            Buscar proveedor
+          </Label>
+          <Input
+            id="supplier-search"
+            type="text"
+            placeholder="Buscar por nombre, empresa, contacto, email, telefono o direccion"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
 
         {/* Edit Purchase Dialog */}
         <Dialog
@@ -409,18 +427,6 @@ export default function SuppliersPage() {
             </DialogHeader>
 
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit-total-amount">Monto Total (S/.)</Label>
-                <Input
-                  id="edit-total-amount"
-                  type="text"
-                  inputMode="decimal"
-                  value={editTotalAmount}
-                  onChange={(e) => setEditTotalAmount(e.target.value)}
-                  placeholder="0.00"
-                />
-              </div>
-
               <div className="space-y-2">
                 <Label>Pagado</Label>
                 <Select
@@ -483,7 +489,7 @@ export default function SuppliersPage() {
 
         {!isLoading && !error && suppliers.length > 0 && (
           <div className="space-y-6">
-            {suppliers.map((supplier) => (
+            {filteredSuppliers.map((supplier) => (
               <Card key={supplier.id} className="shadow-lg hover:shadow-xl transition-shadow overflow-hidden">
                 <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100 border-b pb-4">
                   <div className="flex items-start justify-between">
@@ -624,6 +630,14 @@ export default function SuppliersPage() {
                 </CardContent>
               </Card>
             ))}
+            {filteredSuppliers.length === 0 && (
+              <Card className="border-slate-200 bg-slate-50 text-center py-10">
+                <CardContent>
+                  <p className="font-semibold text-slate-900">Sin resultados</p>
+                  <p className="text-sm text-slate-600">No hay proveedores que coincidan con tu busqueda.</p>
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
       </div>

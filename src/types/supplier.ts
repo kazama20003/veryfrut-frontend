@@ -70,7 +70,6 @@ export interface CreatePurchaseInput {
 export interface UpdatePurchaseInput {
   status?: 'created' | 'processing' | 'completed' | 'cancelled';
   paid?: boolean;
-  totalAmount?: number;
   paymentDate?: Date;
   observation?: string;
 }
