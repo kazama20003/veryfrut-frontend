@@ -6,9 +6,10 @@ import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useProductsQuery } from "@/lib/api/hooks/useProduct"
-import { useCreateOrderMutation, useCheckOrderQuery } from "@/lib/api/hooks/useOrder"
+import { useCreateOrderMutation } from "@/lib/api/hooks/useOrder"
 import { useUsersQuery } from "@/lib/api/hooks/useUsers"
 import { useAreasQuery } from "@/lib/api/hooks/useArea"
+import orderService from "@/lib/api/services/order-service"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
@@ -19,7 +20,7 @@ import Loading from "@/components/dashboard/sidebar/loading"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Product, ProductUnit } from "@/types/product"
 import type { User } from "@/types/users"
-import { CreateOrderDto, CreateOrderItemDto, CheckOrderResponse } from "@/types/order"
+import { CreateOrderDto, CreateOrderItemDto } from "@/types/order"
 import {
   Dialog,
   DialogContent,
@@ -38,6 +39,13 @@ interface TableProduct {
   isEditing: boolean
 }
 
+interface ExistingOrderLite {
+  id: number
+  status: string
+  areaId: number
+  totalAmount: number
+}
+
 const AdminFastOrdersPage = () => {
   const router = useRouter()
   const [tableProducts, setTableProducts] = useState<TableProduct[]>([])
@@ -52,7 +60,9 @@ const AdminFastOrdersPage = () => {
   const [areas, setAreas] = useState<Array<{id: number; name: string}>>([])
   const [blockedAreaIds, setBlockedAreaIds] = useState<Set<number>>(new Set())
   const [orderObservations, setOrderObservations] = useState<string>("")
-  const [existingOrder, setExistingOrder] = useState<{id: number; status: string; areaId: number; totalAmount: number} | undefined>(undefined)
+  const [existingOrdersByArea, setExistingOrdersByArea] = useState<Record<number, ExistingOrderLite>>({})
+  const [existingOrder, setExistingOrder] = useState<ExistingOrderLite | undefined>(undefined)
+  const [isCheckingAreaLocks, setIsCheckingAreaLocks] = useState(false)
   
   // Track orders created in this session to prevent duplicates
   const [sessionOrderKeys, setSessionOrderKeys] = useState<Set<string>>(new Set())
@@ -126,63 +136,81 @@ const AdminFastOrdersPage = () => {
     })
   }, [allAreas, selectedUser, selectedUserId])
 
-  const checkOrderData = useMemo(() => {
-    if (!selectedAreaId || !selectedUserId) return null
-    return {
-      areaId: selectedAreaId.toString(),
-      date: todayDate,
-    }
-  }, [selectedAreaId, selectedUserId, todayDate])
+  useEffect(() => {
+    let cancelled = false
 
-  const { data: existingOrderData, isLoading: isCheckingOrder } = useCheckOrderQuery(
-    checkOrderData,
-    Boolean(checkOrderData)
-  ) as { data: CheckOrderResponse | undefined, isLoading: boolean }
+    const checkAreaLocks = async () => {
+      if (!selectedUserId || areas.length === 0) {
+        if (!cancelled) {
+          setBlockedAreaIds(new Set())
+          setExistingOrdersByArea({})
+          setExistingOrder(undefined)
+        }
+        return
+      }
+
+      setIsCheckingAreaLocks(true)
+      try {
+        const checks = await Promise.all(
+          areas.map(async (area) => {
+            const result = await orderService.check({
+              areaId: area.id.toString(),
+              date: todayDate,
+            })
+            return { areaId: area.id, result }
+          }),
+        )
+
+        if (cancelled) return
+
+        const nextBlocked = new Set<number>()
+        const nextExistingOrders: Record<number, ExistingOrderLite> = {}
+
+        checks.forEach(({ areaId, result }) => {
+          if (!result.exists) return
+
+          nextBlocked.add(areaId)
+          nextExistingOrders[areaId] = result.order
+            ? {
+                id: result.order.id,
+                status: result.order.status,
+                areaId: result.order.areaId,
+                totalAmount: result.order.totalAmount,
+              }
+            : {
+                id: 0,
+                status: "unknown",
+                areaId,
+                totalAmount: 0,
+              }
+        })
+
+        setBlockedAreaIds(nextBlocked)
+        setExistingOrdersByArea(nextExistingOrders)
+      } catch (checkError) {
+        console.error("[AdminFastOrdersPage] Error checking blocked areas:", checkError)
+      } finally {
+        if (!cancelled) {
+          setIsCheckingAreaLocks(false)
+        }
+      }
+    }
+
+    checkAreaLocks()
+
+    return () => {
+      cancelled = true
+    }
+  }, [areas, selectedUserId, todayDate])
 
   useEffect(() => {
     if (!selectedAreaId || !selectedUserId) {
       setExistingOrder(undefined)
+      return
     }
-  }, [selectedAreaId, selectedUserId])
 
-  useEffect(() => {
-    if (!selectedAreaId) return
-    if (!blockedAreaIds.has(selectedAreaId)) return
-
-    const firstAvailable = areas.find((area) => !blockedAreaIds.has(area.id))
-    if (firstAvailable) {
-      setSelectedAreaId(firstAvailable.id)
-    }
-  }, [areas, blockedAreaIds, selectedAreaId])
-
-  useEffect(() => {
-    const checkedAreaId = checkOrderData?.areaId ? Number.parseInt(checkOrderData.areaId, 10) : undefined
-
-    if (existingOrderData && checkedAreaId) {
-      if (existingOrderData.exists) {
-        setBlockedAreaIds((prev) => {
-          const next = new Set(prev)
-          next.add(checkedAreaId)
-          return next
-        })
-
-        if (existingOrderData.order) {
-          setExistingOrder(existingOrderData.order)
-        } else {
-          setExistingOrder({
-            id: 0,
-            status: "unknown",
-            areaId: checkedAreaId,
-            totalAmount: 0,
-          })
-        }
-      } else if (existingOrderData.exists === false) {
-        setExistingOrder(undefined)
-      }
-    } else if (!existingOrderData && checkOrderData && !isCheckingOrder) {
-      setExistingOrder(undefined)
-    }
-  }, [checkOrderData, existingOrderData, isCheckingOrder])
+    setExistingOrder(existingOrdersByArea[selectedAreaId])
+  }, [existingOrdersByArea, selectedAreaId, selectedUserId])
 
   if (error) {
     console.error("[AdminFastOrdersPage] Error loading products:", error)
@@ -692,7 +720,7 @@ const AdminFastOrdersPage = () => {
               )}
                
               {/* Checking Status */}
-              {isCheckingOrder && (
+              {isCheckingAreaLocks && (
                 <div className="mt-2 p-2 rounded-md text-xs bg-blue-50 text-blue-700 border border-blue-200">
                   <div className="font-medium">Verificando pedidos existentes...</div>
                 </div>
