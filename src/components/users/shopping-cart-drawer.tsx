@@ -105,11 +105,13 @@ export function ShoppingCartDrawer({
   const [isCheckingAreas, setIsCheckingAreas] = useState(false)
   const createOrderMutation = useCreateOrderMutation()
   const todayDate = useMemo(() => {
-    const now = new Date()
-    const yyyy = now.getFullYear()
-    const mm = String(now.getMonth() + 1).padStart(2, "0")
-    const dd = String(now.getDate()).padStart(2, "0")
-    return `${yyyy}-${mm}-${dd}`
+    const formatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Lima",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    })
+    return formatter.format(new Date())
   }, [])
   const allAreasBlocked = useMemo(
     () => areas.length > 0 && areas.every((a) => blockedAreaIds.has(a.id)),
