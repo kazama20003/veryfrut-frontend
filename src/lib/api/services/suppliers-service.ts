@@ -154,8 +154,14 @@ class SuppliersService {
       };
     }
 
-    if (raw && typeof raw === 'object' && 'data' in raw && raw.data && typeof raw.data === 'object' && 'data' in raw.data && Array.isArray(raw.data.data)) {
-      const wrapped = raw.data;
+    if (raw && typeof raw === 'object' && 'data' in raw && raw.data && typeof raw.data === 'object') {
+      const wrapped = raw.data as {
+        data?: Suplier[];
+        meta?: { page?: number; limit?: number; total?: number; totalPages?: number; hasNextPage?: boolean; hasPrevPage?: boolean };
+      };
+      if (!Array.isArray(wrapped.data)) {
+        return { data: [], total: 0, page: 1, limit: 10, totalPages: 0 };
+      }
       const meta = wrapped.meta || {};
       const items = wrapped.data;
       const limit = meta.limit ?? items.length;

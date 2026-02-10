@@ -6,10 +6,9 @@ import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useProductsQuery } from "@/lib/api/hooks/useProduct"
-import { useCreateOrderMutation } from "@/lib/api/hooks/useOrder"
+import { useCreateOrderMutation, useCheckOrderQuery } from "@/lib/api/hooks/useOrder"
 import { useUsersQuery } from "@/lib/api/hooks/useUsers"
 import { useAreasQuery } from "@/lib/api/hooks/useArea"
-import orderService from "@/lib/api/services/order-service"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
@@ -20,7 +19,7 @@ import Loading from "@/components/dashboard/sidebar/loading"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Product, ProductUnit } from "@/types/product"
 import type { User } from "@/types/users"
-import { CreateOrderDto, CreateOrderItemDto } from "@/types/order"
+import { CreateOrderDto, CreateOrderItemDto, CheckOrderResponse } from "@/types/order"
 import {
   Dialog,
   DialogContent,
@@ -32,26 +31,18 @@ import {
 
 interface TableProduct {
   id: string
-  product: Product | null
+  product: Product
   quantity: number // Supports decimal values
-  selectedUnitId: number | null
-  selectedUnit: ProductUnit['unitMeasurement'] | null
-  productSearch: string
-  isProductPickerOpen: boolean
+  selectedUnitId: number
+  selectedUnit: ProductUnit['unitMeasurement']
   isEditing: boolean
-}
-
-interface ExistingOrderLite {
-  id: number
-  status: string
-  areaId: number
-  totalAmount: number
 }
 
 const AdminFastOrdersPage = () => {
   const router = useRouter()
   const [tableProducts, setTableProducts] = useState<TableProduct[]>([])
   const [quantityDrafts, setQuantityDrafts] = useState<Record<string, string>>({})
+  const [productSearch, setProductSearch] = useState("")
   const [selectedUserId, setSelectedUserId] = useState<number | undefined>()
   const [selectedAreaId, setSelectedAreaId] = useState<number | undefined>()
   const [isCreatingOrder, setIsCreatingOrder] = useState(false)
@@ -61,9 +52,7 @@ const AdminFastOrdersPage = () => {
   const [areas, setAreas] = useState<Array<{id: number; name: string}>>([])
   const [blockedAreaIds, setBlockedAreaIds] = useState<Set<number>>(new Set())
   const [orderObservations, setOrderObservations] = useState<string>("")
-  const [existingOrdersByArea, setExistingOrdersByArea] = useState<Record<number, ExistingOrderLite>>({})
-  const [existingOrder, setExistingOrder] = useState<ExistingOrderLite | undefined>(undefined)
-  const [isCheckingAreaLocks, setIsCheckingAreaLocks] = useState(false)
+  const [existingOrder, setExistingOrder] = useState<{id: number; status: string; areaId: number; totalAmount: number} | undefined>(undefined)
   
   // Track orders created in this session to prevent duplicates
   const [sessionOrderKeys, setSessionOrderKeys] = useState<Set<string>>(new Set())
@@ -137,81 +126,63 @@ const AdminFastOrdersPage = () => {
     })
   }, [allAreas, selectedUser, selectedUserId])
 
-  useEffect(() => {
-    let cancelled = false
-
-    const checkAreaLocks = async () => {
-      if (!selectedUserId || areas.length === 0) {
-        if (!cancelled) {
-          setBlockedAreaIds(new Set())
-          setExistingOrdersByArea({})
-          setExistingOrder(undefined)
-        }
-        return
-      }
-
-      setIsCheckingAreaLocks(true)
-      try {
-        const checks = await Promise.all(
-          areas.map(async (area) => {
-            const result = await orderService.check({
-              areaId: area.id.toString(),
-              date: todayDate,
-            })
-            return { areaId: area.id, result }
-          }),
-        )
-
-        if (cancelled) return
-
-        const nextBlocked = new Set<number>()
-        const nextExistingOrders: Record<number, ExistingOrderLite> = {}
-
-        checks.forEach(({ areaId, result }) => {
-          if (!result.exists) return
-
-          nextBlocked.add(areaId)
-          nextExistingOrders[areaId] = result.order
-            ? {
-                id: result.order.id,
-                status: result.order.status,
-                areaId: result.order.areaId,
-                totalAmount: result.order.totalAmount,
-              }
-            : {
-                id: 0,
-                status: "unknown",
-                areaId,
-                totalAmount: 0,
-              }
-        })
-
-        setBlockedAreaIds(nextBlocked)
-        setExistingOrdersByArea(nextExistingOrders)
-      } catch (checkError) {
-        console.error("[AdminFastOrdersPage] Error checking blocked areas:", checkError)
-      } finally {
-        if (!cancelled) {
-          setIsCheckingAreaLocks(false)
-        }
-      }
+  const checkOrderData = useMemo(() => {
+    if (!selectedAreaId || !selectedUserId) return null
+    return {
+      areaId: selectedAreaId.toString(),
+      date: todayDate,
     }
+  }, [selectedAreaId, selectedUserId, todayDate])
 
-    checkAreaLocks()
-
-    return () => {
-      cancelled = true
-    }
-  }, [areas, selectedUserId, todayDate])
+  const { data: existingOrderData, isLoading: isCheckingOrder } = useCheckOrderQuery(
+    checkOrderData,
+    Boolean(checkOrderData)
+  ) as { data: CheckOrderResponse | undefined, isLoading: boolean }
 
   useEffect(() => {
     if (!selectedAreaId || !selectedUserId) {
       setExistingOrder(undefined)
-      return
     }
+  }, [selectedAreaId, selectedUserId])
 
-    setExistingOrder(existingOrdersByArea[selectedAreaId])
-  }, [existingOrdersByArea, selectedAreaId, selectedUserId])
+  useEffect(() => {
+    if (!selectedAreaId) return
+    if (!blockedAreaIds.has(selectedAreaId)) return
+
+    const firstAvailable = areas.find((area) => !blockedAreaIds.has(area.id))
+    if (firstAvailable) {
+      setSelectedAreaId(firstAvailable.id)
+    }
+  }, [areas, blockedAreaIds, selectedAreaId])
+
+  useEffect(() => {
+    const checkedAreaId = checkOrderData?.areaId ? Number.parseInt(checkOrderData.areaId, 10) : undefined
+
+    if (existingOrderData && checkedAreaId) {
+      if (existingOrderData.exists) {
+        setBlockedAreaIds((prev) => {
+          const next = new Set(prev)
+          next.add(checkedAreaId)
+          return next
+        })
+
+        if (existingOrderData.order) {
+          setExistingOrder(existingOrderData.order)
+        } else {
+          setExistingOrder({
+            id: 0,
+            status: "unknown",
+            areaId: checkedAreaId,
+            totalAmount: 0,
+          })
+        }
+      } else if (existingOrderData.exists === false) {
+        setExistingOrder(undefined)
+      }
+    } else if (!existingOrderData && checkOrderData && !isCheckingOrder) {
+      setExistingOrder(undefined)
+    }
+  }, [checkOrderData, existingOrderData, isCheckingOrder])
 
   if (error) {
     console.error("[AdminFastOrdersPage] Error loading products:", error)
@@ -243,42 +214,19 @@ const AdminFastOrdersPage = () => {
     })
   }, [products])
 
-  const handleAddProductRow = useCallback(() => {
+  const filteredProductUnitOptions = useMemo(() => {
+    const search = productSearch.trim().toLowerCase()
+    if (!search) return []
+    return productUnitOptions.filter((option) => option.label.toLowerCase().includes(search)).slice(0, 30)
+  }, [productSearch, productUnitOptions])
+
+  const handleAddProductByKey = useCallback((key: string) => {
     if (!selectedUserId || !selectedAreaId) {
       toast.error("Selecciona usuario y area antes de agregar productos.")
       return
     }
 
-    const rowId = Math.random().toString(36).slice(2, 11)
-    setTableProducts((prev) => [
-      ...prev,
-      {
-        id: `pending-${rowId}`,
-        product: null,
-        quantity: 0,
-        selectedUnitId: null,
-        selectedUnit: null,
-        productSearch: "",
-        isProductPickerOpen: true,
-        isEditing: true,
-      },
-    ])
-  }, [selectedAreaId, selectedUserId])
-
-  const handleRowProductSearchChange = useCallback((rowId: string, value: string) => {
-    setTableProducts((prev) =>
-      prev.map((row) => (row.id === rowId ? { ...row, productSearch: value } : row)),
-    )
-  }, [])
-
-  const handleToggleRowProductPicker = useCallback((rowId: string, isOpen: boolean) => {
-    setTableProducts((prev) =>
-      prev.map((row) => (row.id === rowId ? { ...row, isProductPickerOpen: isOpen } : row)),
-    )
-  }, [])
-
-  const handleSelectProductForRow = useCallback((rowId: string, optionKey: string) => {
-    const selectedOption = productUnitOptions.find((option) => option.key === optionKey)
+    const selectedOption = productUnitOptions.find((option) => option.key === key)
     if (!selectedOption) return
 
     const product = products.find((p) => p.id === selectedOption.productId)
@@ -288,21 +236,19 @@ const AdminFastOrdersPage = () => {
     const selectedUnit = selectedProductUnit?.unitMeasurement || { id: 0, name: "Unidad", description: "" }
     const selectedUnitId = selectedProductUnit?.id || 0
 
-    setTableProducts((prev) =>
-      prev.map((row) =>
-        row.id === rowId
-          ? {
-              ...row,
-              product,
-              selectedUnitId,
-              selectedUnit,
-              isProductPickerOpen: false,
-              productSearch: "",
-            }
-          : row,
-      ),
-    )
-  }, [productUnitOptions, products])
+    const uniqueId = Math.random().toString(36).slice(2, 11)
+    const newTableProduct: TableProduct = {
+      id: `${product.id}-${selectedUnitId}-${uniqueId}`,
+      product,
+      quantity: 0,
+      selectedUnitId,
+      selectedUnit,
+      isEditing: true,
+    }
+
+    setTableProducts((prev) => [...prev, newTableProduct])
+    setProductSearch("")
+  }, [productUnitOptions, products, selectedAreaId, selectedUserId])
 
   const handleUpdateQuantity = useCallback((tableProductId: string, newQuantity: number) => {
     if (newQuantity < 0) return
@@ -345,7 +291,6 @@ const AdminFastOrdersPage = () => {
   const handleUpdateUnit = useCallback((tableProductId: string, newUnitId: number) => {
     setTableProducts(prev => prev.map(tp => {
       if (tp.id === tableProductId) {
-        if (!tp.product) return tp
         const selectedUnit = tp.product.productUnits?.find(u => u.id === newUnitId)?.unitMeasurement || tp.selectedUnit
         return { ...tp, selectedUnitId: newUnitId, selectedUnit }
       }
@@ -368,7 +313,7 @@ const AdminFastOrdersPage = () => {
       setTableProducts([])
       setQuantityDrafts({})
     }
-  }, [tableProducts.length])
+  }, [tableProducts])
 
   // Create order
   const handleCreateOrder = async () => {
@@ -382,23 +327,7 @@ const AdminFastOrdersPage = () => {
       return
     }
 
-    const hasIncompleteRows = tableProducts.some((tp) => !tp.product || !tp.selectedUnitId || !tp.selectedUnit)
-    if (hasIncompleteRows) {
-      toast.error("Completa o elimina las filas sin producto antes de crear el pedido.")
-      return
-    }
-
-    const readyProducts = tableProducts.filter(
-      (tp): tp is TableProduct & { product: Product; selectedUnitId: number; selectedUnit: ProductUnit["unitMeasurement"] } =>
-        Boolean(tp.product && tp.selectedUnitId && tp.selectedUnit),
-    )
-
-    if (readyProducts.length === 0) {
-      toast.error("Por favor agrega al menos un producto valido")
-      return
-    }
-
-    if (readyProducts.some((tp) => !tp.quantity || tp.quantity <= 0)) {
+    if (tableProducts.some((tp) => !tp.quantity || tp.quantity <= 0)) {
       toast.error("No puedes crear un pedido con cantidad 0. Ajusta las cantidades.")
       return
     }
@@ -435,7 +364,7 @@ const AdminFastOrdersPage = () => {
     setIsCreatingOrder(true)
     try {
       // Crear orderItems con la estructura exacta que espera el backend
-      const orderItems = readyProducts.map(tp => {
+      const orderItems = tableProducts.map(tp => {
         // IMPORTANT: Use unitMeasurementId from the selected unit, not the ProductUnit id
         const selectedUnit = tp.product.productUnits?.find(u => u.id === tp.selectedUnitId);
         const unitMeasurementId = selectedUnit?.unitMeasurementId || tp.selectedUnitId;
@@ -458,7 +387,7 @@ const AdminFastOrdersPage = () => {
       const orderData: CreateOrderDto = {
         userId: selectedUserId,
         areaId: selectedAreaId,
-        totalAmount: readyProducts.reduce((sum, tp) => sum + (tp.quantity * (tp.product.price || 0)), 0),
+        totalAmount: tableProducts.reduce((sum, tp) => sum + (tp.quantity * (tp.product.price || 0)), 0),
         status: 'created',
         observation: orderObservations.trim() || undefined,
         orderItems: orderItems,
@@ -504,8 +433,7 @@ const AdminFastOrdersPage = () => {
       return
     }
 
-    const printableProducts = tableProducts.filter((tp) => tp.product && tp.selectedUnit)
-    if (printableProducts.length === 0) {
+    if (tableProducts.length === 0) {
       toast.error("No hay productos para imprimir")
       return
     }
@@ -516,10 +444,10 @@ const AdminFastOrdersPage = () => {
       const payload = {
         areaName: selectedAreaName || `Area ${selectedAreaId}`,
         observation: orderObservations || "",
-        items: printableProducts.map((tp) => ({
-          productName: tp.product!.name,
+        items: tableProducts.map((tp) => ({
+          productName: tp.product.name,
           quantity: tp.quantity,
-          unitName: tp.selectedUnit!.name,
+          unitName: tp.selectedUnit.name,
         })),
       }
 
@@ -558,8 +486,7 @@ const AdminFastOrdersPage = () => {
       return
     }
 
-    const downloadableProducts = tableProducts.filter((tp) => tp.product && tp.selectedUnit)
-    if (downloadableProducts.length === 0) {
+    if (tableProducts.length === 0) {
       toast.error("No hay productos para descargar")
       return
     }
@@ -570,10 +497,10 @@ const AdminFastOrdersPage = () => {
       const payload = {
         areaName: selectedAreaName || `Area ${selectedAreaId}`,
         observation: orderObservations || "",
-        items: downloadableProducts.map((tp) => ({
-          productName: tp.product!.name,
+        items: tableProducts.map((tp) => ({
+          productName: tp.product.name,
           quantity: tp.quantity,
-          unitName: tp.selectedUnit!.name,
+          unitName: tp.selectedUnit.name,
         })),
       }
 
@@ -604,16 +531,11 @@ const AdminFastOrdersPage = () => {
     }
   }, [orderObservations, selectedAreaId, selectedAreaName, tableProducts, todayDate])
 
-  const readyTableProducts = useMemo(
-    () => tableProducts.filter((tp): tp is TableProduct & { product: Product; selectedUnit: ProductUnit["unitMeasurement"]; selectedUnitId: number } => Boolean(tp.product && tp.selectedUnit && tp.selectedUnitId)),
-    [tableProducts],
-  )
-
   const stats = useMemo(() => ({
-    totalProducts: readyTableProducts.length,
-    totalItems: readyTableProducts.reduce((sum, tp) => sum + tp.quantity, 0),
+    totalProducts: tableProducts.length,
+    totalItems: tableProducts.reduce((sum, tp) => sum + tp.quantity, 0),
     totalPrice: 0 // Price calculation removed from frontend
-  }), [readyTableProducts])
+  }), [tableProducts])
 
   if (!isMounted) {
     return (
@@ -669,8 +591,8 @@ const AdminFastOrdersPage = () => {
         </header>
 
         <main className="flex-1 p-4 sm:p-6">
-          {/* User and Area Selection */}
-          <div className="mb-6 grid gap-5 grid-cols-1 sm:grid-cols-2">
+          {/* User, Area and Product Selection */}
+          <div className="mb-6 grid gap-5 grid-cols-1 sm:grid-cols-3">
             {/* User Selection */}
             <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
               <label className="text-sm font-semibold text-gray-700 block mb-3 flex items-center gap-2">
@@ -683,8 +605,6 @@ const AdminFastOrdersPage = () => {
                   setSelectedUserId(parseInt(value))
                   setSelectedAreaId(undefined) // Reset area when user changes
                   setExistingOrder(undefined) // Reset existing order
-                  setTableProducts([])
-                  setQuantityDrafts({})
                 }}
               >
                 <SelectTrigger className="rounded-lg border-gray-300" data-testid="user-select">
@@ -715,11 +635,7 @@ const AdminFastOrdersPage = () => {
               <label className="text-sm font-semibold text-gray-700 block mb-3">Area</label>
               <Select 
                 value={selectedAreaId?.toString()} 
-                onValueChange={(value) => {
-                  setSelectedAreaId(parseInt(value))
-                  setTableProducts([])
-                  setQuantityDrafts({})
-                }}
+                onValueChange={(value) => setSelectedAreaId(parseInt(value))}
                 disabled={!selectedUserId}
               >
                 <SelectTrigger className="rounded-lg border-gray-300">
@@ -776,31 +692,56 @@ const AdminFastOrdersPage = () => {
               )}
                
               {/* Checking Status */}
-              {isCheckingAreaLocks && (
+              {isCheckingOrder && (
                 <div className="mt-2 p-2 rounded-md text-xs bg-blue-50 text-blue-700 border border-blue-200">
                   <div className="font-medium">Verificando pedidos existentes...</div>
                 </div>
               )}
             </div>
 
+            {/* Product Selection */}
+            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-md">
+              <label htmlFor="admin-product-search" className="text-sm font-semibold text-gray-700 block mb-3">
+                Buscar producto
+              </label>
+              <div className="space-y-3">
+                <Input
+                  id="admin-product-search"
+                  value={productSearch}
+                  onChange={(event) => setProductSearch(event.target.value)}
+                  placeholder="Nombre producto - unidad (agrega con clic)"
+                  className="rounded-lg border-gray-300"
+                  disabled={!selectedUserId || !selectedAreaId}
+                />
+                {!selectedUserId || !selectedAreaId ? (
+                  <div className="px-1 text-sm text-gray-500">Selecciona usuario y area para agregar productos</div>
+                ) : productSearch.trim().length === 0 ? (
+                  <div className="px-1 text-sm text-gray-500">Escribe para buscar productos</div>
+                ) : (
+                  <div className="max-h-64 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100">
+                    {filteredProductUnitOptions.length > 0 ? (
+                      filteredProductUnitOptions.map((option) => (
+                        <button
+                          key={option.key}
+                          type="button"
+                          onClick={() => handleAddProductByKey(option.key)}
+                          className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 transition-colors flex items-center justify-between gap-2"
+                        >
+                          <span className="truncate">{option.label}</span>
+                          <Plus className="h-4 w-4 flex-shrink-0 text-green-600" />
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-3 py-4 text-sm text-gray-500">No hay coincidencias</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Products Table */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-md overflow-hidden">
-            <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 sm:px-6">
-              <p className="text-sm font-semibold text-gray-700">Productos en tabla</p>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleAddProductRow}
-                disabled={!selectedUserId || !selectedAreaId}
-                className="gap-2"
-              >
-                <Plus className="h-4 w-4" />
-                Agregar producto
-              </Button>
-            </div>
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
@@ -842,128 +783,71 @@ const AdminFastOrdersPage = () => {
                             <Package className="h-8 w-8 text-gray-400" />
                           </div>
                           <h3 className="text-lg font-bold text-gray-900">Tabla vacia</h3>
-                          <p className="text-gray-600 mt-2">Agrega una fila y elige el producto desde el buscador de la tabla</p>
+                          <p className="text-gray-600 mt-2">Selecciona un usuario, un area y busca productos para agregarlos automaticamente</p>
                         </div>
                       </td>
                     </tr>
                   ) : (
                     tableProducts.map((tableProduct) => {
-                      const { product, quantity, id, selectedUnit, isEditing, productSearch, isProductPickerOpen } = tableProduct
+                      const { product, quantity, id, selectedUnit, isEditing } = tableProduct
                       const draftValue = quantityDrafts[id]
                       const displayQuantity = Number.isFinite(quantity) ? quantity : 0
                       const inputValue = draftValue ?? String(displayQuantity)
-                      const hasProduct = Boolean(product && selectedUnit && tableProduct.selectedUnitId)
-                      const search = productSearch.trim().toLowerCase()
-                      const filteredOptions = (!search
-                        ? productUnitOptions.slice(0, 8)
-                        : productUnitOptions.filter((option) => option.label.toLowerCase().includes(search)).slice(0, 8)
-                      )
 
                       return (
                         <tr key={id} className="hover:bg-gray-50 transition-colors duration-150">
                           {/* Producto */}
                           <td className="px-6 py-4">
-                            {!hasProduct || isProductPickerOpen ? (
-                              <div className="space-y-2">
-                                <Input
-                                  value={productSearch}
-                                  onChange={(event) => handleRowProductSearchChange(id, event.target.value)}
-                                  placeholder="Buscar producto - unidad"
-                                  className="h-9 rounded-lg border-gray-300 bg-white"
-                                />
-                                <div className="max-h-40 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100 bg-white">
-                                  {filteredOptions.length > 0 ? (
-                                    filteredOptions.map((option) => (
-                                      <button
-                                        key={option.key}
-                                        type="button"
-                                        onClick={() => handleSelectProductForRow(id, option.key)}
-                                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 transition-colors flex items-center justify-between gap-2"
-                                      >
-                                        <span className="truncate">{option.label}</span>
-                                        <Plus className="h-4 w-4 flex-shrink-0 text-green-600" />
-                                      </button>
-                                    ))
-                                  ) : (
-                                    <div className="px-3 py-3 text-sm text-gray-500">No hay coincidencias</div>
-                                  )}
-                                </div>
-                                {hasProduct && (
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleToggleRowProductPicker(id, false)}
-                                    className="h-7 px-2 text-xs"
-                                  >
-                                    Cerrar buscador
-                                  </Button>
-                                )}
-                              </div>
-                            ) : (
-                              <div>
-                                <div className="text-sm font-medium text-gray-900">{product!.name}</div>
-                                <div className="text-sm text-gray-500 truncate max-w-xs">{product!.description}</div>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleToggleRowProductPicker(id, true)}
-                                  className="h-7 px-2 mt-1 text-xs text-blue-700 hover:text-blue-800"
-                                >
-                                  Cambiar producto
-                                </Button>
-                              </div>
-                            )}
+                             <div>
+                               <div className="text-sm font-medium text-gray-900">{product.name}</div>
+                               <div className="text-sm text-gray-500 truncate max-w-xs">{product.description}</div>
+                             </div>
                           </td>
                           
                           {/* Presentacion */}
                           <td className="px-6 py-4">
-                            {isEditing && hasProduct ? (
+                            {isEditing ? (
                               <Select
-                                value={tableProduct.selectedUnitId!.toString()}
+                                value={tableProduct.selectedUnitId.toString()}
                                 onValueChange={(value) => handleUpdateUnit(id, parseInt(value))}
                               >
                                 <SelectTrigger className="h-10 w-48 border border-gray-300 bg-white rounded-lg font-semibold">
                                   <SelectValue placeholder="Selecciona presentacion" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {product!.productUnits?.map((unit) => (
+                                  {product.productUnits?.map((unit) => (
                                     <SelectItem key={unit.id} value={unit.id.toString()}>
                                       {unit.unitMeasurement.name}
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
-                            ) : hasProduct ? (
+                            ) : (
                               <div className="inline-block">
                                 <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 px-4 py-1.5 text-sm font-semibold rounded-lg cursor-default">
-                                  {selectedUnit!.name}
+                                  {selectedUnit.name}
                                 </Badge>
                               </div>
-                            ) : (
-                              <span className="text-xs text-gray-500">Selecciona producto</span>
                             )}
                           </td>
                           
                            {/* Cantidad */}
                            <td className="px-6 py-4">
-                              <div className="flex items-center justify-center gap-2">
+                             <div className="flex items-center justify-center gap-2">
                                <Input
                                  type="text"
                                  inputMode="decimal"
                                  pattern="^\\d*(?:[\\.,]\\d+)?$"
-                                  value={inputValue}
-                                  onChange={(e) => handleQuantityChange(id, e.target.value)}
-                                  onBlur={() => handleQuantityBlur(id)}
-                                  className="w-20 h-8 text-center border border-gray-300 bg-white focus-visible:ring-2 focus-visible:ring-primary/30"
-                                  disabled={!hasProduct}
-                                />
-                                <span className="text-sm text-gray-600 min-w-fit">
-                                  {selectedUnit?.name || "-"}
-                                </span>
-                              </div>
-                            </td>
+                                 value={inputValue}
+                                 onChange={(e) => handleQuantityChange(id, e.target.value)}
+                                 onBlur={() => handleQuantityBlur(id)}
+                                 className="w-20 h-8 text-center border border-gray-300 bg-white focus-visible:ring-2 focus-visible:ring-primary/30"
+                               />
+                               <span className="text-sm text-gray-600 min-w-fit">
+                                 {selectedUnit.name}
+                               </span>
+                             </div>
+                           </td>
                            
                           {/* Acciones */}
                           <td className="px-6 py-4">
@@ -1002,7 +886,7 @@ const AdminFastOrdersPage = () => {
                     <Package className="h-7 w-7 text-gray-400" />
                   </div>
                   <h3 className="text-base font-bold text-gray-900">Tabla vacia</h3>
-                  <p className="mt-1 text-sm text-gray-600">Agrega una fila y elige productos desde la tabla</p>
+                  <p className="mt-1 text-sm text-gray-600">Busca productos para agregarlos automaticamente</p>
                 </div>
               ) : (
                 <div className="rounded-lg border border-gray-200 overflow-hidden">
@@ -1013,59 +897,15 @@ const AdminFastOrdersPage = () => {
                   </div>
                   <div className="divide-y divide-gray-100">
                     {tableProducts.map((tableProduct) => {
-                      const { product, quantity, id, selectedUnit, productSearch, isProductPickerOpen } = tableProduct
+                      const { product, quantity, id, selectedUnit } = tableProduct
                       const draftValue = quantityDrafts[id]
                       const displayQuantity = Number.isFinite(quantity) ? quantity : 0
                       const inputValue = draftValue ?? String(displayQuantity)
-                      const hasProduct = Boolean(product && selectedUnit && tableProduct.selectedUnitId)
-                      const search = productSearch.trim().toLowerCase()
-                      const filteredOptions = (!search
-                        ? productUnitOptions.slice(0, 6)
-                        : productUnitOptions.filter((option) => option.label.toLowerCase().includes(search)).slice(0, 6)
-                      )
                       return (
                         <div key={id} className="grid grid-cols-[1fr_auto_auto] items-center gap-2 px-3 py-2">
                           <div className="min-w-0">
-                            {!hasProduct || isProductPickerOpen ? (
-                              <div className="space-y-2">
-                                <Input
-                                  value={productSearch}
-                                  onChange={(event) => handleRowProductSearchChange(id, event.target.value)}
-                                  placeholder="Buscar producto"
-                                  className="h-8 text-xs rounded-lg border-gray-300 bg-white"
-                                />
-                                <div className="max-h-28 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100 bg-white">
-                                  {filteredOptions.length > 0 ? (
-                                    filteredOptions.map((option) => (
-                                      <button
-                                        key={option.key}
-                                        type="button"
-                                        onClick={() => handleSelectProductForRow(id, option.key)}
-                                        className="w-full px-2 py-1.5 text-left text-xs hover:bg-gray-50 transition-colors"
-                                      >
-                                        <span className="truncate block">{option.label}</span>
-                                      </button>
-                                    ))
-                                  ) : (
-                                    <div className="px-2 py-2 text-xs text-gray-500">Sin coincidencias</div>
-                                  )}
-                                </div>
-                              </div>
-                            ) : (
-                              <>
-                                <p className="truncate text-sm font-semibold text-gray-900">{product!.name}</p>
-                                <p className="text-[11px] text-gray-500">{selectedUnit!.name}</p>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleToggleRowProductPicker(id, true)}
-                                  className="h-6 px-1 text-[11px] text-blue-700"
-                                >
-                                  Cambiar
-                                </Button>
-                              </>
-                            )}
+                            <p className="truncate text-sm font-semibold text-gray-900">{product.name}</p>
+                            <p className="text-[11px] text-gray-500">{selectedUnit.name}</p>
                           </div>
                           <div className="flex items-center gap-2">
                             <Input
@@ -1076,7 +916,6 @@ const AdminFastOrdersPage = () => {
                               onChange={(e) => handleQuantityChange(id, e.target.value)}
                               onBlur={() => handleQuantityBlur(id)}
                               className="w-20 h-8 text-center border border-gray-300 bg-white focus-visible:ring-2 focus-visible:ring-primary/30"
-                              disabled={!hasProduct}
                             />
                           </div>
                           <div className="flex justify-center">
@@ -1100,7 +939,7 @@ const AdminFastOrdersPage = () => {
           </div>
 
           {/* Summary */}
-          {readyTableProducts.length > 0 && (
+          {tableProducts.length > 0 && (
             <div className="mt-6 bg-white rounded-xl border border-gray-200 p-5 shadow-md">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="text-sm text-gray-700">
@@ -1119,7 +958,7 @@ const AdminFastOrdersPage = () => {
                       variant="outline"
                       size="icon"
                       onClick={handlePrint}
-                      disabled={!selectedAreaId || readyTableProducts.length === 0 || isPrinting}
+                      disabled={!selectedAreaId || tableProducts.length === 0 || isPrinting}
                       aria-label="Imprimir pedido"
                       title="Imprimir pedido"
                     >
@@ -1129,7 +968,7 @@ const AdminFastOrdersPage = () => {
                       variant="outline"
                       size="icon"
                       onClick={handleDownload}
-                      disabled={!selectedAreaId || readyTableProducts.length === 0 || isDownloading}
+                      disabled={!selectedAreaId || tableProducts.length === 0 || isDownloading}
                       aria-label="Descargar PDF"
                       title="Descargar PDF"
                     >
@@ -1184,7 +1023,7 @@ const AdminFastOrdersPage = () => {
                 <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
                   <p className="text-sm font-semibold text-gray-700 mb-2">Resumen:</p>
                   <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {readyTableProducts.map((tp) => (
+                    {tableProducts.map((tp) => (
                       <div key={tp.id} className="flex justify-between text-sm">
                         <span className="text-gray-700">{tp.product.name}</span>
                         <span className="font-semibold">{tp.quantity % 1 === 0 ? tp.quantity : tp.quantity.toFixed(2)} {tp.selectedUnit.name}</span>
@@ -1212,7 +1051,7 @@ const AdminFastOrdersPage = () => {
                  variant="outline"
                  size="icon"
                  onClick={handlePrint}
-                 disabled={!selectedAreaId || readyTableProducts.length === 0 || isPrinting}
+                 disabled={!selectedAreaId || tableProducts.length === 0 || isPrinting}
                  aria-label="Imprimir pedido"
                  title="Imprimir pedido"
                >
@@ -1222,7 +1061,7 @@ const AdminFastOrdersPage = () => {
                  variant="outline"
                  size="icon"
                  onClick={handleDownload}
-                 disabled={!selectedAreaId || readyTableProducts.length === 0 || isDownloading}
+                 disabled={!selectedAreaId || tableProducts.length === 0 || isDownloading}
                  aria-label="Descargar PDF"
                  title="Descargar PDF"
                >
@@ -1251,7 +1090,6 @@ const AdminFastOrdersPage = () => {
 }
 
 export default AdminFastOrdersPage
-
 
 
 
