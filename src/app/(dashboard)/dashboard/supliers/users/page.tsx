@@ -1,7 +1,7 @@
 'use client';
 
 import type { ChangeEvent, FormEvent } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -43,10 +43,6 @@ export default function SuppliersUsersPage() {
   const queryClient = useQueryClient();
   const { data, isLoading, isFetching, error, refetch } = useSuppliersQuery();
   const suppliers = useMemo(() => data?.data ?? [], [data]);
-
-  useEffect(() => {
-    void refetch();
-  }, [refetch]);
 
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
