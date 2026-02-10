@@ -458,7 +458,96 @@ export default function RegisterPurchasesPage() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                  <div className="space-y-3 md:hidden">
+                    {formData.purchaseItems.map((item, index) => {
+                      const product = products.find((p) => p.id === item.productId);
+                      const unitOptions = getUnitOptions(product);
+                      const selectedUnitLabel =
+                        unitOptions.find((u) => u.id === item.unitMeasurementId)?.label ?? '-';
+                      return (
+                        <div key={index} className="rounded-lg border border-slate-200 bg-white p-4">
+                          <p className="mb-3 text-sm font-semibold text-slate-900">{item.description}</p>
+                          <div className="space-y-3">
+                            <div className="space-y-1">
+                              <Label className="text-xs font-medium text-slate-600">Unidad</Label>
+                              {unitOptions.length === 0 ? (
+                                <p className="text-sm text-slate-700">-</p>
+                              ) : (
+                                <Select
+                                  value={
+                                    item.unitMeasurementId !== undefined && item.unitMeasurementId !== null
+                                      ? String(item.unitMeasurementId)
+                                      : ''
+                                  }
+                                  onValueChange={(value) => handleUnitMeasurementChange(index, Number(value))}
+                                  disabled={unitOptions.length <= 1}
+                                >
+                                  <SelectTrigger className="h-9 w-full border-slate-200 text-sm">
+                                    <SelectValue placeholder={selectedUnitLabel} />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {unitOptions.map((opt) => (
+                                      <SelectItem key={opt.id} value={String(opt.id)}>
+                                        {opt.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <Label className="text-xs font-medium text-slate-600">Cantidad</Label>
+                                <Input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={itemInputDrafts[getDraftKey(index, 'quantity')] ?? String(item.quantity)}
+                                  onChange={(e) =>
+                                    handleNumericInputChange(index, 'quantity', e.target.value, 1)
+                                  }
+                                  onBlur={() => handleNumericInputBlur(index, 'quantity', 1, 1)}
+                                  className="h-9 border-slate-200 text-right text-sm"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs font-medium text-slate-600">Precio (S/.)</Label>
+                                <Input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={itemInputDrafts[getDraftKey(index, 'unitCost')] ?? String(item.unitCost)}
+                                  onChange={(e) =>
+                                    handleNumericInputChange(index, 'unitCost', e.target.value, 0)
+                                  }
+                                  onBlur={() => handleNumericInputBlur(index, 'unitCost', 0, 0)}
+                                  className="h-9 border-slate-200 text-right text-sm"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-2">
+                              <span className="text-xs font-medium text-slate-600">Subtotal</span>
+                              <span className="text-sm font-semibold text-slate-900">
+                                S/. {(item.quantity * item.unitCost).toFixed(2)}
+                              </span>
+                            </div>
+
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => removeItem(index)}
+                              className="h-9 w-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Eliminar producto
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="hidden overflow-x-auto border border-slate-200 rounded-lg md:block">
                     <Table>
                       <TableHeader>
                         <TableRow className="bg-slate-50 hover:bg-slate-50 border-b">
@@ -552,10 +641,10 @@ export default function RegisterPurchasesPage() {
 
                   {/* Total */}
                   <div className="flex justify-end">
-                    <div className="bg-blue-50 border border-blue-300 rounded-lg px-6 py-4 min-w-max">
+                    <div className="bg-blue-50 border border-blue-300 rounded-lg px-4 py-3 w-full min-w-0 sm:px-6 sm:py-4 sm:w-auto sm:min-w-max">
                       <div className="flex items-baseline gap-4">
                         <span className="text-slate-700 font-semibold">Total:</span>
-                        <span className="text-3xl font-bold text-blue-600">
+                        <span className="text-2xl sm:text-3xl font-bold text-blue-600">
                           S/. {formData.totalAmount.toFixed(2)}
                         </span>
                       </div>
@@ -626,7 +715,38 @@ export default function RegisterPurchasesPage() {
               <CardTitle className="text-base text-slate-900">Compras Registradas</CardTitle>
             </CardHeader>
             <CardContent className="pt-6">
-              <div className="overflow-x-auto border border-slate-200 rounded-lg">
+              <div className="space-y-3 md:hidden">
+                {purchases.map((purchase) => (
+                  <div key={purchase.id} className="rounded-lg border border-slate-200 bg-white p-4">
+                    <div className="mb-3 flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">Compra #{purchase.id}</p>
+                        <p className="text-xs text-slate-500">
+                          {new Date(purchase.createdAt).toLocaleDateString('es-ES')}
+                        </p>
+                      </div>
+                      <span className="text-xs font-medium px-2 py-1 rounded bg-blue-100 text-blue-800">
+                        {purchase.status}
+                      </span>
+                    </div>
+                    <div className="mb-3 rounded-md bg-slate-50 px-3 py-2">
+                      <p className="text-xs text-slate-600">Total</p>
+                      <p className="text-lg font-semibold text-slate-900">S/. {purchase.totalAmount.toFixed(2)}</p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => deletePurchase(purchase.id)}
+                      className="h-9 w-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Eliminar compra
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="hidden overflow-x-auto border border-slate-200 rounded-lg md:block">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-slate-50 hover:bg-slate-50 border-b">

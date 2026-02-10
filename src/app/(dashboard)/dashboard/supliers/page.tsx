@@ -47,8 +47,8 @@ export default function SuppliersPage() {
     supplierId: number;
     purchase: Purchase;
   } | null>(null);
-  const [editStatus, setEditStatus] = useState<'created' | 'processing' | 'completed' | 'cancelled'>('created');
   const [editPaid, setEditPaid] = useState(false);
+  const [editTotalAmount, setEditTotalAmount] = useState('');
 
   useEffect(() => {
     void refetch();
@@ -100,18 +100,25 @@ export default function SuppliersPage() {
 
   const openEditPurchase = (supplierId: number, purchase: Purchase) => {
     setEditingPurchase({ supplierId, purchase });
-    setEditStatus(purchase.status);
     setEditPaid(Boolean(purchase.paid));
+    setEditTotalAmount(String(purchase.totalAmount ?? 0));
     setEditOpen(true);
   };
 
   const handleSaveEdit = async () => {
     if (!editingPurchase) return;
+    const normalizedAmount = editTotalAmount.trim().replace(',', '.');
+    const parsedAmount = Number(normalizedAmount);
+    if (!normalizedAmount || !Number.isFinite(parsedAmount) || parsedAmount < 0) {
+      toast.error('Ingresa un monto valido en soles');
+      return;
+    }
 
     try {
       await suppliersService.updatePurchase(editingPurchase.purchase.id, {
-        status: editStatus,
+        status: 'created',
         paid: editPaid,
+        totalAmount: parsedAmount,
       });
       toast.success('Compra actualizada');
       setEditOpen(false);
@@ -225,7 +232,7 @@ export default function SuppliersPage() {
     },
     {
       title: 'Inversión Total',
-      value: `$${totalAmount.toLocaleString('es-ES', { maximumFractionDigits: 0 })}`,
+      value: `S/. ${totalAmount.toLocaleString('es-ES', { maximumFractionDigits: 0 })}`,
       description: 'Monto invertido en compras',
       icon: TrendingUp,
       color: 'from-amber-500 to-amber-600',
@@ -403,21 +410,15 @@ export default function SuppliersPage() {
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>Estado</Label>
-                <Select
-                  value={editStatus}
-                  onValueChange={(value) => setEditStatus(value as typeof editStatus)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona estado" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="created">created</SelectItem>
-                    <SelectItem value="processing">processing</SelectItem>
-                    <SelectItem value="completed">completed</SelectItem>
-                    <SelectItem value="cancelled">cancelled</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="edit-total-amount">Monto Total (S/.)</Label>
+                <Input
+                  id="edit-total-amount"
+                  type="text"
+                  inputMode="decimal"
+                  value={editTotalAmount}
+                  onChange={(e) => setEditTotalAmount(e.target.value)}
+                  placeholder="0.00"
+                />
               </div>
 
               <div className="space-y-2">
@@ -513,7 +514,6 @@ export default function SuppliersPage() {
                               <th className="text-left p-3 font-semibold text-slate-700">Fecha</th>
                               <th className="text-left p-3 font-semibold text-slate-700">Productos</th>
                               <th className="text-left p-3 font-semibold text-slate-700">Monto Total</th>
-                              <th className="text-left p-3 font-semibold text-slate-700">Estado</th>
                               <th className="text-left p-3 font-semibold text-slate-700">Pagado</th>
                               <th className="text-left p-3 font-semibold text-slate-700">Acciones</th>
                             </tr>
@@ -564,10 +564,10 @@ export default function SuppliersPage() {
                                                   <td className="p-3 text-slate-600">{getUnitLabel(item)}</td>
                                                   <td className="p-3 text-right text-slate-700">{item.quantity}</td>
                                                   <td className="p-3 text-right text-slate-700">
-                                                    {item.unitCost.toLocaleString('es-ES', { maximumFractionDigits: 2 })}
+                                                    S/. {item.unitCost.toLocaleString('es-ES', { maximumFractionDigits: 2 })}
                                                   </td>
                                                   <td className="p-3 text-right font-semibold text-slate-900">
-                                                    {(item.quantity * item.unitCost).toLocaleString('es-ES', { maximumFractionDigits: 2 })}
+                                                    S/. {(item.quantity * item.unitCost).toLocaleString('es-ES', { maximumFractionDigits: 2 })}
                                                   </td>
                                                 </tr>
                                               ))}
@@ -581,17 +581,7 @@ export default function SuppliersPage() {
                                   </Dialog>
                                 </td>
                                 <td className="p-3 font-semibold text-slate-900">
-                                  ${purchase.totalAmount.toLocaleString('es-ES', { maximumFractionDigits: 2 })}
-                                </td>
-                                <td className="p-3">
-                                  <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                    purchase.status === 'completed' ? 'bg-green-100 text-green-800' :
-                                    purchase.status === 'processing' ? 'bg-blue-100 text-blue-800' :
-                                    purchase.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                                    'bg-yellow-100 text-yellow-800'
-                                  }`}>
-                                    {purchase.status}
-                                  </span>
+                                  S/. {purchase.totalAmount.toLocaleString('es-ES', { maximumFractionDigits: 2 })}
                                 </td>
                                 <td className="p-3">
                                   <span className={`px-2 py-1 rounded text-xs font-medium ${
