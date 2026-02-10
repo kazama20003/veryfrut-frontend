@@ -39,6 +39,11 @@ interface TableProduct {
   isEditing: boolean
 }
 
+interface PendingProductCard {
+  id: string
+  search: string
+}
+
 interface ExistingOrderLite {
   id: number
   status: string
@@ -50,7 +55,7 @@ const AdminFastOrdersPage = () => {
   const router = useRouter()
   const [tableProducts, setTableProducts] = useState<TableProduct[]>([])
   const [quantityDrafts, setQuantityDrafts] = useState<Record<string, string>>({})
-  const [productSearch, setProductSearch] = useState("")
+  const [pendingProductCards, setPendingProductCards] = useState<PendingProductCard[]>([])
   const [selectedUserId, setSelectedUserId] = useState<number | undefined>()
   const [selectedAreaId, setSelectedAreaId] = useState<number | undefined>()
   const [isCreatingOrder, setIsCreatingOrder] = useState(false)
@@ -242,23 +247,17 @@ const AdminFastOrdersPage = () => {
     })
   }, [products])
 
-  const filteredProductUnitOptions = useMemo(() => {
-    const search = productSearch.trim().toLowerCase()
-    if (!search) return productUnitOptions.slice(0, 30)
-    return productUnitOptions.filter((option) => option.label.toLowerCase().includes(search)).slice(0, 30)
-  }, [productSearch, productUnitOptions])
-
-  const handleAddProductByKey = useCallback((key: string) => {
+  const buildTableProductFromOption = useCallback((key: string) => {
     if (!selectedUserId || !selectedAreaId) {
       toast.error("Selecciona usuario y area antes de agregar productos.")
-      return
+      return undefined
     }
 
     const selectedOption = productUnitOptions.find((option) => option.key === key)
-    if (!selectedOption) return
+    if (!selectedOption) return undefined
 
     const product = products.find((p) => p.id === selectedOption.productId)
-    if (!product) return
+    if (!product) return undefined
 
     const selectedProductUnit = product.productUnits?.find((unit) => unit.id === selectedOption.productUnitId)
     const selectedUnit = selectedProductUnit?.unitMeasurement || { id: 0, name: "Unidad", description: "" }
@@ -274,9 +273,36 @@ const AdminFastOrdersPage = () => {
       isEditing: true,
     }
 
-    setTableProducts((prev) => [...prev, newTableProduct])
-    setProductSearch("")
+    return newTableProduct
   }, [productUnitOptions, products, selectedAreaId, selectedUserId])
+
+  const handleAddPendingProductCard = useCallback(() => {
+    if (!selectedUserId || !selectedAreaId) {
+      toast.error("Selecciona usuario y area antes de agregar productos.")
+      return
+    }
+
+    const cardId = Math.random().toString(36).slice(2, 11)
+    setPendingProductCards((prev) => [...prev, { id: cardId, search: "" }])
+  }, [selectedAreaId, selectedUserId])
+
+  const handlePendingSearchChange = useCallback((cardId: string, value: string) => {
+    setPendingProductCards((prev) =>
+      prev.map((card) => (card.id === cardId ? { ...card, search: value } : card)),
+    )
+  }, [])
+
+  const handleRemovePendingCard = useCallback((cardId: string) => {
+    setPendingProductCards((prev) => prev.filter((card) => card.id !== cardId))
+  }, [])
+
+  const handleSelectPendingProduct = useCallback((cardId: string, optionKey: string) => {
+    const newTableProduct = buildTableProductFromOption(optionKey)
+    if (!newTableProduct) return
+
+    setTableProducts((prev) => [...prev, newTableProduct])
+    setPendingProductCards((prev) => prev.filter((card) => card.id !== cardId))
+  }, [buildTableProductFromOption])
 
   const handleUpdateQuantity = useCallback((tableProductId: string, newQuantity: number) => {
     if (newQuantity < 0) return
@@ -333,15 +359,16 @@ const AdminFastOrdersPage = () => {
 
   // Clear all products
   const handleClearAll = useCallback(() => {
-    if (tableProducts.length === 0) {
+    if (tableProducts.length === 0 && pendingProductCards.length === 0) {
       return
     }
 
     if (window.confirm(`Deseas eliminar los ${tableProducts.length} productos?`)) {
       setTableProducts([])
       setQuantityDrafts({})
+      setPendingProductCards([])
     }
-  }, [tableProducts])
+  }, [pendingProductCards.length, tableProducts.length])
 
   // Create order
   const handleCreateOrder = async () => {
@@ -633,6 +660,7 @@ const AdminFastOrdersPage = () => {
                   setSelectedUserId(parseInt(value))
                   setSelectedAreaId(undefined) // Reset area when user changes
                   setExistingOrder(undefined) // Reset existing order
+                  setPendingProductCards([])
                 }}
               >
                 <SelectTrigger className="rounded-lg border-gray-300" data-testid="user-select">
@@ -663,7 +691,10 @@ const AdminFastOrdersPage = () => {
               <label className="text-sm font-semibold text-gray-700 block mb-3">Area</label>
               <Select 
                 value={selectedAreaId?.toString()} 
-                onValueChange={(value) => setSelectedAreaId(parseInt(value))}
+                onValueChange={(value) => {
+                  setSelectedAreaId(parseInt(value))
+                  setPendingProductCards([])
+                }}
                 disabled={!selectedUserId}
               >
                 <SelectTrigger className="rounded-lg border-gray-300">
@@ -729,40 +760,89 @@ const AdminFastOrdersPage = () => {
 
             {/* Product Selection */}
             <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-md">
-              <label htmlFor="admin-product-search" className="text-sm font-semibold text-gray-700 block mb-3">
-                Buscar producto
-              </label>
-              <div className="space-y-3">
-                <Input
-                  id="admin-product-search"
-                  value={productSearch}
-                  onChange={(event) => setProductSearch(event.target.value)}
-                  placeholder="Nombre producto - unidad (agrega con clic)"
-                  className="rounded-lg border-gray-300"
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <label className="text-sm font-semibold text-gray-700 block">
+                  Productos
+                </label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddPendingProductCard}
                   disabled={!selectedUserId || !selectedAreaId}
-                />
-                <div className="max-h-64 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100">
-                  {!selectedUserId || !selectedAreaId ? (
-                    <div className="px-3 py-4 text-sm text-gray-500">Selecciona usuario y area para agregar productos</div>
-                  ) : filteredProductUnitOptions.length > 0 ? (
-                    filteredProductUnitOptions.map((option) => (
-                      <button
-                        key={option.key}
-                        type="button"
-                        onClick={() => handleAddProductByKey(option.key)}
-                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 transition-colors flex items-center justify-between gap-2"
-                      >
-                        <span className="truncate">{option.label}</span>
-                        <Plus className="h-4 w-4 flex-shrink-0 text-green-600" />
-                      </button>
-                    ))
-                  ) : productSearch.trim().length > 0 ? (
-                    <div className="px-3 py-4 text-sm text-gray-500">No hay coincidencias</div>
-                  ) : (
-                    <div className="px-3 py-4 text-sm text-gray-500">Escribe para filtrar productos</div>
-                  )}
-                </div>
+                  className="gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Agregar producto
+                </Button>
               </div>
+
+              {!selectedUserId || !selectedAreaId ? (
+                <div className="rounded-lg border border-dashed border-gray-300 px-3 py-4 text-sm text-gray-500">
+                  Selecciona usuario y area para agregar productos.
+                </div>
+              ) : pendingProductCards.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-gray-300 px-3 py-4 text-sm text-gray-500">
+                  Presiona &quot;Agregar producto&quot; para crear una card vacia.
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+                  {pendingProductCards.map((card, index) => {
+                    const search = card.search.trim().toLowerCase()
+                    const filteredOptions = (!search
+                      ? productUnitOptions.slice(0, 12)
+                      : productUnitOptions.filter((option) => option.label.toLowerCase().includes(search)).slice(0, 12)
+                    )
+
+                    return (
+                      <div key={card.id} className="rounded-lg border border-gray-200 p-3 bg-gray-50/60">
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                            Producto {index + 1}
+                          </p>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleRemovePendingCard(card.id)}
+                            className="h-7 w-7 text-red-600 hover:bg-red-50 hover:text-red-700"
+                            aria-label="Quitar card"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+
+                        <Input
+                          value={card.search}
+                          onChange={(event) => handlePendingSearchChange(card.id, event.target.value)}
+                          placeholder="Buscar producto - unidad"
+                          className="rounded-lg border-gray-300 bg-white"
+                        />
+
+                        <div className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100 bg-white">
+                          {filteredOptions.length > 0 ? (
+                            filteredOptions.map((option) => (
+                              <button
+                                key={option.key}
+                                type="button"
+                                onClick={() => handleSelectPendingProduct(card.id, option.key)}
+                                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 transition-colors flex items-center justify-between gap-2"
+                              >
+                                <span className="truncate">{option.label}</span>
+                                <Plus className="h-4 w-4 flex-shrink-0 text-green-600" />
+                              </button>
+                            ))
+                          ) : (
+                            <div className="px-3 py-3 text-sm text-gray-500">
+                              No hay coincidencias para este producto.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           </div>
 

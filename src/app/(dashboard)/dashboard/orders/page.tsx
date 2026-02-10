@@ -155,58 +155,58 @@ export default function OrdersPage() {
           </div>
         </div>
 
-        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-6'>
+        <div className='grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 mb-4 sm:mb-6'>
           <Card className='border-l-4 border-l-blue-500'>
-            <CardHeader className='pb-1 pt-3 px-4'>
-              <CardTitle className='text-xs font-medium text-muted-foreground'>
+            <CardHeader className='pb-0.5 pt-2 px-3 sm:pb-1 sm:pt-3 sm:px-4'>
+              <CardTitle className='text-[11px] sm:text-xs font-medium text-muted-foreground leading-tight'>
                 Total de ordenes
               </CardTitle>
             </CardHeader>
-            <CardContent className='px-4 pb-3'>
-              <div className='text-2xl font-bold'>{data?.total || 0}</div>
-              <p className='text-xs text-muted-foreground mt-1'>en el sistema</p>
+            <CardContent className='px-3 pb-2 pt-1 sm:px-4 sm:pb-3'>
+              <div className='text-lg sm:text-2xl font-bold leading-none'>{data?.total || 0}</div>
+              <p className='hidden sm:block text-xs text-muted-foreground mt-1'>en el sistema</p>
             </CardContent>
           </Card>
 
           <Card className='border-l-4 border-l-purple-500'>
-            <CardHeader className='pb-1 pt-3 px-4'>
-              <CardTitle className='text-xs font-medium text-muted-foreground'>
+            <CardHeader className='pb-0.5 pt-2 px-3 sm:pb-1 sm:pt-3 sm:px-4'>
+              <CardTitle className='text-[11px] sm:text-xs font-medium text-muted-foreground leading-tight'>
                 En proceso
               </CardTitle>
             </CardHeader>
-            <CardContent className='px-4 pb-3'>
-              <div className='text-2xl font-bold'>
+            <CardContent className='px-3 pb-2 pt-1 sm:px-4 sm:pb-3'>
+              <div className='text-lg sm:text-2xl font-bold leading-none'>
                 {data?.items?.filter((o) => o.status === 'process').length || 0}
               </div>
-              <p className='text-xs text-muted-foreground mt-1'>pendientes de completar</p>
+              <p className='hidden sm:block text-xs text-muted-foreground mt-1'>pendientes de completar</p>
             </CardContent>
           </Card>
 
           <Card className='border-l-4 border-l-green-500'>
-            <CardHeader className='pb-1 pt-3 px-4'>
-              <CardTitle className='text-xs font-medium text-muted-foreground'>
+            <CardHeader className='pb-0.5 pt-2 px-3 sm:pb-1 sm:pt-3 sm:px-4'>
+              <CardTitle className='text-[11px] sm:text-xs font-medium text-muted-foreground leading-tight'>
                 Entregadas
               </CardTitle>
             </CardHeader>
-            <CardContent className='px-4 pb-3'>
-              <div className='text-2xl font-bold'>
+            <CardContent className='px-3 pb-2 pt-1 sm:px-4 sm:pb-3'>
+              <div className='text-lg sm:text-2xl font-bold leading-none'>
                 {data?.items?.filter((o) => o.status === 'delivered').length || 0}
               </div>
-              <p className='text-xs text-muted-foreground mt-1'>completadas</p>
+              <p className='hidden sm:block text-xs text-muted-foreground mt-1'>completadas</p>
             </CardContent>
           </Card>
 
           <Card className='border-l-4 border-l-red-500'>
-            <CardHeader className='pb-1 pt-3 px-4'>
-              <CardTitle className='text-xs font-medium text-muted-foreground'>
+            <CardHeader className='pb-0.5 pt-2 px-3 sm:pb-1 sm:pt-3 sm:px-4'>
+              <CardTitle className='text-[11px] sm:text-xs font-medium text-muted-foreground leading-tight'>
                 Canceladas
               </CardTitle>
             </CardHeader>
-            <CardContent className='px-4 pb-3'>
-              <div className='text-2xl font-bold'>
+            <CardContent className='px-3 pb-2 pt-1 sm:px-4 sm:pb-3'>
+              <div className='text-lg sm:text-2xl font-bold leading-none'>
                 {data?.items?.filter((o) => o.status === 'cancelled').length || 0}
               </div>
-              <p className='text-xs text-muted-foreground mt-1'>sin procesar</p>
+              <p className='hidden sm:block text-xs text-muted-foreground mt-1'>sin procesar</p>
             </CardContent>
           </Card>
         </div>
