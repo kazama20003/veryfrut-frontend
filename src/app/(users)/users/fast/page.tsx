@@ -65,11 +65,15 @@ const FastOrdersPage = () => {
   const { data: productsData, isLoading, error } = useProductsQuery()
   const products = useMemo(() => productsData?.items || [], [productsData?.items])
   
-  // Get today's date once to avoid hydration issues
+  // Get today's date in Peru local time to avoid UTC day rollover
   const todayDate = useMemo(() => {
-    // Use a stable date format for hydration
-    const now = new Date()
-    return now.toISOString().split('T')[0]
+    const formatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Lima",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    })
+    return formatter.format(new Date())
   }, [])
 
   // Check for existing order when area is selected
