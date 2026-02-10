@@ -23,6 +23,7 @@ export function useSuppliersQuery(params?: GetSupliersParams) {
     queryKey: queryKeys.suppliers.list(params as Record<string, unknown>),
     queryFn: () => suppliersService.getAll(params),
     staleTime: 1000 * 60 * 5, // 5 minutos
+    refetchOnMount: 'always',
   });
 }
 

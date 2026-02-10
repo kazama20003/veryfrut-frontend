@@ -117,22 +117,26 @@ export interface PaginatedPurchasesResponse {
   totalPages: number;
 }
 
+interface NormalizedSuppliersPage extends PaginatedSupliersResponse {
+  hasNextPage?: boolean;
+  hasPrevPage?: boolean;
+}
 
 
 class SuppliersService {
   private normalizeSuppliersResponse(
     payload: Suplier[] | ApiResponse<Suplier[]> | PaginatedSupliersResponse
-  ): PaginatedSupliersResponse {
+  ): NormalizedSuppliersPage {
     if (payload && typeof payload === 'object' && 'totalPages' in payload && Array.isArray(payload.data)) {
-      return payload as PaginatedSupliersResponse;
+      return payload as NormalizedSuppliersPage;
     }
 
     const raw = payload as
-      | (ApiResponse<Suplier[] | { data?: Suplier[]; meta?: { page?: number; limit?: number; total?: number; totalPages?: number } }> & {
-          data?: Suplier[] | { data?: Suplier[]; meta?: { page?: number; limit?: number; total?: number; totalPages?: number } };
-          meta?: { page?: number; limit?: number; total?: number; totalPages?: number };
+      | (ApiResponse<Suplier[] | { data?: Suplier[]; meta?: { page?: number; limit?: number; total?: number; totalPages?: number; hasNextPage?: boolean; hasPrevPage?: boolean } }> & {
+          data?: Suplier[] | { data?: Suplier[]; meta?: { page?: number; limit?: number; total?: number; totalPages?: number; hasNextPage?: boolean; hasPrevPage?: boolean } };
+          meta?: { page?: number; limit?: number; total?: number; totalPages?: number; hasNextPage?: boolean; hasPrevPage?: boolean };
         })
-      | { data?: Suplier[]; meta?: { page?: number; limit?: number; total?: number; totalPages?: number } };
+      | { data?: Suplier[]; meta?: { page?: number; limit?: number; total?: number; totalPages?: number; hasNextPage?: boolean; hasPrevPage?: boolean } };
 
     if (raw && typeof raw === 'object' && 'data' in raw && Array.isArray(raw.data)) {
       const meta = raw.meta || {};
@@ -145,6 +149,8 @@ class SuppliersService {
         page: meta.page ?? 1,
         limit,
         totalPages: meta.totalPages ?? Math.max(1, Math.ceil(total / (limit || 1))),
+        hasNextPage: meta.hasNextPage,
+        hasPrevPage: meta.hasPrevPage,
       };
     }
 
@@ -160,6 +166,8 @@ class SuppliersService {
         page: meta.page ?? 1,
         limit,
         totalPages: meta.totalPages ?? Math.max(1, Math.ceil(total / (limit || 1))),
+        hasNextPage: meta.hasNextPage,
+        hasPrevPage: meta.hasPrevPage,
       };
     }
 
@@ -185,19 +193,25 @@ class SuppliersService {
       return firstPage;
     }
 
-    const pageRequests: Promise<PaginatedSupliersResponse>[] = [];
-    for (let page = 2; page <= firstPage.totalPages; page += 1) {
-      pageRequests.push(
-        axiosInstance
-          .get<Suplier[] | ApiResponse<Suplier[]> | PaginatedSupliersResponse>('/supliers', {
-            params: { ...params, page, limit: firstPage.limit },
-          })
-          .then((res) => this.normalizeSuppliersResponse(res.data))
-      );
-    }
+    const allSuppliers = [...firstPage.data];
+    let currentPage = firstPage.page;
+    let hasNextPage = Boolean(firstPage.hasNextPage);
 
-    const restPages = await Promise.all(pageRequests);
-    const allSuppliers = [firstPage, ...restPages].flatMap((result) => result.data);
+    while (hasNextPage || currentPage < firstPage.totalPages) {
+      const nextPage = currentPage + 1;
+      const nextResponse = await axiosInstance.get<Suplier[] | ApiResponse<Suplier[]> | PaginatedSupliersResponse>(
+        '/supliers',
+        { params: { ...params, page: nextPage, limit: firstPage.limit } }
+      );
+      const parsed = this.normalizeSuppliersResponse(nextResponse.data);
+      allSuppliers.push(...parsed.data);
+      currentPage = parsed.page || nextPage;
+      hasNextPage = Boolean(parsed.hasNextPage);
+
+      if (!hasNextPage && parsed.totalPages <= currentPage) {
+        break;
+      }
+    }
 
     return {
       data: allSuppliers,
