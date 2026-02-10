@@ -28,7 +28,7 @@ import {
 interface TableProduct {
   id: string
   product: Product
-  quantity: number // Supports decimal values (e.g., 0.25, 0.5, 0.75, 1)
+  quantity: number // Supports decimal values
   selectedUnitId: number
   selectedUnit: ProductUnit["unitMeasurement"]
   isEditing: boolean
@@ -277,12 +277,11 @@ const FastOrdersPage = () => {
     setTableProducts((prev) => [...prev, newTableProduct])
     setProductSearch("")
   }, [productUnitOptions, products, tableProducts])
-  // Update product quantity with 0.25 increments
+  // Update product quantity preserving decimal input
   const handleUpdateQuantity = useCallback((tableProductId: string, newQuantity: number) => {
     if (newQuantity < 0) return
 
-    // Round to nearest 0.25 increment
-    const roundedQuantity = Math.round(newQuantity * 4) / 4
+    const roundedQuantity = Number.parseFloat(newQuantity.toFixed(3))
 
     setTableProducts(prev => prev.map(tp => {
       if (tp.id === tableProductId) {
