@@ -120,20 +120,56 @@ export interface PaginatedPurchasesResponse {
 
 
 class SuppliersService {
+  private normalizeSuppliersResponse(
+    payload: Suplier[] | ApiResponse<Suplier[]> | PaginatedSupliersResponse
+  ): PaginatedSupliersResponse {
+    if (payload && typeof payload === 'object' && 'totalPages' in payload && Array.isArray(payload.data)) {
+      return payload as PaginatedSupliersResponse;
+    }
+
+    const data = (payload as ApiResponse<Suplier[]>)?.data || payload;
+    if (Array.isArray(data)) {
+      return { data, total: data.length, page: 1, limit: data.length, totalPages: 1 };
+    }
+
+    return { data: [], total: 0, page: 1, limit: 10, totalPages: 0 };
+  }
   /**
    * Obtener todos los proveedores con paginación y ordenamiento
    */
   async getAll(params?: GetSupliersParams) {
-    const response = await axiosInstance.get<Suplier[] | ApiResponse<Suplier[]> | PaginatedSupliersResponse>('/supliers', { params });
-    
-    // Si es respuesta paginada
-    if ('totalPages' in response.data) {
-      return response.data as PaginatedSupliersResponse;
+    const response = await axiosInstance.get<Suplier[] | ApiResponse<Suplier[]> | PaginatedSupliersResponse>(
+      '/supliers',
+      { params }
+    );
+    const firstPage = this.normalizeSuppliersResponse(response.data);
+
+    const isExplicitPagination = typeof params?.page === 'number' || typeof params?.limit === 'number';
+    if (isExplicitPagination || firstPage.totalPages <= 1) {
+      return firstPage;
     }
-    
-    // Si es respuesta simple o ApiResponse
-    const data = (response.data as ApiResponse<Suplier[]>)?.data || response.data;
-    return Array.isArray(data) ? { data, total: data.length, page: 1, limit: data.length, totalPages: 1 } : { data: [], total: 0, page: 1, limit: 10, totalPages: 0 };
+
+    const pageRequests: Promise<PaginatedSupliersResponse>[] = [];
+    for (let page = 2; page <= firstPage.totalPages; page += 1) {
+      pageRequests.push(
+        axiosInstance
+          .get<Suplier[] | ApiResponse<Suplier[]> | PaginatedSupliersResponse>('/supliers', {
+            params: { ...params, page, limit: firstPage.limit },
+          })
+          .then((res) => this.normalizeSuppliersResponse(res.data))
+      );
+    }
+
+    const restPages = await Promise.all(pageRequests);
+    const allSuppliers = [firstPage, ...restPages].flatMap((result) => result.data);
+
+    return {
+      data: allSuppliers,
+      total: allSuppliers.length,
+      page: 1,
+      limit: allSuppliers.length,
+      totalPages: 1,
+    };
   }
 
   /**
