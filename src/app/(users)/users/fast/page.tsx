@@ -46,7 +46,6 @@ const FastOrdersPage = () => {
   const [areas, setAreas] = useState<Array<{id: number; name: string}>>([])
   const [blockedAreaIds, setBlockedAreaIds] = useState<Set<number>>(new Set())
   const [orderObservations, setOrderObservations] = useState<string>("")
-  const [shouldCheckOrder, setShouldCheckOrder] = useState(false)
   const [existingOrder, setExistingOrder] = useState<{id: number; status: string; areaId: number; totalAmount: number} | undefined>(undefined)
   
   // Track orders created in this session to prevent duplicates
@@ -78,18 +77,18 @@ const FastOrdersPage = () => {
 
   // Check for existing order when area is selected
   const checkOrderData = useMemo(() => {
-    if (!selectedAreaId || !shouldCheckOrder) return null
+    if (!selectedAreaId || !currentUser?.id) return null
     const data = {
       areaId: selectedAreaId.toString(),
       date: todayDate // Use stable date
     }
     console.log('[FastOrdersPage] checkOrderData:', data)
     return data
-  }, [selectedAreaId, shouldCheckOrder, todayDate])
+  }, [selectedAreaId, currentUser?.id, todayDate])
   
   const { data: existingOrderData, isLoading: isCheckingOrder } = useCheckOrderQuery(
     checkOrderData, 
-    shouldCheckOrder
+    Boolean(checkOrderData)
   ) as { data: CheckOrderResponse | undefined, isLoading: boolean }
 
   // Load areas when user data is available
@@ -134,14 +133,9 @@ const FastOrdersPage = () => {
     }
   }, [blockedAreaIds, currentUser, selectedAreaId])
 
-  // Check for existing order when area changes
+  // Reset existing order when there is no area selected
   useEffect(() => {
-    if (selectedAreaId && currentUser?.id) {
-      console.log('[FastOrdersPage] Checking for existing order in area:', selectedAreaId)
-      // Don't reset existingOrder immediately - let the check response determine it
-      setShouldCheckOrder(true)
-    } else {
-      setShouldCheckOrder(false)
+    if (!selectedAreaId || !currentUser?.id) {
       setExistingOrder(undefined)
     }
   }, [selectedAreaId, currentUser])
@@ -158,7 +152,7 @@ const FastOrdersPage = () => {
   
   // Handle existing order found
   useEffect(() => {
-    if (existingOrderData && shouldCheckOrder) {
+    if (existingOrderData && checkOrderData) {
       console.log('[FastOrdersPage] Existing order data from check:', existingOrderData)
       console.log('[FastOrdersPage] exists value:', existingOrderData.exists)
       console.log('[FastOrdersPage] order value:', existingOrderData.order)
@@ -194,18 +188,15 @@ const FastOrdersPage = () => {
           console.log('[FastOrdersPage] Blocking with generic order:', blockOrder)
           toast.warning(`Ya existe un pedido para esta área hoy. Solo se permite un pedido por día y por área.`)
         }
-        setShouldCheckOrder(false)
       } else if (existingOrderData.exists === false) {
         console.log('[FastOrdersPage] No existing order found according to backend check')
-        setShouldCheckOrder(false)
         // Set to undefined to let fallback potentially find it
         setExistingOrder(undefined)
       }
-    } else if (!existingOrderData && shouldCheckOrder && !isCheckingOrder) {
+    } else if (!existingOrderData && checkOrderData && !isCheckingOrder) {
       console.log('[FastOrdersPage] No order data returned from check')
-      setShouldCheckOrder(false)
     }
-  }, [existingOrderData, shouldCheckOrder, isCheckingOrder, selectedAreaId])
+  }, [existingOrderData, checkOrderData, isCheckingOrder, selectedAreaId])
 
   // Handle errors
   if (error) {
@@ -473,8 +464,6 @@ const FastOrdersPage = () => {
         areaId: selectedAreaId,
         totalAmount: 0,
       } : undefined)
-      setShouldCheckOrder(false) // Reset order check
-
       if (selectedAreaId) {
         const nextArea = areas.find((area) => area.id !== selectedAreaId && !blockedAreaIds.has(area.id))
         if (nextArea) {
