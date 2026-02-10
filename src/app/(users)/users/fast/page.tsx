@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useMemo, useEffect } from "react"
-import { Package, Plus, X, Trash2, Send, Printer, Download, Loader2 } from "lucide-react"
+import { Package, Plus, Trash2, Send, Printer, Download, Loader2 } from "lucide-react"
 import { useProductsQuery } from "@/lib/api/hooks/useProduct"
 import { useCreateOrderMutation, useCheckOrderQuery } from "@/lib/api/hooks/useOrder"
 import { useMeQuery } from "@/lib/api/hooks/useUsers"
@@ -267,7 +267,7 @@ const FastOrdersPage = () => {
 
     setTableProducts((prev) => [...prev, newTableProduct])
     setProductSearch("")
-  }, [productUnitOptions, products, tableProducts])
+  }, [productUnitOptions, products])
   // Update product quantity preserving decimal input
   const handleUpdateQuantity = useCallback((tableProductId: string, newQuantity: number) => {
     if (newQuantity < 0) return
