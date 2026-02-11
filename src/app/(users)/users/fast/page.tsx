@@ -840,12 +840,12 @@ const FastOrdersPage = () => {
                   <span className="mx-2 text-gray-400">|</span>
                   <span className="font-bold">Cantidad total:</span> <span className="font-semibold text-lg text-green-600">{stats.totalItems}</span>
                 </div>
-                 <div className="flex items-center gap-3">
+                 <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
                     <textarea
                       value={orderObservations}
                       onChange={(e) => setOrderObservations(e.target.value)}
                       placeholder="Observaciones (opcional)"
-                      className="h-10 min-h-10 w-64 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
+                      className="h-10 min-h-10 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none sm:w-64"
                     />
                     <Button
                       onClick={() => void handleCreateOrder()}
@@ -855,7 +855,7 @@ const FastOrdersPage = () => {
                         (selectedAreaId ? blockedAreaIds.has(selectedAreaId) : false) ||
                         (existingOrder && existingOrder.status !== 'created')
                       }
-                      className="bg-green-600 hover:bg-green-700 text-white font-semibold px-6 py-2 rounded-lg"
+                      className="w-full rounded-lg bg-green-600 px-6 py-2 font-semibold text-white hover:bg-green-700 sm:w-auto"
                     >
                       <Send className="h-4 w-4 mr-2" />
                       {isCreatingOrder 
@@ -863,7 +863,7 @@ const FastOrdersPage = () => {
                         : (existingOrder && existingOrder.status === 'created' ? "Agregar a Orden" : "Crear Orden")
                       }
                     </Button>
-                   <Badge variant="outline" className="text-xs bg-gray-800 text-white border-gray-700 font-mono">
+                   <Badge variant="outline" className="hidden border-gray-700 bg-gray-800 text-xs font-mono text-white sm:inline-flex">
                      ⌘ Ctrl+Enter
                    </Badge>
                  </div>
