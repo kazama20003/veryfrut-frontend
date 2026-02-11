@@ -524,9 +524,9 @@ export default function RegisterPurchasesPage() {
                                   inputMode="decimal"
                                   value={itemInputDrafts[getDraftKey(index, 'quantity')] ?? String(item.quantity)}
                                   onChange={(e) =>
-                                    handleNumericInputChange(index, 'quantity', e.target.value, 1)
+                                    handleNumericInputChange(index, 'quantity', e.target.value, 0.01)
                                   }
-                                  onBlur={() => handleNumericInputBlur(index, 'quantity', 1, 1)}
+                                  onBlur={() => handleNumericInputBlur(index, 'quantity', 1, 0.01)}
                                   className="h-9 border-slate-200 text-right text-sm"
                                 />
                               </div>
@@ -620,9 +620,9 @@ export default function RegisterPurchasesPage() {
                                   inputMode="decimal"
                                   value={itemInputDrafts[getDraftKey(index, 'quantity')] ?? String(item.quantity)}
                                   onChange={(e) =>
-                                    handleNumericInputChange(index, 'quantity', e.target.value, 1)
+                                    handleNumericInputChange(index, 'quantity', e.target.value, 0.01)
                                   }
-                                  onBlur={() => handleNumericInputBlur(index, 'quantity', 1, 1)}
+                                  onBlur={() => handleNumericInputBlur(index, 'quantity', 1, 0.01)}
                                   className="w-16 h-8 text-right border-slate-200 text-sm"
                                 />
                               </TableCell>
