@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useMemo, useEffect } from "react"
-import { Package, Plus, Trash2, Send, Users, Printer, Download, Loader2 } from "lucide-react"
+import { Package, Plus, Trash2, Send, Users } from "lucide-react"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -20,14 +20,6 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Product, ProductUnit } from "@/types/product"
 import type { User } from "@/types/users"
 import { CreateOrderDto, CreateOrderItemDto, CheckOrderResponse } from "@/types/order"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog"
 
 interface TableProduct {
   id: string
@@ -46,9 +38,6 @@ const AdminFastOrdersPage = () => {
   const [selectedUserId, setSelectedUserId] = useState<number | undefined>()
   const [selectedAreaId, setSelectedAreaId] = useState<number | undefined>()
   const [isCreatingOrder, setIsCreatingOrder] = useState(false)
-  const [isPrinting, setIsPrinting] = useState(false)
-  const [isDownloading, setIsDownloading] = useState(false)
-  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false)
   const [areas, setAreas] = useState<Array<{id: number; name: string}>>([])
   const [blockedAreaIds, setBlockedAreaIds] = useState<Set<number>>(new Set())
   const [orderObservations, setOrderObservations] = useState<string>("")
@@ -187,20 +176,6 @@ const AdminFastOrdersPage = () => {
   if (error) {
     console.error("[AdminFastOrdersPage] Error loading products:", error)
   }
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-        e.preventDefault()
-        if (tableProducts.length > 0 && selectedUserId && selectedAreaId) {
-          setIsConfirmDialogOpen(true)
-        }
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [tableProducts, selectedUserId, selectedAreaId])
 
   const productUnitOptions = useMemo(() => {
     return products.flatMap((product) => {
@@ -406,14 +381,18 @@ const AdminFastOrdersPage = () => {
       setTableProducts([])
       setQuantityDrafts({})
       setOrderObservations("")
-      setIsConfirmDialogOpen(false)
       setExistingOrder(undefined)
       setBlockedAreaIds((prev) => {
         const next = new Set(prev)
         next.add(selectedAreaId)
         return next
       })
-      router.push("/dashboard/orders")
+      const createdOrderId = result && typeof result === "object" && "id" in result ? Number((result as { id?: number }).id) : undefined
+      if (createdOrderId) {
+        router.push(`/dashboard/orders?openOrderId=${createdOrderId}`)
+      } else {
+        router.push("/dashboard/orders")
+      }
     } catch (error: unknown) {
       console.error("Error creating order:", error)
       toast.error("Error al crear el pedido. Por favor intenta de nuevo.")
@@ -421,115 +400,6 @@ const AdminFastOrdersPage = () => {
       setIsCreatingOrder(false)
     }
   }
-
-  const selectedAreaName = useMemo(
-    () => areas.find((area) => area.id === selectedAreaId)?.name ?? "",
-    [areas, selectedAreaId],
-  )
-
-  const handlePrint = useCallback(async () => {
-    if (!selectedAreaId) {
-      toast.error("Selecciona un area para imprimir")
-      return
-    }
-
-    if (tableProducts.length === 0) {
-      toast.error("No hay productos para imprimir")
-      return
-    }
-
-    try {
-      setIsPrinting(true)
-
-      const payload = {
-        areaName: selectedAreaName || `Area ${selectedAreaId}`,
-        observation: orderObservations || "",
-        items: tableProducts.map((tp) => ({
-          productName: tp.product.name,
-          quantity: tp.quantity,
-          unitName: tp.selectedUnit.name,
-        })),
-      }
-
-      const response = await fetch("/api/orders/print", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-
-      if (!response.ok) {
-        throw new Error("No se pudo generar impresion")
-      }
-
-      const blob = await response.blob()
-      const url = URL.createObjectURL(blob)
-      const win = window.open(url, "_blank", "noopener,noreferrer")
-      if (!win) {
-        const link = document.createElement("a")
-        link.href = url
-        link.target = "_blank"
-        link.rel = "noopener noreferrer"
-        link.click()
-      }
-      setTimeout(() => URL.revokeObjectURL(url), 30000)
-    } catch (printError) {
-      console.error("[AdminFastOrdersPage] Error printing order:", printError)
-      toast.error("Error al generar impresion")
-    } finally {
-      setIsPrinting(false)
-    }
-  }, [orderObservations, selectedAreaId, selectedAreaName, tableProducts])
-
-  const handleDownload = useCallback(async () => {
-    if (!selectedAreaId) {
-      toast.error("Selecciona un area para descargar")
-      return
-    }
-
-    if (tableProducts.length === 0) {
-      toast.error("No hay productos para descargar")
-      return
-    }
-
-    try {
-      setIsDownloading(true)
-
-      const payload = {
-        areaName: selectedAreaName || `Area ${selectedAreaId}`,
-        observation: orderObservations || "",
-        items: tableProducts.map((tp) => ({
-          productName: tp.product.name,
-          quantity: tp.quantity,
-          unitName: tp.selectedUnit.name,
-        })),
-      }
-
-      const response = await fetch("/api/orders/print", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-
-      if (!response.ok) {
-        throw new Error("No se pudo generar descarga")
-      }
-
-      const blob = await response.blob()
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement("a")
-      link.href = url
-      link.download = `pedido-admin-${selectedAreaId}-${todayDate}.pdf`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      setTimeout(() => URL.revokeObjectURL(url), 30000)
-    } catch (downloadError) {
-      console.error("[AdminFastOrdersPage] Error downloading order:", downloadError)
-      toast.error("Error al descargar PDF")
-    } finally {
-      setIsDownloading(false)
-    }
-  }, [orderObservations, selectedAreaId, selectedAreaName, tableProducts, todayDate])
 
   const stats = useMemo(() => ({
     totalProducts: tableProducts.length,
@@ -941,7 +811,7 @@ const AdminFastOrdersPage = () => {
           {/* Summary */}
           {tableProducts.length > 0 && (
             <div className="mt-6 bg-white rounded-xl border border-gray-200 p-5 shadow-md">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex flex-col gap-4">
                 <div className="text-sm text-gray-700">
                   <span className="font-bold">Productos:</span> <span className="font-semibold text-lg text-green-600">{stats.totalProducts}</span>
                   <span className="mx-2 text-gray-400">|</span>
@@ -953,85 +823,6 @@ const AdminFastOrdersPage = () => {
                     </>
                   )}
                 </div>
-                 <div className="flex items-center gap-3">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={handlePrint}
-                      disabled={!selectedAreaId || tableProducts.length === 0 || isPrinting}
-                      aria-label="Imprimir pedido"
-                      title="Imprimir pedido"
-                    >
-                      {isPrinting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={handleDownload}
-                      disabled={!selectedAreaId || tableProducts.length === 0 || isDownloading}
-                      aria-label="Descargar PDF"
-                      title="Descargar PDF"
-                    >
-                      {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                    </Button>
-                    <Button
-                      onClick={() => setIsConfirmDialogOpen(true)}
-                      disabled={!selectedUserId || !selectedAreaId || isCreatingOrder || (selectedAreaId ? blockedAreaIds.has(selectedAreaId) : false) || (existingOrder && existingOrder.status !== 'created')}
-                      className="bg-green-600 hover:bg-green-700 text-white font-semibold px-6 py-2 rounded-lg"
-                    >
-                      <Send className="h-4 w-4 mr-2" />
-                      {isCreatingOrder 
-                        ? "Procesando..." 
-                        : (existingOrder && existingOrder.status === 'created' ? "Agregar a Orden" : "Crear Orden")
-                      }
-                    </Button>
-                   <Badge variant="outline" className="text-xs bg-gray-800 text-white border-gray-700 font-mono">
-                     Ctrl+Enter
-                   </Badge>
-                 </div>
-              </div>
-            </div>
-          )}
-        </main>
-
-        {/* Create Order Confirmation Dialog */}
-        <Dialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
-           <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle className="text-xl font-bold">
-                  Confirmar Pedido
-                </DialogTitle>
-                <DialogDescription>
-                  {stats.totalProducts} producto{stats.totalProducts !== 1 ? "s" : ""} agregado{stats.totalProducts !== 1 ? "s" : ""}
-                  {selectedUser && (
-                    <span> para {selectedUser.firstName} {selectedUser.lastName}</span>
-                  )}
-                </DialogDescription>
-              </DialogHeader>
-             
-              <div className="space-y-4">
-                {selectedUser && (
-                  <div className="bg-muted/40 rounded-lg p-3 border border-border">
-                    <p className="text-sm font-semibold text-foreground mb-1">Pedido para:</p>
-                    <p className="text-sm text-foreground">{selectedUser.firstName} {selectedUser.lastName}</p>
-                    {areas.find(a => a.id === selectedAreaId) && (
-                      <p className="text-sm text-muted-foreground">Area: {areas.find(a => a.id === selectedAreaId)?.name}</p>
-                    )}
-                  </div>
-                )}
-
-                <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                  <p className="text-sm font-semibold text-gray-700 mb-2">Resumen:</p>
-                  <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {tableProducts.map((tp) => (
-                      <div key={tp.id} className="flex justify-between text-sm">
-                        <span className="text-gray-700">{tp.product.name}</span>
-                        <span className="font-semibold">{tp.quantity % 1 === 0 ? tp.quantity : tp.quantity.toFixed(2)} {tp.selectedUnit.name}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
                 <div>
                   <label className="text-sm font-semibold text-gray-700 block mb-2">
                     Observaciones (opcional)
@@ -1044,52 +835,27 @@ const AdminFastOrdersPage = () => {
                     rows={2}
                   />
                 </div>
-              </div>
-
-             <DialogFooter className="gap-2">
-               <Button
-                 variant="outline"
-                 size="icon"
-                 onClick={handlePrint}
-                 disabled={!selectedAreaId || tableProducts.length === 0 || isPrinting}
-                 aria-label="Imprimir pedido"
-                 title="Imprimir pedido"
-               >
-                 {isPrinting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
-               </Button>
-               <Button
-                 variant="outline"
-                 size="icon"
-                 onClick={handleDownload}
-                 disabled={!selectedAreaId || tableProducts.length === 0 || isDownloading}
-                 aria-label="Descargar PDF"
-                 title="Descargar PDF"
-               >
-                 {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-               </Button>
-               <Button
-                 variant="outline"
-                 onClick={() => setIsConfirmDialogOpen(false)}
-                 disabled={isCreatingOrder}
-               >
-                 Cancelar
-               </Button>
+                <div className="flex justify-end">
                   <Button
                     onClick={handleCreateOrder}
-                    disabled={isCreatingOrder || !selectedUserId || !selectedAreaId || (selectedAreaId ? blockedAreaIds.has(selectedAreaId) : false)}
-                    className="bg-green-600 hover:bg-green-700 text-white"
+                    disabled={!selectedUserId || !selectedAreaId || isCreatingOrder || (selectedAreaId ? blockedAreaIds.has(selectedAreaId) : false) || (existingOrder && existingOrder.status !== 'created')}
+                    className="bg-green-600 hover:bg-green-700 text-white font-semibold px-6 py-2 rounded-lg"
                   >
-                   {isCreatingOrder ? "Creando..." : "Crear Pedido"}
-                 </Button>
-             </DialogFooter>
-           </DialogContent>
-        </Dialog>
+                    <Send className="h-4 w-4 mr-2" />
+                    {isCreatingOrder
+                      ? "Procesando..."
+                      : (existingOrder && existingOrder.status === 'created' ? "Agregar a Orden" : "Crear Orden")
+                    }
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </main>
       </div>
     </Suspense>
   )
 }
 
 export default AdminFastOrdersPage
-
-
 

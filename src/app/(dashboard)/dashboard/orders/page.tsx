@@ -1,13 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useDeleteOrderMutation, useOrdersQuery } from '@/lib/api';
 import { Order } from '@/types/order';
 import { ReportDialog } from './report-dialog';
 import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
+import { toast } from 'sonner';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -32,7 +33,15 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Loader2, AlertCircle, Plus, FileDown, Trash2, Eye, Pencil } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Loader2, AlertCircle, Plus, FileDown, Trash2, Eye, Pencil, Download } from 'lucide-react';
 
 const statusColorMap: Record<string, { bg: string; text: string }> = {
   created: { bg: 'bg-blue-100', text: 'text-blue-800' },
@@ -54,8 +63,12 @@ const statusLabels: Record<string, string> = {
 
 export default function OrdersPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [pagination, setPagination] = useState({ page: 1, limit: 100 });
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [isDownloadingOrder, setIsDownloadingOrder] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const { data, isLoading, error } = useOrdersQuery({
     page: pagination.page,
@@ -94,7 +107,8 @@ export default function OrdersPage() {
   };
 //esto dejalo asi
   const handleView = (order: Order) => {
-    router.push(`/dashboard/orders/edit/${order.id}`);
+    setSelectedOrder(order);
+    setDetailDialogOpen(true);
   };
 
   const handleEdit = (order: Order) => {
@@ -112,6 +126,76 @@ export default function OrdersPage() {
       alert('Error al eliminar la orden');
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleDownloadOrder = async (order: Order) => {
+    const items = (order.orderItems ?? []).map((item) => ({
+      productName: item.product?.name || `Producto ${item.productId}`,
+      quantity: item.quantity,
+      unitName: item.unitMeasurement?.name || '',
+    }));
+
+    if (items.length === 0) {
+      toast.error('La orden no tiene productos para descargar');
+      return;
+    }
+
+    try {
+      setIsDownloadingOrder(true);
+
+      const response = await fetch('/api/orders/print', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          areaName: order.area?.name || `Area ${order.areaId}`,
+          observation: order.observation || '',
+          items,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('No se pudo generar la descarga');
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `pedido-${order.id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+    } catch (downloadError) {
+      console.error('[OrdersPage] Error downloading order:', downloadError);
+      toast.error('Error al descargar la orden');
+    } finally {
+      setIsDownloadingOrder(false);
+    }
+  };
+
+  useEffect(() => {
+    const openOrderIdParam = searchParams.get('openOrderId');
+    if (!openOrderIdParam || !data?.items?.length) return;
+
+    const openOrderId = Number(openOrderIdParam);
+    if (!Number.isFinite(openOrderId)) return;
+
+    const foundOrder = data.items.find((order) => order.id === openOrderId);
+    if (!foundOrder) return;
+
+    setSelectedOrder(foundOrder);
+    setDetailDialogOpen(true);
+  }, [data?.items, searchParams]);
+
+  const handleDetailDialogOpenChange = (open: boolean) => {
+    setDetailDialogOpen(open);
+    if (!open) {
+      setSelectedOrder(null);
+      if (searchParams.get('openOrderId')) {
+        router.replace('/dashboard/orders');
+      }
     }
   };
 
@@ -496,6 +580,86 @@ export default function OrdersPage() {
           onOpenChange={setReportDialogOpen}
           orders={data?.items || []}
         />
+
+        <Dialog open={detailDialogOpen} onOpenChange={handleDetailDialogOpenChange}>
+          <DialogContent className='sm:max-w-2xl'>
+            <DialogHeader>
+              <DialogTitle>Detalle de orden #{selectedOrder?.id}</DialogTitle>
+              <DialogDescription>
+                {selectedOrder
+                  ? `${selectedOrder.User?.firstName || ''} ${selectedOrder.User?.lastName || ''} - ${formatDate(selectedOrder.createdAt)}`
+                  : 'Sin orden seleccionada'}
+              </DialogDescription>
+            </DialogHeader>
+
+            {selectedOrder ? (
+              <div className='space-y-4'>
+                <div className='grid gap-3 sm:grid-cols-3 text-sm'>
+                  <div>
+                    <p className='text-muted-foreground'>Estado</p>
+                    <p className='font-medium'>{statusLabels[selectedOrder.status] || selectedOrder.status}</p>
+                  </div>
+                  <div>
+                    <p className='text-muted-foreground'>Area</p>
+                    <p className='font-medium'>{selectedOrder.area?.name || `Area ${selectedOrder.areaId}`}</p>
+                  </div>
+                  <div>
+                    <p className='text-muted-foreground'>Productos</p>
+                    <p className='font-medium'>{selectedOrder.orderItems?.length || 0}</p>
+                  </div>
+                </div>
+
+                <div className='max-h-64 overflow-auto rounded-md border'>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Producto</TableHead>
+                        <TableHead>Cantidad</TableHead>
+                        <TableHead>Unidad</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(selectedOrder.orderItems || []).map((item) => (
+                        <TableRow key={item.id}>
+                          <TableCell>{item.product?.name || `Producto ${item.productId}`}</TableCell>
+                          <TableCell>{item.quantity}</TableCell>
+                          <TableCell>{item.unitMeasurement?.name || '-'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                <div>
+                  <p className='text-sm text-muted-foreground'>Observacion</p>
+                  <p className='text-sm font-medium'>
+                    {selectedOrder.observation?.trim() ? selectedOrder.observation : 'Sin observacion'}
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
+            <DialogFooter className='gap-2'>
+              <Button
+                type='button'
+                variant='outline'
+                onClick={() => selectedOrder && handleDownloadOrder(selectedOrder)}
+                disabled={!selectedOrder || isDownloadingOrder}
+              >
+                {isDownloadingOrder ? <Loader2 className='h-4 w-4 mr-2 animate-spin' /> : <Download className='h-4 w-4 mr-2' />}
+                Descargar orden
+              </Button>
+              <Button
+                type='button'
+                onClick={() => selectedOrder && router.push(`/dashboard/orders/edit/${selectedOrder.id}`)}
+                disabled={!selectedOrder}
+              >
+                <Pencil className='h-4 w-4 mr-2' />
+                Editar orden
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
