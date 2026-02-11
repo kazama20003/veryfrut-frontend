@@ -13,32 +13,43 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 import type { Order, OrderItem } from "@/types/order"
 import { toast } from "sonner"
 
-function formatDate(dateValue?: string) {
-  if (!dateValue) return "Sin fecha"
+const PERU_TIME_ZONE = "America/Lima"
+const peruDateKeyFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: PERU_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+})
+
+function getPeruDateKey(dateValue?: string) {
+  if (!dateValue) return null
+
+  // Backend often returns "YYYY-MM-DD HH:mm:ss" already in Peru local time.
+  const peruLocalMatch = dateValue.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T].*)?$/)
+  if (peruLocalMatch) {
+    const [, year, month, day] = peruLocalMatch
+    return `${year}-${month}-${day}`
+  }
+
   const parsed = new Date(dateValue)
-  if (Number.isNaN(parsed.getTime())) return "Sin fecha"
-  const day = String(parsed.getUTCDate()).padStart(2, "0")
-  const month = String(parsed.getUTCMonth() + 1).padStart(2, "0")
-  const year = parsed.getUTCFullYear()
+  if (Number.isNaN(parsed.getTime())) return null
+  return peruDateKeyFormatter.format(parsed)
+}
+
+function formatDate(dateValue?: string) {
+  const peruDateKey = getPeruDateKey(dateValue)
+  if (!peruDateKey) return "Sin fecha"
+
+  const [year, month, day] = peruDateKey.split("-")
+  if (!year || !month || !day) return "Sin fecha"
   return `${day}/${month}/${year}`
 }
 
-// Memoize today's date to avoid hydration issues
-const getTodayString = (() => {
-  let cached: string | null = null
-  return () => {
-    if (!cached) {
-      cached = new Date().toDateString()
-    }
-    return cached
-  }
-})()
-
 function isToday(dateValue?: string) {
-  if (!dateValue) return false
-  const orderDate = new Date(dateValue)
-  if (Number.isNaN(orderDate.getTime())) return false
-  return orderDate.toDateString() === getTodayString()
+  const orderDateKey = getPeruDateKey(dateValue)
+  if (!orderDateKey) return false
+  const todayKey = peruDateKeyFormatter.format(new Date())
+  return orderDateKey === todayKey
 }
 
 function formatQuantity(value: number) {
