@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react"
+import { Suspense, useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { ShoppingBag, RefreshCw, Loader2, Download, Trash2, FileText } from "lucide-react"
@@ -83,7 +83,7 @@ function getItemLabel(item: OrderItem) {
   return `${formatQuantity(item.quantity)} ${unitName}`
 }
 
-export default function UsersHistoryPage() {
+function UsersHistoryPageContent() {
   const [downloadingOrderId, setDownloadingOrderId] = useState<number | null>(null)
   const [deletingOrderId, setDeletingOrderId] = useState<number | null>(null)
   const [isClearingOrders, setIsClearingOrders] = useState(false)
@@ -519,5 +519,13 @@ export default function UsersHistoryPage() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+export default function UsersHistoryPage() {
+  return (
+    <Suspense fallback={<div className="p-4 text-sm text-gray-500">Cargando historial...</div>}>
+      <UsersHistoryPageContent />
+    </Suspense>
   )
 }

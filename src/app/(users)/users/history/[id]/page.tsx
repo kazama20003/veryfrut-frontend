@@ -164,7 +164,7 @@ export default function OrderHistoryDetailPage() {
       },
     ])
     setProductSearch("")
-  }, [addedItems, draftQuantities, order?.orderItems, productUnitOptions])
+  }, [productUnitOptions])
 
   const adjustExistingQuantity = useCallback((itemId: number, fallback: number, delta: number) => {
     setDraftQuantities((prev) => {
