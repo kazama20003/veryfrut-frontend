@@ -1,13 +1,15 @@
 "use client"
 
-import { useCallback, useMemo, useState, useSyncExternalStore } from "react"
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { ShoppingBag, RefreshCw, Printer, Loader2, Download, Trash2 } from "lucide-react"
+import { ShoppingBag, RefreshCw, Loader2, Download, Trash2, FileText } from "lucide-react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useDeleteOrderMutation, useMeQuery, useOrdersByCustomerQuery, useProductsQuery } from "@/lib/api"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import type { Order, OrderItem } from "@/types/order"
@@ -81,20 +83,15 @@ function getItemLabel(item: OrderItem) {
   return `${formatQuantity(item.quantity)} ${unitName}`
 }
 
-function escapeHtml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;")
-}
-
 export default function UsersHistoryPage() {
-  const [printingOrderId, setPrintingOrderId] = useState<number | null>(null)
   const [downloadingOrderId, setDownloadingOrderId] = useState<number | null>(null)
   const [deletingOrderId, setDeletingOrderId] = useState<number | null>(null)
   const [isClearingOrders, setIsClearingOrders] = useState(false)
+  const [detailOrderId, setDetailOrderId] = useState<number | null>(null)
+  const [autoOpenedOrderId, setAutoOpenedOrderId] = useState<number | null>(null)
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const isHydrated = useSyncExternalStore(
     () => () => {},
     () => true,
@@ -132,98 +129,35 @@ export default function UsersHistoryPage() {
     }
     return map
   }, [productsResponse?.items])
+  const selectedOrderIdFromQuery = useMemo(() => {
+    const raw = searchParams.get("orderId")
+    if (!raw) return null
+    const parsed = Number.parseInt(raw, 10)
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null
+  }, [searchParams])
+  const detailOrder = useMemo(
+    () => orders.find((order) => order.id === detailOrderId) ?? null,
+    [detailOrderId, orders]
+  )
 
-  const buildOrderHtml = useCallback((order: Order) => {
-    const areaName = order.area?.name || `Area #${order.areaId}`
-    const createdAt = formatDate(order.createdAt)
-    const observation = order.observation?.trim() || "-"
-    const rows = (order.orderItems || [])
-      .map((item, idx) => {
-        const productName =
-          item.product?.name ||
-          productNameById.get(item.productId) ||
-          `Producto #${item.productId}`
-        const quantity = formatQuantity(item.quantity)
-        const unitName = item.unitMeasurement?.name || "Unidad"
-        return `
-          <tr>
-            <td>${idx + 1}</td>
-            <td>${escapeHtml(productName)}</td>
-            <td style="text-align:right">${escapeHtml(quantity)}</td>
-            <td>${escapeHtml(unitName)}</td>
-          </tr>
-        `
-      })
-      .join("")
-
-    return `
-      <!doctype html>
-      <html lang="es">
-      <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>Pedido #${order.id}</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 24px; color: #111827; }
-          h1 { margin: 0 0 8px 0; font-size: 20px; }
-          p { margin: 4px 0; font-size: 13px; }
-          table { width: 100%; border-collapse: collapse; margin-top: 16px; }
-          th, td { border: 1px solid #e5e7eb; padding: 8px; font-size: 12px; }
-          th { background: #f3f4f6; text-align: left; }
-          .obs { margin-top: 12px; padding: 10px; background: #fffbeb; border: 1px solid #fde68a; font-size: 12px; }
-        </style>
-      </head>
-      <body>
-        <h1>Pedido #${order.id}</h1>
-        <p><strong>Fecha:</strong> ${escapeHtml(createdAt)}</p>
-        <p><strong>Area:</strong> ${escapeHtml(areaName)}</p>
-        <p><strong>Estado:</strong> ${escapeHtml(order.status || "pendiente")}</p>
-        <div class="obs"><strong>Observacion:</strong> ${escapeHtml(observation)}</div>
-        <table>
-          <thead>
-            <tr>
-              <th style="width:56px">#</th>
-              <th>Producto</th>
-              <th style="width:96px; text-align:right">Cantidad</th>
-              <th style="width:120px">Unidad</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rows}
-          </tbody>
-        </table>
-      </body>
-      </html>
-    `
-  }, [productNameById])
-
-  const handlePrintOrder = useCallback(async (order: Order) => {
-    if (!order.orderItems || order.orderItems.length === 0) {
-      toast.error("No hay productos para imprimir en este pedido")
+  useEffect(() => {
+    if (!selectedOrderIdFromQuery) {
+      setAutoOpenedOrderId(null)
       return
     }
+    if (autoOpenedOrderId === selectedOrderIdFromQuery) return
+    const targetOrder = orders.find((order) => order.id === selectedOrderIdFromQuery)
+    if (!targetOrder) return
+    setDetailOrderId(targetOrder.id)
+    setAutoOpenedOrderId(targetOrder.id)
+  }, [autoOpenedOrderId, orders, selectedOrderIdFromQuery])
 
-    try {
-      setPrintingOrderId(order.id)
-      const html = buildOrderHtml(order)
-      const printWindow = window.open("", "_blank", "noopener,noreferrer")
-      if (!printWindow) {
-        throw new Error("No se pudo abrir la ventana de impresion")
-      }
-
-      printWindow.document.open()
-      printWindow.document.write(html)
-      printWindow.document.close()
-      printWindow.focus()
-      printWindow.print()
-      toast.success("Impresion lista")
-    } catch (error) {
-      console.error("[UsersHistoryPage] Error printing order:", error)
-      toast.error("Error al generar impresion")
-    } finally {
-      setPrintingOrderId(null)
+  const closeDetailDialog = useCallback(() => {
+    setDetailOrderId(null)
+    if (selectedOrderIdFromQuery) {
+      router.replace(pathname, { scroll: false })
     }
-  }, [buildOrderHtml])
+  }, [pathname, router, selectedOrderIdFromQuery])
 
   const handleDownloadOrder = useCallback(async (order: Order) => {
     if (!order.orderItems || order.orderItems.length === 0) {
@@ -477,6 +411,15 @@ export default function UsersHistoryPage() {
                     <Button
                       size="sm"
                       variant="outline"
+                      onClick={() => setDetailOrderId(order.id)}
+                      className="gap-2"
+                    >
+                      <FileText className="h-4 w-4" />
+                      Detalle
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
                       className="h-9 w-9 p-0"
                       onClick={() => void handleDeleteOrder(order)}
                       disabled={deletingOrderId === order.id}
@@ -487,36 +430,6 @@ export default function UsersHistoryPage() {
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <Trash2 className="h-4 w-4 text-red-600" />
-                      )}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-9 w-9 p-0"
-                      onClick={() => void handlePrintOrder(order)}
-                      disabled={printingOrderId === order.id}
-                      aria-label="Imprimir pedido"
-                      title="Imprimir pedido"
-                    >
-                      {printingOrderId === order.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Printer className="h-4 w-4" />
-                      )}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-9 w-9 p-0"
-                      onClick={() => void handleDownloadOrder(order)}
-                      disabled={downloadingOrderId === order.id}
-                      aria-label="Descargar pedido"
-                      title="Descargar pedido"
-                    >
-                      {downloadingOrderId === order.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Download className="h-4 w-4" />
                       )}
                     </Button>
                   {isToday(order.createdAt) && (
@@ -536,6 +449,75 @@ export default function UsersHistoryPage() {
           </div>
         )}
       </main>
+
+      <Dialog open={detailOrderId !== null} onOpenChange={(open) => !open && closeDetailDialog()}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>
+              {detailOrder ? `Detalle del pedido #${detailOrder.id}` : "Detalle del pedido"}
+            </DialogTitle>
+            <DialogDescription>
+              Revisa los productos del pedido y descarga su PDF.
+            </DialogDescription>
+          </DialogHeader>
+
+          {detailOrder ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-2 text-sm text-gray-700 sm:grid-cols-2">
+                <p><span className="font-semibold">Fecha:</span> {formatDate(detailOrder.createdAt)}</p>
+                <p><span className="font-semibold">Estado:</span> {detailOrder.status || "pendiente"}</p>
+                <p><span className="font-semibold">Area:</span> {detailOrder.area?.name || `Area #${detailOrder.areaId}`}</p>
+                <p><span className="font-semibold">Items:</span> {(detailOrder.orderItems || []).length}</p>
+              </div>
+
+              {detailOrder.observation && (
+                <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                  <span className="font-semibold">Nota:</span> {detailOrder.observation}
+                </p>
+              )}
+
+              <div className="max-h-64 space-y-2 overflow-y-auto rounded-md border border-gray-200 p-3">
+                {(detailOrder.orderItems || []).length === 0 ? (
+                  <p className="text-sm text-gray-500">No hay items registrados en esta orden.</p>
+                ) : (
+                  (detailOrder.orderItems || []).map((item) => (
+                    <div key={item.id} className="flex items-center justify-between gap-3 text-sm">
+                      <p className="truncate text-gray-800">
+                        {item.product?.name ||
+                          productNameById.get(item.productId) ||
+                          `Producto #${item.productId}`}
+                      </p>
+                      <p className="shrink-0 font-medium text-gray-700">{getItemLabel(item)}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500">No se encontro la orden seleccionada.</p>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDetailDialog}>
+              Cerrar
+            </Button>
+            {detailOrder && (
+              <Button
+                onClick={() => void handleDownloadOrder(detailOrder)}
+                disabled={downloadingOrderId === detailOrder.id}
+                className="gap-2"
+              >
+                {downloadingOrderId === detailOrder.id ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4" />
+                )}
+                Descargar PDF
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useCallback, useMemo, useEffect } from "react"
-import { Package, Plus, Trash2, Send, Printer, Download, Loader2 } from "lucide-react"
+import { useState, useCallback, useMemo, useEffect, useRef } from "react"
+import { Package, Plus, Trash2, Send } from "lucide-react"
 import { useProductsQuery } from "@/lib/api/hooks/useProduct"
 import { useCreateOrderMutation, useCheckOrderQuery } from "@/lib/api/hooks/useOrder"
 import { useMeQuery } from "@/lib/api/hooks/useUsers"
@@ -16,14 +16,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Product, ProductUnit } from "@/types/product"
 import type { User } from "@/types/users"
 import { CreateOrderDto, CreateOrderItemDto, CheckOrderResponse } from "@/types/order"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog"
+import { useRouter } from "next/navigation"
 
 interface TableProduct {
   id: string
@@ -35,18 +28,18 @@ interface TableProduct {
 }
 
 const FastOrdersPage = () => {
+  const router = useRouter()
   const [tableProducts, setTableProducts] = useState<TableProduct[]>([])
   const [quantityDrafts, setQuantityDrafts] = useState<Record<string, string>>({})
   const [productSearch, setProductSearch] = useState("")
   const [selectedAreaId, setSelectedAreaId] = useState<number | undefined>()
   const [isCreatingOrder, setIsCreatingOrder] = useState(false)
-  const [isPrinting, setIsPrinting] = useState(false)
-  const [isDownloading, setIsDownloading] = useState(false)
-  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false)
   const [areas, setAreas] = useState<Array<{id: number; name: string}>>([])
   const [blockedAreaIds, setBlockedAreaIds] = useState<Set<number>>(new Set())
   const [orderObservations, setOrderObservations] = useState<string>("")
   const [existingOrder, setExistingOrder] = useState<{id: number; status: string; areaId: number; totalAmount: number} | undefined>(undefined)
+  const [todayDate, setTodayDate] = useState("")
+  const nextTableRowId = useRef(1)
   
   // Track orders created in this session to prevent duplicates
   const [sessionOrders, setSessionOrders] = useState<Set<number>>(new Set())
@@ -64,20 +57,20 @@ const FastOrdersPage = () => {
   const { data: productsData, isLoading, error } = useProductsQuery()
   const products = useMemo(() => productsData?.items || [], [productsData?.items])
   
-  // Get today's date in Peru local time to avoid UTC day rollover
-  const todayDate = useMemo(() => {
+  // Compute date on client only to avoid server/client render drift.
+  useEffect(() => {
     const formatter = new Intl.DateTimeFormat("en-CA", {
       timeZone: "America/Lima",
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
     })
-    return formatter.format(new Date())
+    setTodayDate(formatter.format(new Date()))
   }, [])
 
   // Check for existing order when area is selected
   const checkOrderData = useMemo(() => {
-    if (!selectedAreaId || !currentUser?.id) return null
+    if (!selectedAreaId || !currentUser?.id || !todayDate) return null
     const data = {
       areaId: selectedAreaId.toString(),
       date: todayDate // Use stable date
@@ -204,25 +197,6 @@ const FastOrdersPage = () => {
 
   }
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl/Cmd + Enter = Create order
-      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-        e.preventDefault()
-        if (tableProducts.length > 0 && selectedAreaId) {
-          setIsConfirmDialogOpen(true)
-        } else {
-        
-        
-        }
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [tableProducts, selectedAreaId])
-
   const productUnitOptions = useMemo(() => {
     return products.flatMap((product) => {
       if (!product.productUnits || product.productUnits.length === 0) return []
@@ -237,7 +211,7 @@ const FastOrdersPage = () => {
 
   const filteredProductUnitOptions = useMemo(() => {
     const search = productSearch.trim().toLowerCase()
-    if (!search) return productUnitOptions.slice(0, 30)
+    if (!search) return []
 
     return productUnitOptions
       .filter((option) => option.label.toLowerCase().includes(search))
@@ -255,7 +229,7 @@ const FastOrdersPage = () => {
     const selectedUnit = selectedProductUnit?.unitMeasurement || { id: 0, name: "Unidad", description: "" }
     const selectedUnitId = selectedProductUnit?.id || 0
 
-    const uniqueId = Math.random().toString(36).slice(2, 11)
+    const uniqueId = nextTableRowId.current++
     const newTableProduct: TableProduct = {
       id: `${product.id}-${selectedUnitId}-${uniqueId}`,
       product,
@@ -348,7 +322,7 @@ const FastOrdersPage = () => {
   }, [tableProducts])
 
   // Create order
-  const handleCreateOrder = async () => {
+  const handleCreateOrder = useCallback(async () => {
     if (!selectedAreaId) {
       return
     }
@@ -441,6 +415,7 @@ const FastOrdersPage = () => {
       console.log('[FastOrdersPage] Enviando orderData:', JSON.stringify(orderData, null, 2))
       
       const result = await createOrderMutation.mutateAsync(orderData)
+      const createdOrderId = typeof result?.id === "number" ? result.id : null
       
       // Add this area to session orders to prevent duplicates
       if (result && selectedAreaId) {
@@ -457,7 +432,6 @@ const FastOrdersPage = () => {
 // Reset form
       setTableProducts([])
       setOrderObservations("")
-      setIsConfirmDialogOpen(false)
       setExistingOrder(selectedAreaId ? {
         id: 0,
         status: "unknown",
@@ -470,122 +444,37 @@ const FastOrdersPage = () => {
           setSelectedAreaId(nextArea.id)
         }
       }
+      toast.success("Orden creada con exito")
+      if (createdOrderId) {
+        router.push(`/users/history?orderId=${createdOrderId}`)
+      } else {
+        router.push("/users/history")
+      }
       
     } catch (error: unknown) {
       console.error("Error creating order:", error)
+      toast.error("No se pudo crear la orden")
     } finally {
       setIsCreatingOrder(false)
     }
-  }
+  }, [areas, blockedAreaIds, createOrderMutation, currentUser?.id, existingOrder, orderObservations, router, selectedAreaId, sessionOrders, tableProducts])
 
-  const selectedAreaName = useMemo(
-    () => areas.find((area) => area.id === selectedAreaId)?.name ?? "",
-    [areas, selectedAreaId],
-  )
-
-  const handlePrint = useCallback(async () => {
-    if (!selectedAreaId) {
-      toast.error("Selecciona un area para imprimir")
-      return
-    }
-
-    if (tableProducts.length === 0) {
-      toast.error("No hay productos para imprimir")
-      return
-    }
-
-    try {
-      setIsPrinting(true)
-
-      const payload = {
-        areaName: selectedAreaName || `Area ${selectedAreaId}`,
-        observation: orderObservations || "",
-        items: tableProducts.map((tp) => ({
-          productName: tp.product.name,
-          quantity: tp.quantity,
-          unitName: tp.selectedUnit.name,
-        })),
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl/Cmd + Enter = Create order
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault()
+        if (tableProducts.length > 0 && selectedAreaId) {
+          void handleCreateOrder()
+        }
       }
-
-      const response = await fetch("/api/orders/print", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-
-      if (!response.ok) {
-        throw new Error("No se pudo generar impresion")
-      }
-
-      const blob = await response.blob()
-      const url = URL.createObjectURL(blob)
-      const win = window.open(url, "_blank", "noopener,noreferrer")
-      if (!win) {
-        const link = document.createElement("a")
-        link.href = url
-        link.target = "_blank"
-        link.rel = "noopener noreferrer"
-        link.click()
-      }
-      setTimeout(() => URL.revokeObjectURL(url), 30000)
-    } catch (error) {
-      console.error("[FastOrdersPage] Error printing order:", error)
-      toast.error("Error al generar impresion")
-    } finally {
-      setIsPrinting(false)
-    }
-  }, [orderObservations, selectedAreaId, selectedAreaName, tableProducts])
-
-  const handleDownload = useCallback(async () => {
-    if (!selectedAreaId) {
-      toast.error("Selecciona un area para descargar")
-      return
     }
 
-    if (tableProducts.length === 0) {
-      toast.error("No hay productos para descargar")
-      return
-    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [handleCreateOrder, selectedAreaId, tableProducts.length])
 
-    try {
-      setIsDownloading(true)
-
-      const payload = {
-        areaName: selectedAreaName || `Area ${selectedAreaId}`,
-        observation: orderObservations || "",
-        items: tableProducts.map((tp) => ({
-          productName: tp.product.name,
-          quantity: tp.quantity,
-          unitName: tp.selectedUnit.name,
-        })),
-      }
-
-      const response = await fetch("/api/orders/print", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-
-      if (!response.ok) {
-        throw new Error("No se pudo generar descarga")
-      }
-
-      const blob = await response.blob()
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement("a")
-      link.href = url
-      link.download = `pedido-rapido-${selectedAreaId}-${todayDate}.pdf`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      setTimeout(() => URL.revokeObjectURL(url), 30000)
-    } catch (error) {
-      console.error("[FastOrdersPage] Error downloading order:", error)
-      toast.error("Error al descargar PDF")
-    } finally {
-      setIsDownloading(false)
-    }
-  }, [orderObservations, selectedAreaId, selectedAreaName, tableProducts, todayDate])
   const stats = useMemo(() => ({
     totalProducts: tableProducts.length,
     totalItems: tableProducts.reduce((sum, tp) => sum + tp.quantity, 0),
@@ -594,11 +483,7 @@ const FastOrdersPage = () => {
 
   if (!isMounted) {
     return (
-      <div className="flex min-h-screen flex-col bg-gray-50">
-        <div className="flex-1 flex items-center justify-center">
-          <Loading />
-        </div>
-      </div>
+      <div className="min-h-screen bg-gray-50" suppressHydrationWarning />
     )
   }
 
@@ -718,25 +603,27 @@ const FastOrdersPage = () => {
                   placeholder="Nombre producto - unidad (agrega con clic)"
                   className="rounded-lg border-gray-300"
                 />
-                <div className="max-h-64 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100">
-                  {filteredProductUnitOptions.length > 0 ? (
-                    filteredProductUnitOptions.map((option) => (
-                      <button
-                        key={option.key}
-                        type="button"
-                        onClick={() => handleAddProductByKey(option.key)}
-                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 transition-colors flex items-center justify-between gap-2"
-                      >
-                        <span className="truncate">{option.label}</span>
-                        <Plus className="h-4 w-4 flex-shrink-0 text-green-600" />
-                      </button>
-                    ))
-                  ) : productSearch.trim().length > 0 ? (
-                    <div className="px-3 py-4 text-sm text-gray-500">No hay coincidencias</div>
-                  ) : (
-                    <div className="px-3 py-4 text-sm text-gray-500">Escribe para filtrar productos</div>
-                  )}
-                </div>
+                {productSearch.trim().length > 0 ? (
+                  <div className="max-h-64 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100">
+                    {filteredProductUnitOptions.length > 0 ? (
+                      filteredProductUnitOptions.map((option) => (
+                        <button
+                          key={option.key}
+                          type="button"
+                          onClick={() => handleAddProductByKey(option.key)}
+                          className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 transition-colors flex items-center justify-between gap-2"
+                        >
+                          <span className="truncate">{option.label}</span>
+                          <Plus className="h-4 w-4 flex-shrink-0 text-green-600" />
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-3 py-4 text-sm text-gray-500">No hay coincidencias</div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500">Escribe para buscar y agrega con clic.</p>
+                )}
               </div>
             </div>
           </div>
@@ -951,31 +838,17 @@ const FastOrdersPage = () => {
                 <div className="text-sm text-gray-700">
                   <span className="font-bold">Productos:</span> <span className="font-semibold text-lg text-green-600">{stats.totalProducts}</span>
                   <span className="mx-2 text-gray-400">|</span>
-                  <span className="font-bold">Unidades:</span> <span className="font-semibold text-lg text-green-600">{stats.totalItems}</span>
+                  <span className="font-bold">Cantidad total:</span> <span className="font-semibold text-lg text-green-600">{stats.totalItems}</span>
                 </div>
                  <div className="flex items-center gap-3">
+                    <textarea
+                      value={orderObservations}
+                      onChange={(e) => setOrderObservations(e.target.value)}
+                      placeholder="Observaciones (opcional)"
+                      className="h-10 min-h-10 w-64 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
+                    />
                     <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={handlePrint}
-                      disabled={!selectedAreaId || tableProducts.length === 0 || isPrinting}
-                      aria-label="Imprimir pedido"
-                      title="Imprimir pedido"
-                    >
-                      {isPrinting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={handleDownload}
-                      disabled={!selectedAreaId || tableProducts.length === 0 || isDownloading}
-                      aria-label="Descargar PDF"
-                      title="Descargar PDF"
-                    >
-                      {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                    </Button>
-                    <Button
-                      onClick={() => setIsConfirmDialogOpen(true)}
+                      onClick={() => void handleCreateOrder()}
                       disabled={
                         !selectedAreaId ||
                         isCreatingOrder ||
@@ -986,7 +859,7 @@ const FastOrdersPage = () => {
                     >
                       <Send className="h-4 w-4 mr-2" />
                       {isCreatingOrder 
-                        ? "Procesando..." 
+                        ? "Creando..." 
                         : (existingOrder && existingOrder.status === 'created' ? "Agregar a Orden" : "Crear Orden")
                       }
                     </Button>
@@ -999,91 +872,6 @@ const FastOrdersPage = () => {
           )}
         </main>
 
-        {/* Create Order Confirmation Dialog */}
-        <Dialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
-          <DialogContent className="max-w-md">
-             <DialogHeader>
-               <DialogTitle className="text-xl font-bold">
-                 Confirmar Pedido
-               </DialogTitle>
-               <DialogDescription>
-                 {stats.totalProducts} producto{stats.totalProducts !== 1 ? "s" : ""} agregado{stats.totalProducts !== 1 ? "s" : ""}
-               </DialogDescription>
-             </DialogHeader>
-            
-             <div className="space-y-4">
-               <div className="rounded-lg border border-gray-200 bg-white p-3 text-sm">
-                 <span className="font-semibold text-gray-700">Area: </span>
-                 <span className="text-gray-800">{selectedAreaName || "Sin area seleccionada"}</span>
-               </div>
-               <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                 <p className="text-sm font-semibold text-gray-700 mb-2">Resumen:</p>
-                 <div className="space-y-2 max-h-40 overflow-y-auto">
-                   {tableProducts.map((tp) => (
-                     <div key={tp.id} className="flex justify-between text-sm">
-                       <span className="text-gray-700">{tp.product.name}</span>
-                       <span className="font-semibold">{tp.quantity % 1 === 0 ? tp.quantity : tp.quantity.toFixed(2)} {tp.selectedUnit.name}</span>
-                     </div>
-                   ))}
-                 </div>
-               </div>
-
-               <div>
-                 <label className="text-sm font-semibold text-gray-700 block mb-2">
-                   Observaciones (opcional)
-                 </label>
-                 <textarea
-                   value={orderObservations}
-                   onChange={(e) => setOrderObservations(e.target.value)}
-                   placeholder="Notas especiales..."
-                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none"
-                   rows={2}
-                 />
-               </div>
-             </div>
-
-            <DialogFooter className="gap-2">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handlePrint}
-                disabled={!selectedAreaId || tableProducts.length === 0 || isPrinting}
-                aria-label="Imprimir pedido"
-                title="Imprimir pedido"
-              >
-                {isPrinting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleDownload}
-                disabled={!selectedAreaId || tableProducts.length === 0 || isDownloading}
-                aria-label="Descargar PDF"
-                title="Descargar PDF"
-              >
-                {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => setIsConfirmDialogOpen(false)}
-                disabled={isCreatingOrder}
-              >
-                Cancelar
-              </Button>
-               <Button
-                 onClick={handleCreateOrder}
-                 disabled={
-                   isCreatingOrder ||
-                   !selectedAreaId ||
-                   (selectedAreaId ? blockedAreaIds.has(selectedAreaId) : false)
-                 }
-                 className="bg-green-600 hover:bg-green-700 text-white"
-               >
-                 {isCreatingOrder ? "Creando..." : "Crear Pedido"}
-               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </div>
     </Suspense>
   )
