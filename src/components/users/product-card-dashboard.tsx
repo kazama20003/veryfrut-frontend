@@ -214,7 +214,7 @@ export function ProductCardDashboard({
         <Image
           src={product.imageUrl || "/placeholder.svg?height=300&width=400"}
           alt={product.name}
-          className={cn("w-full h-full object-cover transition-transform duration-300", isHovered && "scale-110")}
+          className="w-full h-full object-contain p-2"
           width={400}
           height={300}
           loading="lazy"

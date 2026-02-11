@@ -20,6 +20,16 @@ const peruDateKeyFormatter = new Intl.DateTimeFormat("en-CA", {
   month: "2-digit",
   day: "2-digit",
 })
+const peruDateTimeFormatter = new Intl.DateTimeFormat("es-PE", {
+  timeZone: PERU_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+})
 
 function getPeruDateKey(dateValue?: string) {
   if (!dateValue) return null
@@ -37,12 +47,20 @@ function getPeruDateKey(dateValue?: string) {
 }
 
 function formatDate(dateValue?: string) {
-  const peruDateKey = getPeruDateKey(dateValue)
-  if (!peruDateKey) return "Sin fecha"
+  if (!dateValue) return "Sin fecha"
 
-  const [year, month, day] = peruDateKey.split("-")
-  if (!year || !month || !day) return "Sin fecha"
-  return `${day}/${month}/${year}`
+  // Backend often returns "YYYY-MM-DD HH:mm:ss" already in Peru local time.
+  const peruLocalMatch = dateValue.match(
+    /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/
+  )
+  if (peruLocalMatch) {
+    const [, year, month, day, hour = "00", minute = "00", second = "00"] = peruLocalMatch
+    return `${day}/${month}/${year} ${hour}:${minute}:${second}`
+  }
+
+  const parsed = new Date(dateValue)
+  if (Number.isNaN(parsed.getTime())) return "Sin fecha"
+  return peruDateTimeFormatter.format(parsed)
 }
 
 function isToday(dateValue?: string) {

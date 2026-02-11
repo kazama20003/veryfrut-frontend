@@ -34,8 +34,16 @@ function formatDate(date?: string) {
 }
 
 function toPositiveNumber(value: string) {
-  const parsed = Number(value);
+  const normalized = value.replace(',', '.').trim();
+  const parsed = Number(normalized);
   if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+}
+
+function toNonNegativeNumber(value: string) {
+  const normalized = value.replace(',', '.').trim();
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
   return parsed;
 }
 
@@ -63,6 +71,7 @@ function EditOrderForm({ order }: { order: Order }) {
   const [selectedProductId, setSelectedProductId] = useState<number | undefined>(undefined);
   const [selectedUnitId, setSelectedUnitId] = useState<number | undefined>(undefined);
   const [newQuantity, setNewQuantity] = useState('1');
+  const [quantityDrafts, setQuantityDrafts] = useState<Record<string, string>>({});
 
   const selectedProduct = useMemo(
     () => products.find((product) => product.id === selectedProductId),
@@ -91,14 +100,49 @@ function EditOrderForm({ order }: { order: Order }) {
   };
 
   const handleChangeQuantity = (index: number, rawValue: string) => {
-    const parsed = toPositiveNumber(rawValue);
-    if (parsed === null && rawValue !== '') return;
+    const itemKey = items[index]?.key;
+    if (!itemKey) return;
+    const cleaned = rawValue.replace(/[^0-9.,]/g, '');
+    setQuantityDrafts((prev) => ({ ...prev, [itemKey]: cleaned }));
+    if (cleaned.trim() === '') {
+      setItems((prev) =>
+        prev.map((item, itemIndex) =>
+          itemIndex === index ? { ...item, quantity: 0 } : item
+        )
+      );
+      return;
+    }
+
+    const parsed = toNonNegativeNumber(cleaned);
+    if (parsed === null) return;
 
     setItems((prev) =>
       prev.map((item, itemIndex) =>
-        itemIndex === index ? { ...item, quantity: parsed ?? 0 } : item
+        itemIndex === index ? { ...item, quantity: parsed } : item
       )
     );
+  };
+
+  const handleQuantityBlur = (index: number) => {
+    const itemKey = items[index]?.key;
+    if (!itemKey) return;
+
+    setQuantityDrafts((prev) => {
+      const draftValue = prev[itemKey];
+      const next = { ...prev };
+      delete next[itemKey];
+
+      if (draftValue === undefined) return next;
+
+      const parsed = toNonNegativeNumber(draftValue);
+      setItems((current) =>
+        current.map((item, itemIndex) =>
+          itemIndex === index ? { ...item, quantity: parsed ?? 0 } : item
+        )
+      );
+
+      return next;
+    });
   };
 
   const handleRemoveItem = (index: number) => {
@@ -256,11 +300,11 @@ function EditOrderForm({ order }: { order: Order }) {
             <div className='space-y-2'>
               <Label>Cantidad</Label>
               <Input
-                type='number'
-                min='0.01'
-                step='0.25'
+                type='text'
+                inputMode='decimal'
+                pattern='^\\d*(?:[\\.,]\\d+)?$'
                 value={newQuantity}
-                onChange={(event) => setNewQuantity(event.target.value)}
+                onChange={(event) => setNewQuantity(event.target.value.replace(/[^0-9.,]/g, ''))}
               />
             </div>
 
@@ -324,11 +368,12 @@ function EditOrderForm({ order }: { order: Order }) {
                         </SelectContent>
                       </Select>
                       <Input
-                        type='number'
-                        min='0.01'
-                        step='0.25'
-                        value={item.quantity}
+                        type='text'
+                        inputMode='decimal'
+                        pattern='^\\d*(?:[\\.,]\\d+)?$'
+                        value={quantityDrafts[item.key] ?? String(item.quantity)}
                         onChange={(event) => handleChangeQuantity(index, event.target.value)}
+                        onBlur={() => handleQuantityBlur(index)}
                       />
                       <Button
                         type='button'
