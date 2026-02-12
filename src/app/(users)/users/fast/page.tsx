@@ -5,6 +5,7 @@ import { Package, Plus, Trash2, Send } from "lucide-react"
 import { useProductsQuery } from "@/lib/api/hooks/useProduct"
 import { useCreateOrderMutation, useCheckOrderQuery } from "@/lib/api/hooks/useOrder"
 import { useMeQuery } from "@/lib/api/hooks/useUsers"
+import orderService from "@/lib/api/services/order-service"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
@@ -36,6 +37,7 @@ const FastOrdersPage = () => {
   const [isCreatingOrder, setIsCreatingOrder] = useState(false)
   const [areas, setAreas] = useState<Array<{id: number; name: string}>>([])
   const [blockedAreaIds, setBlockedAreaIds] = useState<Set<number>>(new Set())
+  const [isPrecheckingAreas, setIsPrecheckingAreas] = useState(false)
   const [orderObservations, setOrderObservations] = useState<string>("")
   const [existingOrder, setExistingOrder] = useState<{id: number; status: string; areaId: number; totalAmount: number} | undefined>(undefined)
   const [todayDate, setTodayDate] = useState("")
@@ -100,31 +102,70 @@ const FastOrdersPage = () => {
       // Use embedded areas if available
       console.log("[FastOrdersPage] Using embedded areas:", userAreas)
       setAreas(userAreas)
-      
-      // Auto-select first available area if none selected
-      if (!selectedAreaId) {
-        const firstAvailable = userAreas.find((area) => !blockedAreaIds.has(area.id))
-        if (firstAvailable) {
-          setSelectedAreaId(firstAvailable.id)
-          console.log("[FastOrdersPage] Auto-selected area:", firstAvailable.id)
-        }
-      }
     } else if (userAreaIds.length > 0) {
       console.log("[FastOrdersPage] User has areaIds but no embedded areas. areaIds:", userAreaIds)
       // Could load areas by IDs here if needed
       const mappedAreas = userAreaIds.map(id => ({ id, name: `Area ${id}` }))
       setAreas(mappedAreas)
-      
-      if (!selectedAreaId) {
-        const firstAvailable = mappedAreas.find((area) => !blockedAreaIds.has(area.id))
-        if (firstAvailable) {
-          setSelectedAreaId(firstAvailable.id)
-        }
-      }
     } else {
       console.log("[FastOrdersPage] No areas found for user")
+      setAreas([])
+      setSelectedAreaId(undefined)
     }
-  }, [blockedAreaIds, currentUser, selectedAreaId])
+  }, [currentUser])
+
+  useEffect(() => {
+    if (!todayDate || areas.length === 0) {
+      setIsPrecheckingAreas(false)
+      return
+    }
+
+    let isCancelled = false
+    setIsPrecheckingAreas(true)
+
+    void Promise.all(
+      areas.map(async (area) => {
+        try {
+          const response = await orderService.check({
+            areaId: area.id.toString(),
+            date: todayDate,
+          })
+          return { areaId: area.id, exists: response.exists }
+        } catch (error) {
+          console.error("[FastOrdersPage] Error checking area:", area.id, error)
+          return { areaId: area.id, exists: false }
+        }
+      })
+    ).then((results) => {
+      if (isCancelled) return
+
+      const apiBlocked = new Set<number>()
+      results.forEach(({ areaId, exists }) => {
+        if (exists) {
+          apiBlocked.add(areaId)
+        }
+      })
+
+      setBlockedAreaIds((prev) => {
+        const next = new Set(prev)
+        apiBlocked.forEach((areaId) => next.add(areaId))
+        sessionOrders.forEach((areaId) => next.add(areaId))
+        return next
+      })
+
+      setSelectedAreaId((prev) => {
+        const availableAreas = areas.filter((area) => !apiBlocked.has(area.id) && !sessionOrders.has(area.id))
+        if (prev && availableAreas.some((area) => area.id === prev)) return prev
+        return availableAreas[0]?.id
+      })
+
+      setIsPrecheckingAreas(false)
+    })
+
+    return () => {
+      isCancelled = true
+    }
+  }, [areas, sessionOrders, todayDate])
 
   // Reset existing order when there is no area selected
   useEffect(() => {
@@ -530,7 +571,11 @@ const FastOrdersPage = () => {
             {/* Area Selection */}
             <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-md">
               <label className="text-sm font-semibold text-gray-700 block mb-3">Area</label>
-              <Select value={selectedAreaId?.toString()} onValueChange={(value) => setSelectedAreaId(parseInt(value))}>
+              <Select
+                value={selectedAreaId?.toString()}
+                onValueChange={(value) => setSelectedAreaId(parseInt(value))}
+                disabled={isPrecheckingAreas || areas.length === 0}
+              >
                 <SelectTrigger className="rounded-lg border-gray-300">
                   <SelectValue placeholder="Selecciona un área..." />
                 </SelectTrigger>
@@ -550,6 +595,9 @@ const FastOrdersPage = () => {
               </Select>
               {selectedAreaId && blockedAreaIds.has(selectedAreaId) && (
                 <p className="mt-2 text-xs text-red-600">Bloqueada: esta area ya tiene pedido hoy.</p>
+              )}
+              {isPrecheckingAreas && (
+                <p className="mt-2 text-xs text-blue-600">Verificando bloqueo de areas...</p>
               )}
               {/* Order Status */}
               {existingOrder && (

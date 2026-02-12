@@ -9,6 +9,7 @@ import { useProductsQuery } from "@/lib/api/hooks/useProduct"
 import { useCreateOrderMutation, useCheckOrderQuery } from "@/lib/api/hooks/useOrder"
 import { useUsersQuery } from "@/lib/api/hooks/useUsers"
 import { useAreasQuery } from "@/lib/api/hooks/useArea"
+import orderService from "@/lib/api/services/order-service"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
@@ -40,6 +41,7 @@ const AdminFastOrdersPage = () => {
   const [isCreatingOrder, setIsCreatingOrder] = useState(false)
   const [areas, setAreas] = useState<Array<{id: number; name: string}>>([])
   const [blockedAreaIds, setBlockedAreaIds] = useState<Set<number>>(new Set())
+  const [isPrecheckingAreas, setIsPrecheckingAreas] = useState(false)
   const [orderObservations, setOrderObservations] = useState<string>("")
   const [existingOrder, setExistingOrder] = useState<{id: number; status: string; areaId: number; totalAmount: number} | undefined>(undefined)
   
@@ -107,13 +109,62 @@ const AdminFastOrdersPage = () => {
       const sameValues = sameLength && prev.every((item, index) => item.id === nextAreas[index]?.id && item.name === nextAreas[index]?.name)
       return sameValues ? prev : nextAreas
     })
-
-    setSelectedAreaId((prev) => {
-      if (!nextAreas.length) return undefined
-      if (prev && nextAreas.some((area) => area.id === prev)) return prev
-      return nextAreas[0]?.id
-    })
+    if (!nextAreas.length) {
+      setSelectedAreaId(undefined)
+    }
   }, [allAreas, selectedUser, selectedUserId])
+
+  useEffect(() => {
+    if (!selectedUserId || !todayDate || areas.length === 0) {
+      setIsPrecheckingAreas(false)
+      return
+    }
+
+    let isCancelled = false
+    setIsPrecheckingAreas(true)
+
+    void Promise.all(
+      areas.map(async (area) => {
+        try {
+          const response = await orderService.check({
+            areaId: area.id.toString(),
+            date: todayDate,
+          })
+          return { areaId: area.id, exists: response.exists }
+        } catch (error) {
+          console.error("[AdminFastOrdersPage] Error checking area:", area.id, error)
+          return { areaId: area.id, exists: false }
+        }
+      })
+    ).then((results) => {
+      if (isCancelled) return
+
+      const apiBlocked = new Set<number>()
+      results.forEach(({ areaId, exists }) => {
+        if (exists) {
+          apiBlocked.add(areaId)
+        }
+      })
+
+      setBlockedAreaIds((prev) => {
+        const next = new Set(prev)
+        apiBlocked.forEach((areaId) => next.add(areaId))
+        return next
+      })
+
+      setSelectedAreaId((prev) => {
+        const availableAreas = areas.filter((area) => !apiBlocked.has(area.id))
+        if (prev && availableAreas.some((area) => area.id === prev)) return prev
+        return availableAreas[0]?.id
+      })
+
+      setIsPrecheckingAreas(false)
+    })
+
+    return () => {
+      isCancelled = true
+    }
+  }, [areas, selectedUserId, todayDate])
 
   const checkOrderData = useMemo(() => {
     if (!selectedAreaId || !selectedUserId) return null
@@ -506,7 +557,7 @@ const AdminFastOrdersPage = () => {
               <Select 
                 value={selectedAreaId?.toString()} 
                 onValueChange={(value) => setSelectedAreaId(parseInt(value))}
-                disabled={!selectedUserId}
+                disabled={!selectedUserId || isPrecheckingAreas}
               >
                 <SelectTrigger className="rounded-lg border-gray-300">
                   <SelectValue placeholder={selectedUserId ? "Selecciona un area..." : "Selecciona un usuario primero..."} />
@@ -530,6 +581,9 @@ const AdminFastOrdersPage = () => {
               </Select>
               {selectedAreaId && blockedAreaIds.has(selectedAreaId) && (
                 <p className="mt-2 text-xs text-red-600">Bloqueada: esta area ya tiene pedido hoy.</p>
+              )}
+              {isPrecheckingAreas && (
+                <p className="mt-2 text-xs text-blue-600">Verificando bloqueo de areas...</p>
               )}
               {/* Order Status */}
               {existingOrder && (
@@ -858,4 +912,3 @@ const AdminFastOrdersPage = () => {
 }
 
 export default AdminFastOrdersPage
-
