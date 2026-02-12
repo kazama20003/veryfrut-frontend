@@ -24,7 +24,7 @@ const SLIDES: Slide[] = [
     title: "Productos frescos de la mejor calidad",
     description: "Ofrecemos un servicio integral de abastecimiento de productos de la mejor calidad",
     image:
-      "https://res.cloudinary.com/dhkb93mix/image/upload/v1770755728/WhatsApp_Image_2026-02-10_at_3.09.59_PM_kdtscc.jpg",
+      "https://res.cloudinary.com/demzflxgq/image/upload/v1770854741/david-foodphototasty-FGrO63vUbaA-unsplash_tbq1rh.jpg",
   },
   {
     title: "Soluciones sostenibles",
@@ -36,7 +36,7 @@ const SLIDES: Slide[] = [
     title: "Soluciones institucionales",
     description: "Productos adaptado a las necesidades de comedores escolares, hospitales, servicios de restaurante y mas",
     image:
-      "https://res.cloudinary.com/dhkb93mix/image/upload/v1770755826/WhatsApp_Image_2026-02-10_at_3.13.05_PM_rtahqr.jpg",
+      "https://res.cloudinary.com/demzflxgq/image/upload/v1770854409/pexels-sadat-ahmed-1776830431-33083467_nqkstc.jpg",
   },
 ]
 
