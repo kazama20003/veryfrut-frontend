@@ -138,7 +138,7 @@ export default function OrderHistoryDetailPage() {
 
   const filteredProductUnitOptions = useMemo(() => {
     const term = productSearch.trim().toLowerCase()
-    if (!term) return productUnitOptions
+    if (!term) return []
     return productUnitOptions.filter((option) =>
       `${option.productName} ${option.unitName}`.toLowerCase().includes(term)
     )
@@ -220,6 +220,9 @@ export default function OrderHistoryDetailPage() {
 
     try {
       await updateOrderMutation.mutateAsync({
+        areaId: order.areaId,
+        userId: order.userId,
+        status: order.status,
         observation: draftObservationTouched ? (draftObservation.trim() || undefined) : (order.observation?.trim() || undefined),
         totalAmount,
         orderItems: [
@@ -237,14 +240,16 @@ export default function OrderHistoryDetailPage() {
           })),
         ],
       })
+      setDraftQuantities({})
       setAddedItems([])
       setDraftObservationTouched(false)
       toast.success("Pedido actualizado")
+      router.push("/users/history")
     } catch (error) {
       console.error("[OrderHistoryDetailPage] Error updating order:", error)
       toast.error("No se pudo actualizar el pedido")
     }
-  }, [addedItems, draftObservation, draftObservationTouched, draftQuantities, order, orderId, updateOrderMutation])
+  }, [addedItems, draftObservation, draftObservationTouched, draftQuantities, order, orderId, router, updateOrderMutation])
 
   const buildPrintPayload = useCallback(() => {
     if (!order) return null
@@ -449,7 +454,9 @@ export default function OrderHistoryDetailPage() {
                         placeholder="Buscar producto o unidad"
                       />
                       <div className="max-h-44 overflow-y-auto rounded-md border border-blue-100 bg-white">
-                        {filteredProductUnitOptions.length === 0 ? (
+                        {productSearch.trim().length === 0 ? (
+                          <p className="px-3 py-2 text-xs text-gray-500">Escribe para buscar productos</p>
+                        ) : filteredProductUnitOptions.length === 0 ? (
                           <p className="px-3 py-2 text-xs text-gray-500">Sin resultados</p>
                         ) : (
                           filteredProductUnitOptions.map((option) => (
@@ -702,16 +709,6 @@ export default function OrderHistoryDetailPage() {
                         {isClearingOrder ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
                         Vaciar pedido
                       </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="border-red-300 text-red-700 hover:bg-red-50 hover:text-red-800"
-                        onClick={() => void handleDeleteOrder()}
-                        disabled={isDeletingOrder || deleteOrderMutation.isPending}
-                      >
-                        {isDeletingOrder ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                        Eliminar pedido
-                      </Button>
                     </div>
                   </div>
                 ) : (
@@ -722,6 +719,16 @@ export default function OrderHistoryDetailPage() {
                       Edición no disponible
                   </Button>
                 )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full border-red-300 text-red-700 hover:bg-red-50 hover:text-red-800"
+                  onClick={() => void handleDeleteOrder()}
+                  disabled={isDeletingOrder || deleteOrderMutation.isPending}
+                >
+                  {isDeletingOrder ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                  Eliminar pedido
+                </Button>
               </CardContent>
             </Card>
           </div>
