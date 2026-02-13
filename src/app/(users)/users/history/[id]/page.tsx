@@ -74,6 +74,7 @@ export default function OrderHistoryDetailPage() {
   const [draftObservation, setDraftObservation] = useState("")
   const [draftObservationTouched, setDraftObservationTouched] = useState(false)
   const [draftQuantities, setDraftQuantities] = useState<Record<number, string>>({})
+  const [removedExistingItemIds, setRemovedExistingItemIds] = useState<number[]>([])
   const [productSearch, setProductSearch] = useState("")
   const [addedItems, setAddedItems] = useState<AddedOrderItemDraft[]>([])
   const [isPrinting, setIsPrinting] = useState(false)
@@ -187,16 +188,31 @@ export default function OrderHistoryDetailPage() {
     )
   }, [])
 
+  const visibleExistingItems = useMemo(() => {
+    return (order?.orderItems || []).filter((item) => !removedExistingItemIds.includes(item.id))
+  }, [order?.orderItems, removedExistingItemIds])
+
+  const handleRemoveExistingItem = useCallback((itemId: number) => {
+    setRemovedExistingItemIds((prev) => (prev.includes(itemId) ? prev : [...prev, itemId]))
+    setDraftQuantities((prev) => {
+      const next = { ...prev }
+      delete next[itemId]
+      return next
+    })
+  }, [])
+
   const handleSaveEdit = useCallback(async () => {
     if (!order || !orderId) return
 
-    const normalizedItems = (order.orderItems || []).map((item) => {
-      const parsed = Number.parseFloat((draftQuantities[item.id] ?? `${item.quantity}`).replace(",", "."))
-      return {
-        ...item,
-        quantity: Number.isFinite(parsed) ? parsed : item.quantity,
-      }
-    })
+    const normalizedItems = (order.orderItems || [])
+      .filter((item) => !removedExistingItemIds.includes(item.id))
+      .map((item) => {
+        const parsed = Number.parseFloat((draftQuantities[item.id] ?? `${item.quantity}`).replace(",", "."))
+        return {
+          ...item,
+          quantity: Number.isFinite(parsed) ? parsed : item.quantity,
+        }
+      })
 
     const normalizedAddedItems = addedItems.map((item) => {
       const parsed = Number.parseFloat(item.quantity.replace(",", "."))
@@ -241,6 +257,7 @@ export default function OrderHistoryDetailPage() {
         ],
       })
       setDraftQuantities({})
+      setRemovedExistingItemIds([])
       setAddedItems([])
       setDraftObservationTouched(false)
       toast.success("Pedido actualizado")
@@ -249,20 +266,22 @@ export default function OrderHistoryDetailPage() {
       console.error("[OrderHistoryDetailPage] Error updating order:", error)
       toast.error("No se pudo actualizar el pedido")
     }
-  }, [addedItems, draftObservation, draftObservationTouched, draftQuantities, order, orderId, router, updateOrderMutation])
+  }, [addedItems, draftObservation, draftObservationTouched, draftQuantities, order, orderId, removedExistingItemIds, router, updateOrderMutation])
 
   const buildPrintPayload = useCallback(() => {
     if (!order) return null
 
-    const normalizedItems = (order.orderItems || []).map((item) => {
-      const parsed = Number.parseFloat((draftQuantities[item.id] ?? `${item.quantity}`).replace(",", "."))
-      return {
-        productName:
-          item.product?.name || productNameById.get(item.productId) || `Producto #${item.productId}`,
-        quantity: Number.isFinite(parsed) ? parsed : item.quantity,
-        unitName: item.unitMeasurement?.name ?? "Unidad",
-      }
-    })
+    const normalizedItems = (order.orderItems || [])
+      .filter((item) => !removedExistingItemIds.includes(item.id))
+      .map((item) => {
+        const parsed = Number.parseFloat((draftQuantities[item.id] ?? `${item.quantity}`).replace(",", "."))
+        return {
+          productName:
+            item.product?.name || productNameById.get(item.productId) || `Producto #${item.productId}`,
+          quantity: Number.isFinite(parsed) ? parsed : item.quantity,
+          unitName: item.unitMeasurement?.name ?? "Unidad",
+        }
+      })
 
     const normalizedAddedItems = addedItems.map((item) => {
       const parsed = Number.parseFloat(item.quantity.replace(",", "."))
@@ -281,7 +300,7 @@ export default function OrderHistoryDetailPage() {
       observation: draftObservationTouched ? draftObservation : order.observation || "",
       items: mergedItems,
     }
-  }, [addedItems, draftObservation, draftObservationTouched, draftQuantities, order, productNameById])
+  }, [addedItems, draftObservation, draftObservationTouched, draftQuantities, order, productNameById, removedExistingItemIds])
 
   const handlePrintPdf = useCallback(async () => {
     const payload = buildPrintPayload()
@@ -363,6 +382,7 @@ export default function OrderHistoryDetailPage() {
         orderItems: [],
       })
       setDraftQuantities({})
+      setRemovedExistingItemIds([])
       setAddedItems([])
       toast.success("Pedido vaciado")
     } catch (error) {
@@ -476,7 +496,7 @@ export default function OrderHistoryDetailPage() {
                   </div>
                 )}
                 <div className="space-y-3">
-                  {(order.orderItems || []).map((item) => (
+                  {visibleExistingItems.map((item) => (
                     <div
                       key={item.id}
                       className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2"
@@ -554,9 +574,22 @@ export default function OrderHistoryDetailPage() {
                           )}
                         </div>
                       </div>
+                      {canEdit && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemoveExistingItem(item.id)}
+                          className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                          aria-label="Quitar producto"
+                          title="Quitar producto"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   ))}
-                  {(order.orderItems || []).length === 0 && (
+                  {visibleExistingItems.length === 0 && addedItems.length === 0 && (
                     <p className="text-sm text-gray-500">No hay items registrados en esta orden.</p>
                   )}
                   {canEdit &&
