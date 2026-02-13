@@ -522,7 +522,7 @@ export default function OrderHistoryDetailPage() {
                               `Producto #${item.productId}`}
                           </p>
                           {canEdit ? (
-                            <div className="mt-1 flex items-center gap-2">
+                            <div className="mt-1 flex flex-wrap items-center gap-2">
                               <span className="text-xs text-gray-500">Cantidad:</span>
                               <Button
                                 type="button"
@@ -550,7 +550,7 @@ export default function OrderHistoryDetailPage() {
                                     [item.id]: event.target.value,
                                   }))
                                 }
-                                className="h-8 w-28 text-sm"
+                                className="h-8 w-20 text-sm sm:w-28"
                               />
                               <Button
                                 type="button"
@@ -610,7 +610,7 @@ export default function OrderHistoryDetailPage() {
                           </div>
                           <div className="min-w-0">
                             <p className="text-sm font-medium text-gray-900 truncate">{item.productName}</p>
-                            <div className="mt-1 flex items-center gap-2">
+                            <div className="mt-1 flex flex-wrap items-center gap-2">
                               <span className="text-xs text-gray-500">Cantidad:</span>
                               <Button
                                 type="button"
@@ -635,7 +635,7 @@ export default function OrderHistoryDetailPage() {
                                     )
                                   )
                                 }
-                                className="h-8 w-28 text-sm"
+                                className="h-8 w-20 text-sm sm:w-28"
                               />
                               <Button
                                 type="button"

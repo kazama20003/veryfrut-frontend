@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import Image from "next/image"
 import { Search, Package } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -10,6 +10,7 @@ import {
   ComboboxContent,
   ComboboxInput,
   ComboboxEmpty,
+  ComboboxItem,
 } from "@/components/ui/combobox"
 import { Product } from "@/types/product"
 
@@ -47,26 +48,8 @@ export function SimpleProductCombobox({
   const handleProductSelect = (productId: string) => {
     console.log("[SimpleProductCombobox] handleProductSelect:", productId)
     const id = parseInt(productId)
+    setLocalSearchValue("")
     onProductSelect(id)
-  }
-
-  const getStockVariant = (stock: number) => {
-    if (stock === 0) return "destructive"
-    if (stock <= 5) return "secondary"
-    return "default"
-  }
-
-  const getStockText = (stock: number) => {
-    if (stock === 0) return "Agotado"
-    if (stock <= 5) return `¡Últimos ${stock}!`
-    return `${stock} disponibles`
-  }
-
-  const handleItemClick = (e: React.MouseEvent, productId: number, productName: string) => {
-    e.preventDefault()
-    e.stopPropagation()
-    console.log("[SimpleProductCombobox] handleItemClick:", { productId, productName })
-    onProductSelect(productId)
   }
 
   return (
@@ -118,9 +101,9 @@ export function SimpleProductCombobox({
               const isSelected = product.id === selectedProductId
               
               return (
-                <div
+                <ComboboxItem
                   key={product.id}
-                  onClick={(e) => handleItemClick(e, product.id, product.name)}
+                  value={product.id.toString()}
                   className={cn(
                     "relative flex w-full cursor-pointer select-none items-center rounded-sm py-2 pr-8 pl-3 text-sm outline-none",
                     "hover:bg-accent hover:text-accent-foreground",
@@ -128,8 +111,6 @@ export function SimpleProductCombobox({
                     isSelected && "bg-accent text-accent-foreground",
                     "gap-3"
                   )}
-                  role="option"
-                  aria-selected={isSelected}
                 >
                   <div className="flex items-center gap-3 flex-1">
                     <div className="flex-shrink-0">
@@ -166,7 +147,7 @@ export function SimpleProductCombobox({
                       <Package className="h-3 w-3 text-green-600" />
                     </span>
                   )}
-                </div>
+                </ComboboxItem>
               )
             })
           )}
@@ -177,3 +158,4 @@ export function SimpleProductCombobox({
 }
 
 export default SimpleProductCombobox
+
