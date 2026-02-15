@@ -336,6 +336,27 @@ class SuppliersService {
   }
 
   /**
+   * Crear item de compra para una compra existente
+   */
+  async createPurchaseItem(purchaseId: string | number, data: CreatePurchaseItemDto) {
+    try {
+      const response = await axiosInstance.post<PurchaseItem | ApiResponse<PurchaseItem>>(
+        `/supliers/purchases/${purchaseId}/items`,
+        data
+      );
+      const responseData = (response.data as ApiResponse<PurchaseItem>)?.data || response.data;
+      return responseData && typeof responseData === 'object' && 'id' in responseData ? responseData : undefined;
+    } catch {
+      const response = await axiosInstance.post<PurchaseItem | ApiResponse<PurchaseItem>>(
+        '/supliers/purchases/items',
+        { purchaseId, ...data }
+      );
+      const responseData = (response.data as ApiResponse<PurchaseItem>)?.data || response.data;
+      return responseData && typeof responseData === 'object' && 'id' in responseData ? responseData : undefined;
+    }
+  }
+
+  /**
    * Eliminar item de compra por ID
    */
   async deletePurchaseItem(itemId: string | number): Promise<{ success: boolean; message?: string }> {

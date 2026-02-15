@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -23,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Users, ShoppingCart, Package, TrendingUp, Loader2, AlertCircle, FileText, Pencil, Trash2 } from 'lucide-react';
+import { Users, ShoppingCart, Package, TrendingUp, Loader2, AlertCircle, FileText, Pencil, Trash2, ArrowUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSuppliersQuery, useUnitMeasurementsQuery } from '@/lib/api';
 import {
@@ -34,13 +35,28 @@ import suppliersService, { type Purchase, type PurchaseItem } from '@/lib/api/se
 import { useQueryClient } from '@tanstack/react-query';
 import queryKeys from '@/lib/api/queryKeys';
 
+const PERU_TIME_ZONE = 'America/Lima';
+const peruDateTimeFormatter = new Intl.DateTimeFormat('es-PE', {
+  timeZone: PERU_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: false,
+});
+
 export default function SuppliersPage() {
+  const router = useRouter();
   const { data: suppliersData, isLoading, error, refetch } = useSuppliersQuery();
   const { data: unitMeasurements = [] } = useUnitMeasurementsQuery();
   const queryClient = useQueryClient();
   const [reportLoading, setReportLoading] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [selectedProductReportSupplierId, setSelectedProductReportSupplierId] = useState('');
+  const [showScrollTop, setShowScrollTop] = useState(false);
 
   const [editOpen, setEditOpen] = useState(false);
   const [editingPurchase, setEditingPurchase] = useState<{
@@ -57,6 +73,15 @@ export default function SuppliersPage() {
   useEffect(() => {
     void refetch();
   }, [refetch]);
+
+  useEffect(() => {
+    const handleWindowScroll = () => {
+      setShowScrollTop(window.scrollY > 500);
+    };
+    window.addEventListener('scroll', handleWindowScroll, { passive: true });
+    handleWindowScroll();
+    return () => window.removeEventListener('scroll', handleWindowScroll);
+  }, []);
 
   const parseDateFromInput = (value: string, boundary: 'start' | 'end'): Date | undefined => {
     if (!value) return undefined;
@@ -83,7 +108,28 @@ export default function SuppliersPage() {
     if (typeof item.unitMeasurementId === 'number') return unitMeasurementsMap.get(item.unitMeasurementId)?.name || `Unidad ${item.unitMeasurementId}`;
     return '-';
   };
-  const getPurchaseDate = (purchase: Purchase) => purchase.purchaseDate || purchase.createdAt;
+  // Use createdAt first for table timestamp because purchaseDate is commonly a date-only value at 00:00.
+  const getPurchaseDate = (purchase: Purchase) => purchase.createdAt || purchase.purchaseDate;
+  const formatPurchaseDate = (value?: string) => {
+    if (!value) return 'N/A';
+
+    const hasExplicitTimeZone = /(?:[zZ]|[+-]\d{2}:\d{2})$/.test(value);
+
+    // Preserve local date/time only when backend does not include timezone info.
+    const localMatch = !hasExplicitTimeZone
+      ? value.match(
+          /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/
+        )
+      : null;
+    if (localMatch) {
+      const [, year, month, day, hour = '00', minute = '00', second = '00'] = localMatch;
+      return `${day}/${month}/${year} ${hour}:${minute}:${second}`;
+    }
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return 'N/A';
+    return peruDateTimeFormatter.format(parsed);
+  };
 
   const toDateInputValue = (value?: string) => {
     if (!value) return '';
@@ -298,6 +344,7 @@ export default function SuppliersPage() {
   const handleProductReport = async () => {
     const start = startDate ? parseDateFromInput(startDate, 'start') : undefined;
     const end = endDate ? parseDateFromInput(endDate, 'end') : undefined;
+    const supplierId = Number(selectedProductReportSupplierId);
 
     if (startDate && !start) {
       toast.error('Fecha inicio invalida');
@@ -311,6 +358,16 @@ export default function SuppliersPage() {
       toast.error('La fecha fin debe ser mayor o igual a la fecha inicio');
       return;
     }
+    if (!Number.isFinite(supplierId)) {
+      toast.error('Selecciona un proveedor');
+      return;
+    }
+
+    const selectedSupplier = suppliers.find((supplier) => supplier.id === supplierId);
+    if (!selectedSupplier) {
+      toast.error('Proveedor no encontrado');
+      return;
+    }
 
     try {
       setReportLoading(true);
@@ -318,7 +375,7 @@ export default function SuppliersPage() {
       const filename = `reporte_productos_${new Date().toISOString().split('T')[0]}.xlsx`;
       await generateReportByProductUnit({
         filename,
-        suppliers,
+        suppliers: [selectedSupplier],
         startDate: start,
         endDate: end,
       });
@@ -384,19 +441,19 @@ export default function SuppliersPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      <div className="flex h-14 items-center justify-between border-b border-slate-200 bg-white/90 px-4 backdrop-blur">
+      <div className="flex min-h-14 flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white/90 px-4 py-2 backdrop-blur">
         <div className="flex items-center gap-3">
           <SidebarTrigger className="h-9 w-9" />
           <span className="text-sm font-semibold text-slate-700">Proveedores</span>
         </div>
-        <div className="flex items-center gap-2">
-          <Link href="/dashboard/supliers/create">
-            <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center">
+          <Link href="/dashboard/supliers/create" className="w-full sm:w-auto">
+            <Button size="sm" className="h-9 w-full bg-blue-600 px-3 text-xs hover:bg-blue-700 sm:w-auto sm:text-sm">
               Crear Proveedor
             </Button>
           </Link>
-          <Link href="/dashboard/supliers/purchases">
-            <Button size="sm" variant="outline">
+          <Link href="/dashboard/supliers/purchases" className="w-full sm:w-auto">
+            <Button size="sm" variant="outline" className="h-9 w-full px-3 text-xs sm:w-auto sm:text-sm">
               Registrar Compra
             </Button>
           </Link>
@@ -501,6 +558,24 @@ export default function SuppliersPage() {
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="supplier-product-report">Proveedor</Label>
+                  <Select
+                    value={selectedProductReportSupplierId}
+                    onValueChange={setSelectedProductReportSupplierId}
+                  >
+                    <SelectTrigger id="supplier-product-report">
+                      <SelectValue placeholder="Selecciona proveedor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {suppliers.map((supplier) => (
+                        <SelectItem key={supplier.id} value={String(supplier.id)}>
+                          {supplier.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="start-date-product">Fecha Inicio</Label>
                   <Input
@@ -720,6 +795,18 @@ export default function SuppliersPage() {
               <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>
                 Cancelar
               </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  if (!editingPurchase) return;
+                  setEditOpen(false);
+                  router.push(`/dashboard/supliers/edit/${editingPurchase.purchase.id}`);
+                }}
+                disabled={!editingPurchase}
+              >
+                Agregar producto
+              </Button>
               <Button type="button" onClick={handleSaveEdit} disabled={!editingPurchase}>
                 Guardar
               </Button>
@@ -801,7 +888,7 @@ export default function SuppliersPage() {
                               <tr key={purchase.id} className="border-b hover:bg-slate-50 transition">
                                 <td className="p-3 text-slate-600">#{purchase.id}</td>
                                 <td className="p-3 text-slate-600">
-                                  {new Date(getPurchaseDate(purchase)).toLocaleDateString('es-ES')}
+                                  {formatPurchaseDate(getPurchaseDate(purchase))}
                                 </td>
                                 <td className="p-3">
                                   <Dialog>
@@ -817,7 +904,7 @@ export default function SuppliersPage() {
                                       <DialogHeader>
                                         <DialogTitle>Items de compra #{purchase.id}</DialogTitle>
                                         <DialogDescription>
-                                          {supplier.name} • {new Date(getPurchaseDate(purchase)).toLocaleDateString('es-ES')}
+                                          {supplier.name} • {formatPurchaseDate(getPurchaseDate(purchase))}
                                         </DialogDescription>
                                       </DialogHeader>
 
@@ -945,6 +1032,18 @@ export default function SuppliersPage() {
           </CardContent>
         </Card>
       </div>
+      {showScrollTop && (
+        <Button
+          type="button"
+          size="icon"
+          className="fixed bottom-6 right-6 z-50 h-11 w-11 rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-700"
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          aria-label="Volver arriba"
+          title="Volver arriba"
+        >
+          <ArrowUp className="h-5 w-5" />
+        </Button>
+      )}
     </div>
   );
 }

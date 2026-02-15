@@ -12,8 +12,43 @@ interface PrintOrderItem {
 
 interface PrintOrderPayload {
   areaName: string
+  createdAt?: string
   observation?: string
   items: PrintOrderItem[]
+}
+
+const PERU_TIME_ZONE = "America/Lima"
+const peruDateTimeFormatter = new Intl.DateTimeFormat("es-PE", {
+  timeZone: PERU_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+})
+
+function formatPdfDate(dateValue?: string): string {
+  if (!dateValue) {
+    return peruDateTimeFormatter.format(new Date())
+  }
+
+  // If backend date comes as "YYYY-MM-DD HH:mm:ss", treat it as Peru local time (no UTC conversion).
+  const peruLocalMatch = dateValue.match(
+    /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/
+  )
+  if (peruLocalMatch) {
+    const [, year, month, day, hour = "00", minute = "00", second = "00"] = peruLocalMatch
+    return `${day}/${month}/${year} ${hour}:${minute}:${second}`
+  }
+
+  const parsed = new Date(dateValue)
+  if (Number.isNaN(parsed.getTime())) {
+    return peruDateTimeFormatter.format(new Date())
+  }
+
+  return peruDateTimeFormatter.format(parsed)
 }
 
 function formatQuantity(quantity: number): string {
@@ -25,6 +60,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as PrintOrderPayload
     const areaName = body?.areaName?.trim()
+    const createdAt = body?.createdAt?.trim()
     const observation = (body?.observation || "").trim()
     const items = Array.isArray(body?.items) ? body.items : []
 
@@ -56,7 +92,7 @@ export async function POST(request: NextRequest) {
       doc.setFontSize(10)
       doc.text(`Area: ${areaName}`, margin, cursorY)
       cursorY += 5
-      doc.text(`Fecha: ${new Date().toLocaleString("es-PE")}`, margin, cursorY)
+      doc.text(`Fecha: ${formatPdfDate(createdAt)}`, margin, cursorY)
       cursorY += 6
     }
 

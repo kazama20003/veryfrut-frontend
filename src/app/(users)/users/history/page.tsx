@@ -169,6 +169,7 @@ function UsersHistoryPageContent() {
       setDownloadingOrderId(order.id)
       const payload = {
         areaName: order.area?.name || `Area #${order.areaId}`,
+        createdAt: order.createdAt,
         observation: order.observation?.trim() || "",
         items: (order.orderItems || []).map((item) => ({
           productName:

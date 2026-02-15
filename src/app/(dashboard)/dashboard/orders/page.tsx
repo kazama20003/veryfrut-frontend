@@ -149,6 +149,7 @@ export default function OrdersPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           areaName: order.area?.name || `Area ${order.areaId}`,
+          createdAt: order.createdAt,
           observation: order.observation || '',
           items,
         }),
