@@ -108,8 +108,8 @@ export default function SuppliersPage() {
     if (typeof item.unitMeasurementId === 'number') return unitMeasurementsMap.get(item.unitMeasurementId)?.name || `Unidad ${item.unitMeasurementId}`;
     return '-';
   };
-  // Use createdAt first for table timestamp because purchaseDate is commonly a date-only value at 00:00.
-  const getPurchaseDate = (purchase: Purchase) => purchase.createdAt || purchase.purchaseDate;
+  // Respect edited purchaseDate first; fallback to createdAt only when purchaseDate is missing.
+  const getPurchaseDate = (purchase: Purchase) => purchase.purchaseDate || purchase.createdAt;
   const formatPurchaseDate = (value?: string) => {
     if (!value) return 'N/A';
 
