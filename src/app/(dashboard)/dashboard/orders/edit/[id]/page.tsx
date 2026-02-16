@@ -3,17 +3,15 @@
 import { useMemo, useState } from 'react';
 import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Loader2, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useOrderQuery, useProductsQuery, useUpdateOrderMutation } from '@/lib/api';
 import type { CreateOrderItemDto, Order } from '@/types/order';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { SimpleProductCombobox } from '@/components/users/simple-product-combobox';
 
 interface DraftItem {
   key: string;
@@ -31,13 +29,6 @@ function formatDate(date?: string) {
   const parsed = new Date(date);
   if (Number.isNaN(parsed.getTime())) return 'N/A';
   return parsed.toLocaleString('es-ES');
-}
-
-function toPositiveNumber(value: string) {
-  const normalized = value.replace(',', '.').trim();
-  const parsed = Number(normalized);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
-  return parsed;
 }
 
 function toNonNegativeNumber(value: string) {
@@ -63,25 +54,35 @@ function toInitialItems(order: Order): DraftItem[] {
 function EditOrderForm({ order }: { order: Order }) {
   const router = useRouter();
   const updateMutation = useUpdateOrderMutation(order.id);
-  const { data: productsData, isLoading: isLoadingProducts } = useProductsQuery({ page: 1, limit: 300 });
+  const { data: productsData } = useProductsQuery({ page: 1, limit: 300 });
   const products = useMemo(() => productsData?.items ?? [], [productsData?.items]);
 
   const [items, setItems] = useState<DraftItem[]>(() => toInitialItems(order));
   const [observation, setObservation] = useState(order.observation ?? '');
-  const [selectedProductId, setSelectedProductId] = useState<number | undefined>(undefined);
-  const [selectedUnitId, setSelectedUnitId] = useState<number | undefined>(undefined);
-  const [newQuantity, setNewQuantity] = useState('1');
+  const [productSearch, setProductSearch] = useState('');
   const [quantityDrafts, setQuantityDrafts] = useState<Record<string, string>>({});
 
-  const selectedProduct = useMemo(
-    () => products.find((product) => product.id === selectedProductId),
-    [products, selectedProductId]
-  );
+  const productUnitOptions = useMemo(() => {
+    return products.flatMap((product) =>
+      (product.productUnits ?? []).map((unit) => ({
+        key: `${product.id}__${unit.id}`,
+        productId: product.id,
+        productName: product.name,
+        imageUrl: product.imageUrl,
+        unitMeasurementId: unit.unitMeasurementId,
+        unitName: unit.unitMeasurement?.name ?? 'Unidad',
+        price: product.price ?? 0,
+      }))
+    );
+  }, [products]);
 
-  const selectedProductUnits = useMemo(
-    () => selectedProduct?.productUnits ?? [],
-    [selectedProduct?.productUnits]
-  );
+  const filteredProductUnitOptions = useMemo(() => {
+    const term = productSearch.trim().toLowerCase();
+    if (!term) return [];
+    return productUnitOptions.filter((option) =>
+      `${option.productName} ${option.unitName}`.toLowerCase().includes(term)
+    );
+  }, [productSearch, productUnitOptions]);
 
   const getUnitsForProduct = (productId: number) => {
     const product = products.find((item) => item.id === productId);
@@ -92,12 +93,6 @@ function EditOrderForm({ order }: { order: Order }) {
     () => items.reduce((sum, item) => sum + item.quantity, 0),
     [items]
   );
-
-  const handleSelectProduct = (productId: number) => {
-    const product = products.find((item) => item.id === productId);
-    setSelectedProductId(productId);
-    setSelectedUnitId(product?.productUnits?.[0]?.unitMeasurement.id);
-  };
 
   const handleChangeQuantity = (index: number, rawValue: string) => {
     const itemKey = items[index]?.key;
@@ -165,49 +160,30 @@ function EditOrderForm({ order }: { order: Order }) {
     );
   };
 
-  const handleAddProduct = () => {
-    if (!selectedProduct) {
-      toast.error('Selecciona un producto');
+  const handleAddProduct = (selectedKey: string) => {
+    const selected = productUnitOptions.find((option) => option.key === selectedKey);
+    if (!selected) {
+      toast.error('Selecciona un producto valido');
       return;
     }
 
-    if (!selectedUnitId) {
-      toast.error('El producto no tiene unidad disponible');
-      return;
-    }
-
-    const quantity = toPositiveNumber(newQuantity);
-    if (!quantity) {
-      toast.error('La cantidad debe ser mayor a 0');
-      return;
-    }
-
-    const selectedUnit = selectedProduct.productUnits?.find(
-      (unit) => unit.unitMeasurement.id === selectedUnitId
-    )?.unitMeasurement;
-
-    if (!selectedUnit) {
-      toast.error('Unidad no valida para este producto');
-      return;
-    }
+    const stepQuantity = 0.25;
 
     setItems((prev) => [
       ...prev,
       {
-        key: `new-${selectedProduct.id}-${selectedUnit.id}-${Date.now()}`,
-        productId: selectedProduct.id,
-        unitMeasurementId: selectedUnit.id,
-        productName: selectedProduct.name,
-        unitName: selectedUnit.name,
-        quantity,
-        price: selectedProduct.price,
-        imageUrl: selectedProduct.imageUrl,
+        key: `new-${selected.productId}-${selected.unitMeasurementId}-${Date.now()}`,
+        productId: selected.productId,
+        unitMeasurementId: selected.unitMeasurementId,
+        productName: selected.productName,
+        unitName: selected.unitName,
+        quantity: stepQuantity,
+        price: selected.price,
+        imageUrl: selected.imageUrl,
       },
     ]);
 
-    setSelectedProductId(undefined);
-    setSelectedUnitId(undefined);
-    setNewQuantity('1');
+    setProductSearch('');
   };
 
   const handleSave = async () => {
@@ -261,59 +237,33 @@ function EditOrderForm({ order }: { order: Order }) {
       <Card>
         <CardHeader>
           <CardTitle>Agregar productos</CardTitle>
-          <CardDescription>Selecciona producto, unidad y cantidad</CardDescription>
+          <CardDescription>Busca por producto o unidad y agrega con un clic</CardDescription>
         </CardHeader>
         <CardContent className='space-y-3'>
-          <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
-            <div className='space-y-2'>
-              <Label>Producto</Label>
-              <SimpleProductCombobox
-                products={products}
-                selectedProductId={selectedProductId}
-                onProductSelect={handleSelectProduct}
-                placeholder={isLoadingProducts ? 'Cargando productos...' : 'Selecciona un producto'}
-              />
-            </div>
-
-            <div className='space-y-2'>
-              <Label>Unidad</Label>
-              <Select
-                value={selectedUnitId ? selectedUnitId.toString() : ''}
-                onValueChange={(value) => setSelectedUnitId(Number(value))}
-                disabled={!selectedProduct || selectedProductUnits.length === 0}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder='Selecciona unidad' />
-                </SelectTrigger>
-                <SelectContent>
-                  {selectedProductUnits.map((unit) => (
-                    <SelectItem key={unit.id} value={unit.unitMeasurement.id.toString()}>
-                      {unit.unitMeasurement.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className='grid grid-cols-1 md:grid-cols-[220px_1fr] gap-3'>
-            <div className='space-y-2'>
-              <Label>Cantidad</Label>
-              <Input
-                type='text'
-                inputMode='decimal'
-                pattern='^\\d*(?:[\\.,]\\d+)?$'
-                value={newQuantity}
-                onChange={(event) => setNewQuantity(event.target.value.replace(/[^0-9.,]/g, ''))}
-              />
-            </div>
-
-            <div className='flex items-end'>
-              <Button type='button' onClick={handleAddProduct} className='w-full md:w-auto'>
-                <Plus className='h-4 w-4 mr-2' />
-                Agregar producto
-              </Button>
-            </div>
+          <Input
+            type='text'
+            value={productSearch}
+            onChange={(event) => setProductSearch(event.target.value)}
+            placeholder='Buscar producto o unidad'
+          />
+          <div className='max-h-56 overflow-y-auto rounded-md border bg-white'>
+            {productSearch.trim().length === 0 ? (
+              <p className='px-3 py-2 text-xs text-slate-500'>Escribe para buscar productos</p>
+            ) : filteredProductUnitOptions.length === 0 ? (
+              <p className='px-3 py-2 text-xs text-slate-500'>Sin resultados</p>
+            ) : (
+              filteredProductUnitOptions.map((option) => (
+                <button
+                  key={option.key}
+                  type='button'
+                  onClick={() => handleAddProduct(option.key)}
+                  className='flex w-full items-center justify-between border-b px-3 py-2 text-left text-sm hover:bg-slate-50 last:border-b-0'
+                >
+                  <span>{option.productName} - {option.unitName}</span>
+                  <span className='text-xs font-semibold text-blue-700'>Agregar</span>
+                </button>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>
