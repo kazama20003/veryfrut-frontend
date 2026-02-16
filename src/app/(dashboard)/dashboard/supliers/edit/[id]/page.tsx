@@ -57,6 +57,12 @@ function parseDecimalInput(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function normalizeUnitMeasurementId(value: unknown): number | undefined {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
+  return parsed;
+}
+
 export default function EditSupplierPurchasePage() {
   const params = useParams();
   const router = useRouter();
@@ -95,21 +101,28 @@ export default function EditSupplierPurchasePage() {
 
     if (Array.isArray(product.productUnits) && product.productUnits.length > 0) {
       return product.productUnits
-        .map((pu) => ({
-          id: pu.unitMeasurementId,
-          label:
-            pu.unitMeasurement?.name ??
-            unitMeasurementsMap.get(pu.unitMeasurementId)?.name ??
-            `Unidad ${pu.unitMeasurementId}`,
-        }))
+        .map((pu) => {
+          const id = normalizeUnitMeasurementId(
+            pu.unitMeasurementId ?? pu.unitMeasurement?.id
+          );
+          if (!id) return null;
+          return {
+            id,
+            label: pu.unitMeasurement?.name ?? unitMeasurementsMap.get(id)?.name ?? `Unidad ${id}`,
+          };
+        })
+        .filter((opt): opt is UnitOption => Boolean(opt))
         .filter((opt, idx, arr) => arr.findIndex((o) => o.id === opt.id) === idx);
     }
 
     if (Array.isArray(product.unitMeasurementIds) && product.unitMeasurementIds.length > 0) {
-      return product.unitMeasurementIds.map((id) => ({
-        id,
-        label: unitMeasurementsMap.get(id)?.name ?? `Unidad ${id}`,
-      }));
+      return product.unitMeasurementIds
+        .map((rawId) => normalizeUnitMeasurementId(rawId))
+        .filter((id): id is number => Boolean(id))
+        .map((id) => ({
+          id,
+          label: unitMeasurementsMap.get(id)?.name ?? `Unidad ${id}`,
+        }));
     }
 
     return [];
@@ -126,7 +139,7 @@ export default function EditSupplierPurchasePage() {
       id: item.id,
       productId: item.productId,
       description: item.product?.name || item.description || 'Producto',
-      unitMeasurementId: item.unitMeasurementId,
+      unitMeasurementId: normalizeUnitMeasurementId(item.unitMeasurementId),
       quantity: Number(item.quantity) || 0,
       unitCost: Number(item.unitCost) || 0,
     }));
@@ -219,7 +232,7 @@ export default function EditSupplierPurchasePage() {
     const existingUnitIds = new Set<number | null>(
       items
         .filter((item) => item.productId === productId)
-        .map((item) => item.unitMeasurementId ?? null)
+        .map((item) => normalizeUnitMeasurementId(item.unitMeasurementId) ?? null)
     );
 
     const defaultUnitMeasurementId =
@@ -248,7 +261,13 @@ export default function EditSupplierPurchasePage() {
     toast.success('Producto agregado');
   };
 
-  const handleUnitMeasurementChange = (itemKey: string, newUnitMeasurementId: number) => {
+  const handleUnitMeasurementChange = (itemKey: string, newUnitMeasurementIdRaw: number) => {
+    const newUnitMeasurementId = normalizeUnitMeasurementId(newUnitMeasurementIdRaw);
+    if (!newUnitMeasurementId) {
+      toast.error('Selecciona una unidad de medida valida');
+      return;
+    }
+
     const currentItem = items.find((entry) => entry.key === itemKey);
     if (!currentItem) return;
 
@@ -284,13 +303,34 @@ export default function EditSupplierPurchasePage() {
   const handleSave = async () => {
     if (!purchase) return;
 
-    const normalizedItems = items.map((item) => {
-      if (item.unitMeasurementId !== undefined && item.unitMeasurementId !== null) return item;
-      const unitOptions = getUnitOptions(item.productId);
-      if (unitOptions.length === 1) {
-        return { ...item, unitMeasurementId: unitOptions[0].id };
+    const baseNormalizedItems = items.map((item) => ({
+      ...item,
+      unitMeasurementId: normalizeUnitMeasurementId(item.unitMeasurementId),
+    }));
+
+    const usedUnitsByProduct = new Map<number, Set<number>>();
+    for (const item of baseNormalizedItems) {
+      if (!item.productId || !item.unitMeasurementId) continue;
+      if (!usedUnitsByProduct.has(item.productId)) {
+        usedUnitsByProduct.set(item.productId, new Set<number>());
       }
-      return item;
+      usedUnitsByProduct.get(item.productId)?.add(item.unitMeasurementId);
+    }
+
+    const normalizedItems = baseNormalizedItems.map((item) => {
+      if (item.unitMeasurementId !== undefined && item.unitMeasurementId !== null) return item;
+
+      const unitOptions = getUnitOptions(item.productId);
+      if (unitOptions.length === 0 || !item.productId) return item;
+
+      const usedForProduct = usedUnitsByProduct.get(item.productId) ?? new Set<number>();
+      const nextUnitId = unitOptions.find((opt) => !usedForProduct.has(opt.id))?.id ?? unitOptions[0]?.id;
+      if (!nextUnitId) return item;
+
+      usedForProduct.add(nextUnitId);
+      usedUnitsByProduct.set(item.productId, usedForProduct);
+
+      return { ...item, unitMeasurementId: nextUnitId };
     });
 
     if (normalizedItems.length === 0) {
@@ -524,7 +564,7 @@ export default function EditSupplierPurchasePage() {
                                 value={
                                   item.unitMeasurementId !== undefined && item.unitMeasurementId !== null
                                     ? String(item.unitMeasurementId)
-                                    : ''
+                                    : undefined
                                 }
                                 onValueChange={(value) => handleUnitMeasurementChange(item.key, Number(value))}
                                 disabled={unitOptions.length <= 1}
