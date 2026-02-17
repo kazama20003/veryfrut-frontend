@@ -24,7 +24,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Users, ShoppingCart, Package, TrendingUp, Loader2, AlertCircle, FileText, Pencil, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Users, ShoppingCart, Package, TrendingUp, Loader2, AlertCircle, FileText, Pencil, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSuppliersQuery, useUnitMeasurementsQuery } from '@/lib/api';
 import {
@@ -56,8 +57,7 @@ export default function SuppliersPage() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedProductReportSupplierId, setSelectedProductReportSupplierId] = useState('');
-  const [showScrollTop, setShowScrollTop] = useState(false);
-  const [showScrollDown, setShowScrollDown] = useState(false);
+  const [openSupplierId, setOpenSupplierId] = useState<number | null>(null);
 
   const [editOpen, setEditOpen] = useState(false);
   const [editingPurchase, setEditingPurchase] = useState<{
@@ -74,28 +74,6 @@ export default function SuppliersPage() {
   useEffect(() => {
     void refetch();
   }, [refetch]);
-
-  useEffect(() => {
-    const handleWindowScroll = () => {
-      setShowScrollTop(window.scrollY > 80);
-      const scrollBottom = window.scrollY + window.innerHeight;
-      const pageHeight = document.documentElement.scrollHeight;
-      setShowScrollDown(scrollBottom < pageHeight - 120);
-    };
-    window.addEventListener('scroll', handleWindowScroll, { passive: true });
-    handleWindowScroll();
-    return () => window.removeEventListener('scroll', handleWindowScroll);
-  }, []);
-
-  const getScrollStep = () => Math.max(220, Math.round(window.innerHeight * 0.35));
-
-  const handleScrollDownStep = () => {
-    window.scrollBy({ top: getScrollStep(), behavior: 'smooth' });
-  };
-
-  const handleScrollUpStep = () => {
-    window.scrollBy({ top: -getScrollStep(), behavior: 'smooth' });
-  };
 
   const parseDateFromInput = (value: string, boundary: 'start' | 'end'): Date | undefined => {
     if (!value) return undefined;
@@ -864,8 +842,14 @@ export default function SuppliersPage() {
           <div className="space-y-6">
             {filteredSuppliers.map((supplier) => (
               <Card key={supplier.id} className="shadow-lg hover:shadow-xl transition-shadow overflow-hidden">
+                <Collapsible
+                  open={openSupplierId === supplier.id}
+                  onOpenChange={(isOpen) =>
+                    setOpenSupplierId((current) => (isOpen ? supplier.id : current === supplier.id ? null : current))
+                  }
+                >
                 <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100 border-b pb-4">
-                  <div className="flex items-start justify-between">
+                  <div className="flex items-start justify-between gap-3">
                     <div>
                       <CardTitle className="text-2xl text-slate-900">{supplier.name}</CardTitle>
                       <CardDescription className="mt-2">
@@ -876,11 +860,24 @@ export default function SuppliersPage() {
                         {supplier.address && <p className="text-slate-600">Dirección: {supplier.address}</p>}
                       </CardDescription>
                     </div>
-                    <div className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold">
-                      {supplier.purchases?.length || 0} compras
+                    <div className="flex flex-col items-end gap-2">
+                      <div className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold">
+                        {supplier.purchases?.length || 0} compras
+                      </div>
+                      <CollapsibleTrigger asChild>
+                        <Button type="button" size="sm" variant="outline" className="gap-1">
+                          {openSupplierId === supplier.id ? 'Ocultar compras' : 'Ver compras'}
+                          {openSupplierId === supplier.id ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </CollapsibleTrigger>
                     </div>
                   </div>
                 </CardHeader>
+                <CollapsibleContent>
                 <CardContent className="pt-6">
                   {supplier.purchases && supplier.purchases.length > 0 ? (
                     <div className="space-y-4">
@@ -1001,6 +998,8 @@ export default function SuppliersPage() {
                     <p className="text-slate-600">No hay compras registradas</p>
                   )}
                 </CardContent>
+                </CollapsibleContent>
+                </Collapsible>
               </Card>
             ))}
             {filteredSuppliers.length === 0 && (
@@ -1045,30 +1044,6 @@ export default function SuppliersPage() {
             </div>
           </CardContent>
         </Card>
-      </div>
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2">
-        <Button
-          type="button"
-          size="icon"
-          className="h-11 w-11 rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none"
-          onClick={handleScrollDownStep}
-          aria-label="Bajar"
-          title="Bajar"
-          disabled={!showScrollDown}
-        >
-          <ArrowDown className="h-5 w-5" />
-        </Button>
-        <Button
-          type="button"
-          size="icon"
-          className="h-11 w-11 rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none"
-          onClick={handleScrollUpStep}
-          aria-label="Volver arriba"
-          title="Volver arriba"
-          disabled={!showScrollTop}
-        >
-          <ArrowUp className="h-5 w-5" />
-        </Button>
       </div>
     </div>
   );
