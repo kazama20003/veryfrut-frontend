@@ -32,6 +32,8 @@ const peruDateTimeFormatter = new Intl.DateTimeFormat("es-PE", {
   second: "2-digit",
   hour12: false,
 })
+const ALLOWED_REMOTE_IMAGE_HOSTS = new Set(["res.cloudinary.com"])
+const IMAGE_PLACEHOLDER = "/placeholder.svg"
 
 function getPeruDateKey(dateValue?: string) {
   if (!dateValue) return null
@@ -65,11 +67,32 @@ function formatDate(dateValue?: string) {
   return peruDateTimeFormatter.format(parsed)
 }
 
-function isToday(dateValue?: string) {
+function isToday(dateValue: string | undefined, todayKey: string | null) {
+  if (!todayKey) return false
   const orderDateKey = getPeruDateKey(dateValue)
   if (!orderDateKey) return false
-  const todayKey = peruDateKeyFormatter.format(new Date())
   return orderDateKey === todayKey
+}
+
+function getSafeImageSrc(value?: string | null) {
+  const src = value?.trim()
+  if (!src) return IMAGE_PLACEHOLDER
+
+  if (src.startsWith("/") && !src.startsWith("//")) {
+    return src
+  }
+  if (!src.includes("://") && !src.startsWith("data:")) {
+    return `/${src.replace(/^\.?\/+/, "")}`
+  }
+
+  try {
+    const parsed = new URL(src)
+    if (!["http:", "https:"].includes(parsed.protocol)) return IMAGE_PLACEHOLDER
+    if (!ALLOWED_REMOTE_IMAGE_HOSTS.has(parsed.hostname)) return IMAGE_PLACEHOLDER
+    return src
+  } catch {
+    return IMAGE_PLACEHOLDER
+  }
 }
 
 function formatQuantity(value: number) {
@@ -101,6 +124,10 @@ function UsersHistoryPageContent() {
   const deleteOrderMutation = useDeleteOrderMutation()
   const userId = currentUser?.id ?? null
   const showLoadingUser = !isHydrated || isUserLoading
+  const todayPeruDateKey = useMemo(
+    () => (isHydrated ? peruDateKeyFormatter.format(new Date()) : null),
+    [isHydrated]
+  )
 
   const {
     data: ordersResponse,
@@ -384,11 +411,7 @@ function UsersHistoryPageContent() {
                         <div className="flex min-w-0 items-center gap-3">
                           <div className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded-md bg-white">
                             <Image
-                              src={
-                                item.product?.imageUrl ||
-                                productImageById.get(item.productId) ||
-                                "/placeholder.svg"
-                              }
+                              src={getSafeImageSrc(item.product?.imageUrl || productImageById.get(item.productId))}
                               alt={item.product?.name || `Producto ${item.productId}`}
                               fill
                               className="object-cover"
@@ -433,7 +456,7 @@ function UsersHistoryPageContent() {
                         <Trash2 className="h-4 w-4 text-red-600" />
                       )}
                     </Button>
-                  {isToday(order.createdAt) && (
+                  {isToday(order.createdAt, todayPeruDateKey) && (
                       <Button asChild size="sm" className="bg-blue-600 hover:bg-blue-700 text-white border-0">
                         <Link href={`/users/history/${order.id}`} className="flex items-center gap-2">
                           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

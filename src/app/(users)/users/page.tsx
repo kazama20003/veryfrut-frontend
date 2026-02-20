@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback, useMemo } from "react"
+import { useEffect, useState, useCallback, useMemo, useSyncExternalStore } from "react"
 import { ShoppingCart, Search, X, SlidersHorizontal } from "lucide-react"
 import axiosInstance from "@/lib/api/client"
 import { ProductCardDashboard } from "@/components/users/product-card-dashboard"
@@ -51,6 +51,30 @@ interface Category {
 
 type SortOption = "name" | "price" | "newest" | "rating"
 
+const ALLOWED_REMOTE_IMAGE_HOSTS = new Set(["res.cloudinary.com"])
+const IMAGE_PLACEHOLDER = "/placeholder.svg"
+
+function getSafeImageSrc(value?: string | null) {
+  const src = value?.trim()
+  if (!src) return IMAGE_PLACEHOLDER
+
+  if (src.startsWith("/") && !src.startsWith("//")) {
+    return src
+  }
+  if (!src.includes("://") && !src.startsWith("data:")) {
+    return `/${src.replace(/^\.?\/+/, "")}`
+  }
+
+  try {
+    const parsed = new URL(src)
+    if (!["http:", "https:"].includes(parsed.protocol)) return IMAGE_PLACEHOLDER
+    if (!ALLOWED_REMOTE_IMAGE_HOSTS.has(parsed.hostname)) return IMAGE_PLACEHOLDER
+    return src
+  } catch {
+    return IMAGE_PLACEHOLDER
+  }
+}
+
 // Skeleton del producto
 const ProductSkeleton = () => (
   <div className="flex flex-col animate-pulse bg-white rounded-lg border border-gray-200 overflow-hidden h-full">
@@ -69,16 +93,21 @@ const ProductSkeleton = () => (
 
 // Hook para detección de móvil
 const useIsMobile = () => {
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  )
   const [isMobile, setIsMobile] = useState(false)
-  const [mounted] = useState(true)
 
   useEffect(() => {
+    if (!mounted) return
     const checkIfMobile = () => setIsMobile(window.innerWidth < 768)
     checkIfMobile()
     const handleResize = () => checkIfMobile()
     window.addEventListener("resize", handleResize)
     return () => window.removeEventListener("resize", handleResize)
-  }, [])
+  }, [mounted])
 
   return { isMobile: mounted ? isMobile : false, mounted }
 }
@@ -235,9 +264,17 @@ export default function UsersPage() {
         axiosInstance.get("/products"),
         axiosInstance.get("/categories"),
       ])
-      setProducts(productsRes.data)
-      setFilteredProducts(productsRes.data)
-      setCategories(categoriesRes.data)
+
+      const fetchedProducts: Product[] = Array.isArray(productsRes.data) ? productsRes.data : []
+      const normalizedProducts = fetchedProducts.map((product) => ({
+        ...product,
+        imageUrl: getSafeImageSrc(product.imageUrl),
+      }))
+      const fetchedCategories: Category[] = Array.isArray(categoriesRes.data) ? categoriesRes.data : []
+
+      setProducts(normalizedProducts)
+      setFilteredProducts(normalizedProducts)
+      setCategories(fetchedCategories)
     } catch (error) {
       console.error("[v0] Error cargando productos:", error)
       toast.error("Error al cargar productos")

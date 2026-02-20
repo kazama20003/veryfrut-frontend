@@ -19,33 +19,82 @@ import { Separator } from "@/components/ui/separator"
 import type { OrderItem } from "@/types/order"
 import { toast } from "sonner"
 
-function formatDate(dateValue?: string) {
-  if (!dateValue) return "Sin fecha"
+const PERU_TIME_ZONE = "America/Lima"
+const peruDateKeyFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: PERU_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+})
+const peruDateTimeFormatter = new Intl.DateTimeFormat("es-PE", {
+  timeZone: PERU_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+})
+const ALLOWED_REMOTE_IMAGE_HOSTS = new Set(["res.cloudinary.com"])
+const IMAGE_PLACEHOLDER = "/placeholder.svg"
+
+function getPeruDateKey(dateValue?: string) {
+  if (!dateValue) return null
+
+  const peruLocalMatch = dateValue.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T].*)?$/)
+  if (peruLocalMatch) {
+    const [, year, month, day] = peruLocalMatch
+    return `${year}-${month}-${day}`
+  }
+
   const parsed = new Date(dateValue)
-  if (Number.isNaN(parsed.getTime())) return "Sin fecha"
-  return parsed.toLocaleDateString("es-ES", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  })
+  if (Number.isNaN(parsed.getTime())) return null
+  return peruDateKeyFormatter.format(parsed)
 }
 
-// Memoize today's date to avoid hydration issues
-const getTodayString = (() => {
-  let cached: string | null = null
-  return () => {
-    if (!cached) {
-      cached = new Date().toDateString()
-    }
-    return cached
-  }
-})()
+function formatDate(dateValue?: string) {
+  if (!dateValue) return "Sin fecha"
 
-function isToday(dateValue?: string) {
-  if (!dateValue) return false
-  const orderDate = new Date(dateValue)
-  if (Number.isNaN(orderDate.getTime())) return false
-  return orderDate.toDateString() === getTodayString()
+  const peruLocalMatch = dateValue.match(
+    /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/
+  )
+  if (peruLocalMatch) {
+    const [, year, month, day, hour = "00", minute = "00", second = "00"] = peruLocalMatch
+    return `${day}/${month}/${year} ${hour}:${minute}:${second}`
+  }
+
+  const parsed = new Date(dateValue)
+  if (Number.isNaN(parsed.getTime())) return "Sin fecha"
+  return peruDateTimeFormatter.format(parsed)
+}
+
+function isToday(dateValue: string | undefined, todayKey: string | null) {
+  if (!todayKey) return false
+  const orderDateKey = getPeruDateKey(dateValue)
+  if (!orderDateKey) return false
+  return orderDateKey === todayKey
+}
+
+function getSafeImageSrc(value?: string | null) {
+  const src = value?.trim()
+  if (!src) return IMAGE_PLACEHOLDER
+
+  if (src.startsWith("/") && !src.startsWith("//")) {
+    return src
+  }
+  if (!src.includes("://") && !src.startsWith("data:")) {
+    return `/${src.replace(/^\.?\/+/, "")}`
+  }
+
+  try {
+    const parsed = new URL(src)
+    if (!["http:", "https:"].includes(parsed.protocol)) return IMAGE_PLACEHOLDER
+    if (!ALLOWED_REMOTE_IMAGE_HOSTS.has(parsed.hostname)) return IMAGE_PLACEHOLDER
+    return src
+  } catch {
+    return IMAGE_PLACEHOLDER
+  }
 }
 
 function formatQuantity(value: number) {
@@ -88,6 +137,10 @@ export default function OrderHistoryDetailPage() {
     () => true,
     () => false
   )
+  const todayPeruDateKey = useMemo(
+    () => (isHydrated ? peruDateKeyFormatter.format(new Date()) : null),
+    [isHydrated]
+  )
   const orderId = useMemo(() => {
     const raw = params?.id
     const value = Array.isArray(raw) ? raw[0] : raw
@@ -119,8 +172,8 @@ export default function OrderHistoryDetailPage() {
   }, [productsResponse?.items])
 
   const canEdit = useMemo(() => {
-    return isHydrated && isToday(order?.createdAt)
-  }, [isHydrated, order?.createdAt])
+    return isToday(order?.createdAt, todayPeruDateKey)
+  }, [order?.createdAt, todayPeruDateKey])
 
   const productUnitOptions = useMemo(() => {
     const items = productsResponse?.items ?? []
@@ -504,11 +557,7 @@ export default function OrderHistoryDetailPage() {
                       <div className="flex min-w-0 items-center gap-3">
                         <div className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded-md bg-white">
                           <Image
-                            src={
-                              item.product?.imageUrl ||
-                              productImageById.get(item.productId) ||
-                              "/placeholder.svg"
-                            }
+                            src={getSafeImageSrc(item.product?.imageUrl || productImageById.get(item.productId))}
                             alt={item.product?.name || `Producto ${item.productId}`}
                             fill
                             className="object-cover"
@@ -601,7 +650,7 @@ export default function OrderHistoryDetailPage() {
                         <div className="flex min-w-0 items-center gap-3">
                           <div className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded-md bg-white">
                             <Image
-                              src={item.imageUrl || "/placeholder.svg"}
+                              src={getSafeImageSrc(item.imageUrl)}
                               alt={item.productName}
                               fill
                               className="object-cover"

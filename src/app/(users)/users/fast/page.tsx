@@ -524,7 +524,7 @@ const FastOrdersPage = () => {
 
   if (!isMounted) {
     return (
-      <div className="min-h-screen bg-gray-50" suppressHydrationWarning />
+      <div className="min-h-screen bg-gray-50" />
     )
   }
 
