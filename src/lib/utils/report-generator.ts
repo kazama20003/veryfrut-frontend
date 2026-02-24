@@ -218,8 +218,8 @@ export async function generateReportByProductUnit(options: ReportOptions) {
     orientation: 'portrait',
   };
 
-// Agrupar por producto y fecha
-  const productData = new Map<string, Map<string, { quantity: number; price: number; total: number }>>();
+  // Agrupar por fecha y luego por producto para mantener juntos los productos del mismo dia.
+  const dateData = new Map<string, Map<string, { quantity: number; total: number }>>();
 
   suppliers.forEach((supplier) => {
     supplier.purchases?.forEach((purchase: Purchase) => {
@@ -233,18 +233,17 @@ export async function generateReportByProductUnit(options: ReportOptions) {
         const unitName = getUnitName(item, unitMeasurementsMap);
         const productKey = `${productName} (${unitName === '-' ? 'Sin unidad' : unitName})`;
 
-        if (!productData.has(productKey)) {
-          productData.set(productKey, new Map());
+        if (!dateData.has(purchaseDateKey)) {
+          dateData.set(purchaseDateKey, new Map());
         }
 
-        const dateKey = purchaseDateKey;
-        const dateMap = productData.get(productKey)!;
+        const productMap = dateData.get(purchaseDateKey)!;
 
-        if (!dateMap.has(dateKey)) {
-          dateMap.set(dateKey, { quantity: 0, price: item.unitCost, total: 0 });
+        if (!productMap.has(productKey)) {
+          productMap.set(productKey, { quantity: 0, total: 0 });
         }
 
-        const data = dateMap.get(dateKey)!;
+        const data = productMap.get(productKey)!;
         data.quantity += item.quantity;
         data.total += item.quantity * item.unitCost;
       });
@@ -270,49 +269,54 @@ export async function generateReportByProductUnit(options: ReportOptions) {
   rowNum += 1;
 
   let grandTotal = 0;
-  let weekTotal = 0;
-  let currentWeek = '';
+  const sortedDateKeys = Array.from(dateData.keys()).sort((a, b) => a.localeCompare(b));
 
-  Array.from(productData.entries()).forEach(([productKey, dateMap]) => {
-    const sortedDates = Array.from(dateMap.keys()).sort((a, b) => a.localeCompare(b));
+  sortedDateKeys.forEach((dateKey) => {
+    const productMap = dateData.get(dateKey);
+    if (!productMap) return;
 
-    sortedDates.forEach((dateKey) => {
-      const data = dateMap.get(dateKey)!;
+    const sortedProducts = Array.from(productMap.entries()).sort(([a], [b]) => a.localeCompare(b));
+    let dayTotal = 0;
+    let previousProductKey = '';
+    let shadedProductCell = false;
 
-      // Detectar cambio de semana
-      const date = new Date(`${dateKey}T00:00:00`);
-      const weekNumber = Math.ceil(date.getDate() / 7);
-      const newWeek = `${date.getFullYear()}-W${weekNumber}`;
-
-      if (currentWeek && currentWeek !== newWeek && weekTotal > 0) {
-        const weekRow = worksheet.getRow(rowNum);
-        weekRow.values = ['', 'TOTAL SEMANA', '', '', weekTotal.toFixed(2)];
-        weekRow.font = { bold: true };
-        weekRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE699' } };
-        rowNum += 1;
-        weekTotal = 0;
-      }
-
-      currentWeek = newWeek;
+    sortedProducts.forEach(([productKey, data]) => {
+      const unitPrice = data.quantity > 0 ? data.total / data.quantity : 0;
 
       const row = worksheet.getRow(rowNum);
-      row.values = [toDisplayDate(dateKey), productKey, data.quantity, data.price.toFixed(2), data.total.toFixed(2)];
-      row.alignment = { horizontal: 'right' };
-      rowNum += 1;
+      row.values = [toDisplayDate(dateKey), productKey, data.quantity, unitPrice.toFixed(2), data.total.toFixed(2)];
+      row.getCell(1).alignment = { horizontal: 'center' };
+      row.getCell(2).alignment = { horizontal: 'left' };
+      row.getCell(3).alignment = { horizontal: 'right' };
+      row.getCell(4).alignment = { horizontal: 'right' };
+      row.getCell(5).alignment = { horizontal: 'right' };
 
+      if (productKey !== previousProductKey) {
+        shadedProductCell = !shadedProductCell;
+        previousProductKey = productKey;
+      }
+
+      if (shadedProductCell) {
+        row.getCell(2).fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFF2F2F2' },
+        };
+      }
+
+      dayTotal += data.total;
       grandTotal += data.total;
-      weekTotal += data.total;
+      rowNum += 1;
     });
-  });
 
-  // Total de Ãºltima semana
-  if (weekTotal > 0) {
-    const weekRow = worksheet.getRow(rowNum);
-    weekRow.values = ['', 'TOTAL SEMANA', '', '', weekTotal.toFixed(2)];
-    weekRow.font = { bold: true };
-    weekRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE699' } };
+    const daySubtotalRow = worksheet.getRow(rowNum);
+    daySubtotalRow.values = ['', `SUBTOTAL ${toDisplayDate(dateKey)}`, '', '', dayTotal.toFixed(2)];
+    daySubtotalRow.font = { bold: true };
+    daySubtotalRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF2CC' } };
+    daySubtotalRow.getCell(2).alignment = { horizontal: 'left' };
+    daySubtotalRow.getCell(5).alignment = { horizontal: 'right' };
     rowNum += 1;
-  }
+  });
 
   rowNum += 1;
 
@@ -348,3 +352,4 @@ function downloadExcel(buffer: BlobPart, filename: string) {
   link.click();
   URL.revokeObjectURL(url);
 }
+
