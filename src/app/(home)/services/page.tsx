@@ -105,7 +105,7 @@ export default function ServicesPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {[
-            { step: '1', title: 'Selección', desc: 'Seleccionamos cuidadosamente los mejores productos del mercado cumpliendo las especificaciones del cliente.' },
+            { step: '1', title: 'Selección', desc: 'Seleccionamos cuidadosamente los mejores productos del mercado cumpliendo las especificaciones de cada cliente.' },
             { step: '2', title: 'Control de Calidad', desc: 'Verificamos la calidad y frescura de cada producto antes de su distribución.' },
             { step: '3', title: 'Empaque', desc: 'Empacamos los productos con materiales sostenibles que mantienen su frescura.' },
             { step: '4', title: 'Distribución', desc: 'Entregamos los productos a tiempo y en perfectas condiciones a nuestros clientes.' },

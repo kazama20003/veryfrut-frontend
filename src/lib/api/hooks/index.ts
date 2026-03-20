@@ -12,3 +12,4 @@ export * from './useProduct';
 export * from './useOrder';
 export * from './useSuppliers';
 export * from './useAuth';
+export * from './useUpload';

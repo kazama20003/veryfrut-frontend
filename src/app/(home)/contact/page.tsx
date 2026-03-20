@@ -218,7 +218,7 @@ export default function ContactPage() {
             { q: '¿Cómo puedo realizar un pedido?', a: 'Puedes contactarnos por teléfono, correo electrónico o a través del formulario de contacto en nuestra web.' },
             { q: '¿Cuál es el pedido mínimo?', a: 'El pedido mínimo varía según el tipo de cliente y productos. Contáctanos para detalles específicos.' },
             { q: '¿Ofrecen envío gratuito?', a: 'Ofrecemos opciones de envío según el volumen del pedido. Consulta nuestras políticas de envío.' },
-            { q: '¿Todos sus productos son de agricultura sostenible?', a: 'Sí, todos nuestros productos cuentan con certificaciones de agricultores especializados.' },
+            { q: '¿Cual es el tiempo de entrega?', a: 'Nuestro tiempor de entrega estandar es de 24 a 48 horas despues del pedido.' },
             { q: '¿Atienden a restaurantes y hoteles?', a: 'Sí, contamos con un programa especial para establecimientos comerciales con entregas programadas.' },
           ].map((faq, i) => (
             <div key={i} className="bg-gradient-to-br from-white to-gray-50 rounded-[24px] p-8 border border-black/5 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">

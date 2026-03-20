@@ -22,6 +22,7 @@ import {
   useUpdateProductMutation, 
   useDeleteProductMutation 
 } from '@/lib/api/hooks/useProduct';
+import { useDeleteUploadMutation, useUploadImageMutation } from '@/lib/api/hooks/useUpload';
 import { useCategoriesQuery } from '@/lib/api/hooks/useCategory';
 import { useUnitMeasurementsQuery } from '@/lib/api/hooks/useUnitMeasurement';
 import { Product } from '@/types/product';
@@ -48,6 +49,33 @@ const initialFormData: FormData = {
   unitMeasurementIds: [],
 };
 
+function extractPublicIdFromImageUrl(imageUrl?: string | null) {
+  if (!imageUrl) return null;
+
+  try {
+    const url = new URL(imageUrl);
+    const uploadIndex = url.pathname.indexOf('/upload/');
+
+    if (uploadIndex === -1) return null;
+
+    const assetPath = url.pathname.slice(uploadIndex + '/upload/'.length);
+    const normalizedPath = assetPath.replace(/^v\d+\//, '');
+    const withoutExtension = normalizedPath.replace(/\.[^/.]+$/, '');
+
+    return withoutExtension || null;
+  } catch {
+    return null;
+  }
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
 export default function ProductsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -55,6 +83,9 @@ export default function ProductsPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState<FormData>(initialFormData);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [originalImagePublicId, setOriginalImagePublicId] = useState<string | null>(null);
+  const [uploadedImagePublicId, setUploadedImagePublicId] = useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   const limit = 10;
   const { data: paginatedData, isLoading, isError, error } = useProductsQuery({ 
@@ -68,11 +99,105 @@ export default function ProductsPage() {
   const createMutation = useCreateProductMutation();
   const updateMutation = useUpdateProductMutation(editingId || 0);
   const deleteMutation = useDeleteProductMutation(deleteId || 0);
+  const uploadImageMutation = useUploadImageMutation();
+  const deleteUploadMutation = useDeleteUploadMutation();
 
   // Extraer los items del objeto paginado
   const products = React.useMemo(() => paginatedData?.items || [], [paginatedData]);
   const totalPages = paginatedData?.totalPages || 1;
   const filteredProducts = React.useMemo(() => Array.isArray(products) ? products : [], [products]);
+  const isFormSubmitting = createMutation.isPending || updateMutation.isPending;
+  const isImageMutating = uploadImageMutation.isPending || deleteUploadMutation.isPending;
+  const isFormBusy = isFormSubmitting || isImageMutating;
+
+  const resetFormState = React.useCallback(() => {
+    setFormData(initialFormData);
+    setEditingId(null);
+    setOriginalImagePublicId(null);
+    setUploadedImagePublicId(null);
+    setShowForm(false);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }, []);
+
+  const cleanupPendingUpload = React.useCallback(
+    async (publicId: string | null) => {
+      if (!publicId) return;
+
+      try {
+        await deleteUploadMutation.mutateAsync(publicId);
+      } catch (error) {
+        console.error('Error al limpiar imagen temporal:', error);
+      }
+    },
+    [deleteUploadMutation]
+  );
+
+  const handleDialogChange = React.useCallback(
+    async (open: boolean) => {
+      if (!open && uploadedImagePublicId) {
+        await cleanupPendingUpload(uploadedImagePublicId);
+      }
+
+      if (!open) {
+        resetFormState();
+        return;
+      }
+
+      setShowForm(true);
+    },
+    [cleanupPendingUpload, resetFormState, uploadedImagePublicId]
+  );
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    try {
+      const uploadResult = await uploadImageMutation.mutateAsync(file);
+
+      if (uploadedImagePublicId && uploadedImagePublicId !== uploadResult.publicId) {
+        await cleanupPendingUpload(uploadedImagePublicId);
+      }
+
+      setFormData((prev) => ({
+        ...prev,
+        imageUrl: uploadResult.url,
+      }));
+      setUploadedImagePublicId(uploadResult.publicId);
+    } catch (error) {
+      console.error('Error al subir imagen:', error);
+      alert(getErrorMessage(error, 'Error al subir la imagen'));
+    } finally {
+      event.target.value = '';
+    }
+  };
+
+  const handleRemoveImage = async () => {
+    try {
+      if (uploadedImagePublicId) {
+        await deleteUploadMutation.mutateAsync(uploadedImagePublicId);
+      }
+
+      setFormData((prev) => ({
+        ...prev,
+        imageUrl: '',
+      }));
+      setUploadedImagePublicId(null);
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    } catch (error) {
+      console.error('Error al eliminar imagen:', error);
+      alert(getErrorMessage(error, 'Error al eliminar la imagen'));
+    }
+  };
 
   // Logs de depuración
   React.useEffect(() => {
@@ -115,16 +240,26 @@ export default function ProductsPage() {
         });
       }
 
-      setFormData(initialFormData);
-      setEditingId(null);
-      setShowForm(false);
+      const nextImagePublicId = uploadedImagePublicId || extractPublicIdFromImageUrl(formData.imageUrl);
+
+      if (editingId && originalImagePublicId && originalImagePublicId !== nextImagePublicId) {
+        try {
+          await deleteUploadMutation.mutateAsync(originalImagePublicId);
+        } catch (error) {
+          console.error('Error al eliminar imagen anterior del producto:', error);
+        }
+      }
+
+      resetFormState();
     } catch (error) {
       console.error('Error:', error);
-      alert('Error al guardar el producto');
+      alert(getErrorMessage(error, 'Error al guardar el producto'));
     }
   };
 
   const handleEdit = (product: Product) => {
+    const existingImagePublicId = extractPublicIdFromImageUrl(product.imageUrl);
+
     setFormData({
       name: product.name,
       description: product.description || '',
@@ -134,6 +269,8 @@ export default function ProductsPage() {
       categoryId: product.categoryId,
       unitMeasurementIds: product.unitMeasurementIds || [],
     });
+    setOriginalImagePublicId(existingImagePublicId);
+    setUploadedImagePublicId(null);
     setEditingId(product.id);
     setShowForm(true);
   };
@@ -169,9 +306,16 @@ export default function ProductsPage() {
             <h1 className="text-base font-semibold">Productos</h1>
           </div>
           <Button onClick={() => {
+            if (showForm) {
+              void handleDialogChange(false);
+              return;
+            }
+
             setEditingId(null);
             setFormData(initialFormData);
-            setShowForm(!showForm);
+            setOriginalImagePublicId(null);
+            setUploadedImagePublicId(null);
+            setShowForm(true);
           }} className="gap-2">
             <Plus className="w-4 h-4" />
             Nuevo Producto
@@ -181,7 +325,7 @@ export default function ProductsPage() {
 
       <div className="flex flex-1 flex-col gap-8 p-8 bg-background">
         {/* Form Dialog */}
-        <Dialog open={showForm} onOpenChange={setShowForm}>
+        <Dialog open={showForm} onOpenChange={(open) => void handleDialogChange(open)}>
           <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
@@ -202,7 +346,7 @@ export default function ProductsPage() {
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     required
-                    disabled={createMutation.isPending || updateMutation.isPending}
+                    disabled={isFormBusy}
                   />
                 </div>
 
@@ -212,7 +356,7 @@ export default function ProductsPage() {
                     value={formData.categoryId}
                     onChange={(e) => setFormData({ ...formData, categoryId: Number(e.target.value) })}
                     required
-                    disabled={createMutation.isPending || updateMutation.isPending}
+                    disabled={isFormBusy}
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <option value="">Selecciona una categoría</option>
@@ -229,7 +373,7 @@ export default function ProductsPage() {
                   placeholder="Ej: Manzanas frescas de temporada"
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  disabled={createMutation.isPending || updateMutation.isPending}
+                  disabled={isFormBusy}
                 />
               </div>
 
@@ -244,7 +388,7 @@ export default function ProductsPage() {
                     value={formData.price}
                     onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
                     required
-                    disabled={createMutation.isPending || updateMutation.isPending}
+                    disabled={isFormBusy}
                   />
                 </div>
 
@@ -257,27 +401,58 @@ export default function ProductsPage() {
                     value={formData.stock}
                     onChange={(e) => setFormData({ ...formData, stock: Number(e.target.value) })}
                     required
-                    disabled={createMutation.isPending || updateMutation.isPending}
+                    disabled={isFormBusy}
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">URL de Imagen</label>
+                <label className="text-sm font-medium">Imagen del Producto</label>
                 <Input
-                  placeholder="https://ejemplo.com/imagen.jpg"
-                  value={formData.imageUrl}
-                  onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                  disabled={createMutation.isPending || updateMutation.isPending}
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => void handleImageUpload(e)}
+                  disabled={isFormBusy}
                 />
                 {formData.imageUrl && (
-                  <Image 
-                    src={formData.imageUrl} 
-                    alt="Preview" 
-                    width={128}
-                    height={128}
-                    className="w-32 h-32 object-cover rounded-lg border border-border"
-                  />
+                  <Input value={formData.imageUrl} readOnly disabled />
+                )}
+                {isImageMutating && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    {uploadImageMutation.isPending ? 'Subiendo imagen...' : 'Eliminando imagen...'}
+                  </div>
+                )}
+                {formData.imageUrl && (
+                  <div className="flex items-start gap-4">
+                    <Image 
+                      src={formData.imageUrl} 
+                      alt="Preview" 
+                      width={128}
+                      height={128}
+                      className="w-32 h-32 object-cover rounded-lg border border-border"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => void handleRemoveImage()}
+                      disabled={isFormBusy}
+                      className="gap-2"
+                    >
+                      {deleteUploadMutation.isPending ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Eliminando...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="w-4 h-4" />
+                          Quitar imagen
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 )}
               </div>
 
@@ -290,7 +465,7 @@ export default function ProductsPage() {
                         type="checkbox"
                         checked={formData.unitMeasurementIds.includes(unit.id)}
                         onChange={() => toggleUnitMeasurement(unit.id)}
-                        disabled={createMutation.isPending || updateMutation.isPending}
+                        disabled={isFormBusy}
                         className="rounded border-gray-300"
                       />
                       <span className="text-sm">{unit.name}</span>
@@ -303,21 +478,19 @@ export default function ProductsPage() {
                 <Button 
                   variant="outline" 
                   onClick={() => {
-                    setShowForm(false);
-                    setEditingId(null);
-                    setFormData(initialFormData);
+                    void handleDialogChange(false);
                   }}
                   type="button"
-                  disabled={createMutation.isPending || updateMutation.isPending}
+                  disabled={isFormBusy}
                 >
                   Cancelar
                 </Button>
                 <Button 
                   type="submit"
-                  disabled={createMutation.isPending || updateMutation.isPending}
+                  disabled={isFormBusy}
                   className="gap-2"
                 >
-                  {createMutation.isPending || updateMutation.isPending ? (
+                  {isFormSubmitting ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
                       Guardando...
