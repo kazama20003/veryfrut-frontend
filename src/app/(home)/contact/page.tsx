@@ -214,7 +214,7 @@ export default function ContactPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
           {[
-            { q: '¿Cuál es el tiempo de entrega?', a: 'Nuestro tiempo de entrega estándar es de 24 a 48 horas después de recibir el pedido, dependiendo de la ubicación.' },
+            { q: '¿Cuentan con factura por pedido?', a: 'Sí, contamos con un sistema de facturación integral para todos nuestros clientes facturas y guias de remisión.' },
             { q: '¿Cómo puedo realizar un pedido?', a: 'Puedes contactarnos por teléfono, correo electrónico o a través del formulario de contacto en nuestra web.' },
             { q: '¿Cuál es el pedido mínimo?', a: 'El pedido mínimo varía según el tipo de cliente y productos. Contáctanos para detalles específicos.' },
             { q: '¿Ofrecen envío gratuito?', a: 'Ofrecemos opciones de envío según el volumen del pedido. Consulta nuestras políticas de envío.' },
