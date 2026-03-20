@@ -15,15 +15,7 @@ export interface DeleteUploadResponse {
   message?: string;
 }
 
-type UploadResponseShape =
-  | UploadAsset
-  | {
-      imageUrl?: string;
-      url?: string;
-      secure_url?: string;
-      publicId?: string;
-      public_id?: string;
-    };
+type UploadResponseShape = UploadAsset | Record<string, unknown>;
 
 function extractData<T>(response: T | ApiResponse<T>) {
   if (
@@ -39,8 +31,16 @@ function extractData<T>(response: T | ApiResponse<T>) {
 }
 
 function normalizeUploadAsset(payload: UploadResponseShape | undefined): UploadAsset {
-  const url = payload?.url || payload?.imageUrl || payload?.secure_url;
-  const publicId = payload?.publicId || payload?.public_id;
+  const source = payload as Record<string, unknown> | undefined;
+  const url =
+    (typeof source?.url === 'string' && source.url) ||
+    (typeof source?.imageUrl === 'string' && source.imageUrl) ||
+    (typeof source?.secure_url === 'string' && source.secure_url) ||
+    '';
+  const publicId =
+    (typeof source?.publicId === 'string' && source.publicId) ||
+    (typeof source?.public_id === 'string' && source.public_id) ||
+    '';
 
   if (!url || !publicId) {
     throw new Error('La respuesta del upload no incluye url o publicId');
