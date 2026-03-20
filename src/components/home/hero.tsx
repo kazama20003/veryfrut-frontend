@@ -28,7 +28,7 @@ const SLIDES: Slide[] = [
   },
   {
     title: "Soluciones sostenibles",
-    description: "Adaptamos nuestros servicios de distribucion de la mejor calidad a las necesidades de nuestros clientes",
+    description: "Productos adaptados a las necesidades de consorcios gastronomicos, restaurantes, hoteles, catering y más.",
     image:
       "https://res.cloudinary.com/demzflxgq/image/upload/v1770444706/sabrina_ripke_fotografie-pumpkin-1768857_1280_xxf594.jpg",
   },
