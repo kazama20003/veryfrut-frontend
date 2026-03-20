@@ -123,7 +123,7 @@ const Hero = () => {
         })}
       </div>
 
-      <div className="absolute left-1/2 -translate-x-1/2 z-20 bottom-24 md:bottom-auto md:top-1/2 md:-translate-y-1/2 px-4">
+      <div className="absolute left-1/2 -translate-x-1/2 z-20 bottom-24 md:bottom-auto md:top-1/2 md:left-[58%] lg:left-[60%] md:-translate-y-1/2 px-4">
         <Link
           href="/users"
           className="inline-flex w-full md:w-auto bg-[#8CC63F] rounded-full shadow-lg items-center justify-center gap-2 md:gap-3 hover:bg-[#7db138] transition-colors cursor-pointer px-6 md:px-8 py-3 md:py-4 whitespace-nowrap font-semibold"

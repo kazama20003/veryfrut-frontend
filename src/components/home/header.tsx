@@ -3,27 +3,33 @@ import type React from "react"
 import { useRef, useState, useEffect } from "react"
 import { ChevronDown, X, ChevronRight } from "lucide-react"
 import Link from "next/link"
+import Image from "next/image"
 import { useRouter } from "next/navigation"
 import gsap from "gsap"
 import { NAV_ITEMS } from "@/components/home/nav-items"
+
+const LOGO_SRC =
+  "https://res.cloudinary.com/demzflxgq/image/upload/v1770449756/ChatGPT_Image_7_feb_2026_02_25_57_a_ilotbf.svg"
+
 const LogoIcon: React.FC = () => (
-  <img
-    src="https://res.cloudinary.com/demzflxgq/image/upload/v1770449756/ChatGPT_Image_7_feb_2026_02_25_57_a_ilotbf.svg"
+  <Image
+    src={LOGO_SRC}
     alt="Logo Veryfrut"
+    width={96}
+    height={56}
     className="h-12 w-auto shrink-0 sm:h-14 [filter:brightness(0)_saturate(100%)_invert(66%)_sepia(17%)_saturate(1508%)_hue-rotate(43deg)_brightness(91%)_contrast(88%)]"
   />
 )
 
-const QuoteCharacter: React.FC = () => (
-  <div className="w-9 h-9 rounded-full bg-[#1A96FF] relative overflow-hidden flex-shrink-0">
-    <div className="absolute top-[28%] left-1/2 -translate-x-1/2 w-[85%] h-[10px] bg-[#1A1A1A] rounded-sm z-10 overflow-hidden flex">
-      <div className="w-1/2 border-r border-white/5"></div>
-      <div className="w-1/2"></div>
-    </div>
-    <div className="absolute bottom-[15%] left-1/2 -translate-x-1/2 w-[20px] h-[12px] bg-[#1A1A1A] rounded-b-full overflow-hidden">
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[14px] h-[3px] bg-white rounded-b-[1px]"></div>
-      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[12px] h-[5px] bg-[#FF5C5C] rounded-t-full"></div>
-    </div>
+const ButtonLogo: React.FC<{ dark?: boolean }> = ({ dark = false }) => (
+  <div className={`flex h-9 w-9 items-center justify-center rounded-full ${dark ? "bg-white/15" : "bg-[#F3F8E8]"}`}>
+    <Image
+      src={LOGO_SRC}
+      alt="Logo Veryfrut"
+      width={22}
+      height={22}
+      className={`h-[22px] w-auto ${dark ? "brightness-0 invert" : "[filter:brightness(0)_saturate(100%)_invert(66%)_sepia(17%)_saturate(1508%)_hue-rotate(43deg)_brightness(91%)_contrast(88%)]"}`}
+    />
   </div>
 )
 
@@ -65,17 +71,21 @@ const Header: React.FC = () => {
     }
   }, [])
 
-  useEffect(() => {
-    if (isMobileMenuOpen) {
-      setOpenDropdown(null)
-    }
-  }, [isMobileMenuOpen])
-
   const clearCloseTimeout = () => {
     if (closeTimeoutRef.current) {
       window.clearTimeout(closeTimeoutRef.current)
       closeTimeoutRef.current = null
     }
+  }
+
+  const toggleMobileMenu = () => {
+    setIsMobileMenuOpen((prev) => {
+      const next = !prev
+      if (next) {
+        setOpenDropdown(null)
+      }
+      return next
+    })
   }
 
   const openDropdownMenu = (itemLabel: string) => {
@@ -126,7 +136,7 @@ const Header: React.FC = () => {
 
             {/* Mobile Menu Button */}
             <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              onClick={toggleMobileMenu}
               className="rounded-full bg-[#8CC63F] flex items-center justify-center hover:bg-[#7db138] transition-all active:scale-95 cursor-pointer flex-shrink-0 w-10 sm:w-11 h-10 sm:h-11 border-0 ml-2 lg:hidden"
               aria-label="Menu"
             >
@@ -143,7 +153,7 @@ const Header: React.FC = () => {
             <span className="text-[#1A1A1A] text-base md:text-lg lg:text-[18px] font-normal tracking-normal leading-9">
               Pedir ya
             </span>
-            <QuoteCharacter />
+            <ButtonLogo />
           </Link>
         </div>
       </nav>
@@ -160,12 +170,12 @@ const Header: React.FC = () => {
             <div className="flex p-6 gap-8">
               {/* Image Section */}
               <div className="relative w-80 h-80 flex-shrink-0 rounded-[10px] overflow-hidden">
-                <img
-                  src={
-                    NAV_ITEMS.find((item) => item.label === openDropdown)?.dropdownImage || "/placeholder.svg"
-                  }
-                  alt={NAV_ITEMS.find((item) => item.label === openDropdown)?.dropdownTitle}
-                  className="w-full h-full object-cover"
+                <Image
+                  src={NAV_ITEMS.find((item) => item.label === openDropdown)?.dropdownImage || "/placeholder.svg"}
+                  alt={NAV_ITEMS.find((item) => item.label === openDropdown)?.dropdownTitle || "Imagen de navegación"}
+                  fill
+                  sizes="320px"
+                  className="object-cover"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                 <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between">
@@ -259,7 +269,7 @@ const Header: React.FC = () => {
                 className="w-full bg-[#1A96FF] text-white rounded-[10px] py-2.5 sm:py-3.5 px-4 sm:px-6 font-bold flex items-center justify-between text-sm sm:text-base"
               >
                 <span>Pedir ya</span>
-                <QuoteCharacter />
+                <ButtonLogo dark />
               </Link>
             </div>
           </div>

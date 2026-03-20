@@ -14,7 +14,7 @@ export default function manifest(): MetadataRoute.Manifest {
     categories: ["business", "productivity"],
     icons: [
       {
-        src: "/favicon.ico",
+        src: "https://res.cloudinary.com/demzflxgq/image/upload/v1770449756/ChatGPT_Image_7_feb_2026_02_25_57_a_ilotbf.svg",
         sizes: "any",
         type: "image/x-icon",
       },
