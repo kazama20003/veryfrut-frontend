@@ -100,6 +100,12 @@ const Header: React.FC = () => {
     }, 140)
   }
 
+  const handleMobileNavigate = (href: string) => {
+    setIsMobileMenuOpen(false)
+    setOpenDropdown(null)
+    router.push(href)
+  }
+
   return (
     <div className="relative">
       <nav ref={navRef} className="fixed top-3 left-0 right-0 z-50 flex justify-center mx-auto px-3 sm:px-4 md:px-6 lg:px-40 h-auto">
@@ -232,19 +238,24 @@ const Header: React.FC = () => {
             <div className="flex flex-col gap-4 sm:gap-5">
               {NAV_ITEMS.map((item) => (
                 <div key={item.label}>
-                  <button
-                    onClick={() => {
-                      if (item.hasDropdown) {
+                  {item.hasDropdown ? (
+                    <button
+                      onClick={() => {
                         setOpenDropdown(openDropdown === item.label ? null : item.label)
-                      } else {
-                        setIsMobileMenuOpen(false)
-                      }
-                    }}
-                    className="text-base sm:text-[17px] font-semibold text-[#1A1A1A] flex justify-between items-center w-full"
-                  >
-                    {item.label}
-                    {item.hasDropdown && <ChevronDown size={18} className="text-gray-300" />}
-                  </button>
+                      }}
+                      className="text-base sm:text-[17px] font-semibold text-[#1A1A1A] flex justify-between items-center w-full"
+                    >
+                      {item.label}
+                      <ChevronDown size={18} className="text-gray-300" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleMobileNavigate(item.href)}
+                      className="text-base sm:text-[17px] font-semibold text-[#1A1A1A] flex justify-between items-center w-full text-left"
+                    >
+                      {item.label}
+                    </button>
+                  )}
                   {item.hasDropdown && openDropdown === item.label && (
                     <div className="ml-4 mt-3 space-y-2 border-l-2 border-[#8CC63F] pl-4">
                       {item.dropdownItems?.map((dropdownItem) => (
