@@ -80,7 +80,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <SidebarMenuButton size="lg" asChild>
               <a href="#">
                 <img 
-                  src="/veryfrut-logo.png" 
+                  src="https://res.cloudinary.com/demzflxgq/image/upload/v1770449756/ChatGPT_Image_7_feb_2026_02_25_57_a_ilotbf.svg" 
                   alt="Veryfrut" 
                   className="size-8 rounded-lg object-cover"
                 />

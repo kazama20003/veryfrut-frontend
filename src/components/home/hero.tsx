@@ -4,16 +4,18 @@ import React, { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
 
-const QuoteCharacter: React.FC = () => (
-  <div className="w-6 h-6 md:w-7 md:h-7 rounded-full bg-[#1A96FF] relative overflow-hidden flex-shrink-0">
-    <div className="absolute top-[28%] left-1/2 -translate-x-1/2 w-[85%] h-[6px] bg-[#1A1A1A] rounded-sm z-10 overflow-hidden flex">
-      <div className="w-1/2 border-r border-white/5" />
-      <div className="w-1/2" />
-    </div>
-    <div className="absolute bottom-[15%] left-1/2 -translate-x-1/2 w-[14px] h-[8px] bg-[#1A1A1A] rounded-b-full overflow-hidden">
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[10px] h-[2px] bg-white rounded-b-[1px]" />
-      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[9px] h-[3px] bg-[#FF5C5C] rounded-t-full" />
-    </div>
+const BUTTON_ICON_SRC =
+  "https://res.cloudinary.com/demzflxgq/image/upload/v1770449756/ChatGPT_Image_7_feb_2026_02_25_57_a_ilotbf.svg"
+
+const ButtonLogo: React.FC = () => (
+  <div className="flex h-8 w-8 md:h-9 md:w-9 items-center justify-center rounded-full bg-white/95 shadow-sm">
+    <Image
+      src={BUTTON_ICON_SRC}
+      alt="Logo Veryfrut"
+      width={22}
+      height={22}
+      className="h-[20px] md:h-[22px] w-auto [filter:brightness(0)_saturate(100%)_invert(66%)_sepia(17%)_saturate(1508%)_hue-rotate(43deg)_brightness(91%)_contrast(88%)]"
+    />
   </div>
 )
 
@@ -129,7 +131,7 @@ const Hero = () => {
           className="inline-flex w-full md:w-auto bg-[#8CC63F] rounded-full shadow-lg items-center justify-center gap-2 md:gap-3 hover:bg-[#7db138] transition-colors cursor-pointer px-6 md:px-8 py-3 md:py-4 whitespace-nowrap font-semibold"
         >
           <span className="text-white text-base md:text-lg font-normal tracking-normal leading-9">Pedir ya</span>
-          <QuoteCharacter />
+          <ButtonLogo />
         </Link>
       </div>
 
