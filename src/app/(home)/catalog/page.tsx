@@ -148,7 +148,7 @@ export default function CatalogPage() {
         ? categories
         : categories.filter((category: Category) => category.id === selectedCategory)
 
-    const mappedSections = baseCategories
+    const mappedSections: CategorySection[] = baseCategories
       .map((category: Category) => ({
         id: category.id,
         name: category.name,
