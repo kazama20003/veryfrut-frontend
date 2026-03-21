@@ -1,6 +1,7 @@
 "use client"
 
 import Image from "next/image"
+import Link from "next/link"
 import { useState } from "react"
 
 export default function LandingPage() {
@@ -46,9 +47,9 @@ export default function LandingPage() {
                       </li>
                     ))}
                   </ul>
-                  <button className="mt-4 w-full text-center text-sm font-bold text-[var(--color-lime)] hover:text-[var(--color-lime)]/80 transition-colors">
+                  <Link href="/catalog" className="mt-4 block w-full text-center text-sm font-bold text-[var(--color-lime)] hover:text-[var(--color-lime)]/80 transition-colors">
                     Ver más →
-                  </button>
+                  </Link>
                 </div>
               </div>
             ))}
