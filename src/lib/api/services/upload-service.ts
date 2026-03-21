@@ -2,6 +2,7 @@
  * Service para endpoints de uploads
  */
 
+import { AxiosError } from 'axios';
 import axiosInstance from '../client';
 import { ApiResponse } from '../types';
 
@@ -52,16 +53,64 @@ function normalizeUploadAsset(payload: UploadResponseShape | undefined): UploadA
   };
 }
 
+function extractUploadErrorMessage(error: unknown) {
+  if (error instanceof AxiosError) {
+    const responseData = error.response?.data as
+      | { message?: string | string[]; error?: string }
+      | undefined;
+
+    if (Array.isArray(responseData?.message)) {
+      return responseData.message.join(', ');
+    }
+
+    if (typeof responseData?.message === 'string' && responseData.message.trim()) {
+      return responseData.message;
+    }
+
+    if (typeof responseData?.error === 'string' && responseData.error.trim()) {
+      return responseData.error;
+    }
+  }
+
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  return 'Error al subir el archivo';
+}
+
 class UploadService {
   /**
    * Subir imagen
    */
   async upload(file: File) {
-    const formData = new FormData();
-    formData.append('file', file);
+    if (!(file instanceof File)) {
+      throw new Error('No se recibió un archivo válido para subir');
+    }
 
-    const response = await axiosInstance.post<UploadResponseShape | ApiResponse<UploadResponseShape>>('/uploads', formData);
-    return normalizeUploadAsset(extractData(response.data));
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+
+    try {
+      const response = await axiosInstance.post<UploadResponseShape | ApiResponse<UploadResponseShape>>('/uploads', formData, {
+        transformRequest: [
+          (data, headers) => {
+            if (headers && typeof headers.delete === 'function') {
+              headers.delete('Content-Type');
+            } else if (headers && typeof headers === 'object') {
+              delete headers['Content-Type'];
+              delete headers['content-type'];
+            }
+
+            return data;
+          },
+        ],
+      });
+
+      return normalizeUploadAsset(extractData(response.data));
+    } catch (error) {
+      throw new Error(extractUploadErrorMessage(error));
+    }
   }
 
   /**

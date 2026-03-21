@@ -9,7 +9,13 @@ import uploadService from '../services/upload-service';
 
 export function useUploadImageMutation() {
   return useMutation({
-    mutationFn: (file: File) => uploadService.upload(file),
+    mutationFn: async (file: File) => {
+      if (!(file instanceof File)) {
+        throw new Error('Selecciona un archivo válido antes de subirlo');
+      }
+
+      return uploadService.upload(file);
+    },
   });
 }
 
