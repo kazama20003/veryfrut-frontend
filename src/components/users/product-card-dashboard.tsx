@@ -210,13 +210,13 @@ export function ProductCardDashboard({
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* Imagen del producto */}
-      <div className="relative w-full aspect-video bg-gradient-to-br from-gray-100 to-gray-200 overflow-hidden">
+      <div className="relative w-full aspect-[4/3] overflow-hidden bg-white">
         <Image
           src={product.imageUrl || "/placeholder.svg?height=300&width=400"}
           alt={product.name}
-          className="w-full h-full object-contain p-2"
-          width={400}
-          height={300}
+          fill
+          sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, (max-width: 1280px) 33vw, 25vw"
+          className="object-contain object-center p-3"
           loading="lazy"
         />
 

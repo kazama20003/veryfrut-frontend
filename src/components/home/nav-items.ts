@@ -33,26 +33,7 @@ export const NAV_ITEMS: NavItem[] = [
       { label: "Trabaja con Nosotros", href: "/about-us#about-contact" },
     ],
   },
-  {
-    label: "Industry Sectors",
-    href: "#",
-    hasDropdown: true,
-    dropdownTitle: "Methodology",
-    dropdownImage: "https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=400&h=500&fit=crop",
-    dropdownItems: [
-      { label: "Online Bulletin Boards", href: "/online-bulletin" },
-      { label: "Taste Testing", href: "/taste-testing" },
-      { label: "Customer Intercept", href: "/customer-intercept" },
-      { label: "Mystery Shopping", href: "/mystery-shopping" },
-      { label: "UX Research", href: "/ux-research" },
-      { label: "Ethnographic Research", href: "/ethnographic" },
-      { label: "Focus Groups, Dyads & Triads", href: "/focus-groups" },
-      { label: "Central Location Testing", href: "/central-location" },
-      { label: "Online Diary", href: "/online-diary" },
-      { label: "Shop-Along", href: "/shop-along" },
-      { label: "In-depth Interviews", href: "/interviews" },
-    ],
-  },
+  { label: "Catalogo", href: "/catalog" },
   { label: "Contactanos", href: "/contact#contact-hero" },
 ]
 
