@@ -124,7 +124,14 @@ export default function Footer() {
 
             <div className="flex items-center gap-4 text-black/80 font-medium text-sm">
               <span>Desarrollado por</span>
-              <span className="font-bold">Phoenix Solutions IT</span>
+              <a
+                href="https://wa.me/51901206784"
+                target="_blank"
+                rel="noreferrer"
+                className="font-bold hover:text-black transition-colors"
+              >
+                +51901206784
+              </a>
             </div>
           </div>
         </div>
