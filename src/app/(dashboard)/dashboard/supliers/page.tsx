@@ -494,12 +494,12 @@ export default function SuppliersPage() {
             <DialogTrigger asChild>
               <Button className="bg-blue-600 hover:bg-blue-700 h-12 w-full">
                 <FileText className="h-5 w-5 mr-2" />
-                Reporte Diario por Cliente
+                Reporte General
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Generar Reporte Diario por Cliente</DialogTitle>
+                <DialogTitle>Generar Reporte General</DialogTitle>
                 <DialogDescription>
                   Selecciona el rango de fechas para generar el reporte en Excel
                 </DialogDescription>
@@ -539,12 +539,12 @@ export default function SuppliersPage() {
             <DialogTrigger asChild>
               <Button className="bg-emerald-600 hover:bg-emerald-700 h-12 w-full">
                 <FileText className="h-5 w-5 mr-2" />
-                Reporte por Producto
+                Reporte total por cliente
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Generar Reporte por Producto</DialogTitle>
+                <DialogTitle>Generar Reporte Total por Cliente</DialogTitle>
                 <DialogDescription>
                   Selecciona el rango de fechas para generar el reporte agrupado por producto
                 </DialogDescription>
