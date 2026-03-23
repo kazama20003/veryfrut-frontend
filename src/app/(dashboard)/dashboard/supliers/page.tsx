@@ -539,14 +539,14 @@ export default function SuppliersPage() {
             <DialogTrigger asChild>
               <Button className="bg-emerald-600 hover:bg-emerald-700 h-12 w-full">
                 <FileText className="h-5 w-5 mr-2" />
-                Reporte total por cliente
+                Reporte total por proveedor
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Generar Reporte Total por Cliente</DialogTitle>
+                <DialogTitle>Generar Reporte Total por Proveedor</DialogTitle>
                 <DialogDescription>
-                  Selecciona el rango de fechas para generar el reporte agrupado por producto
+                  Selecciona el rango de fechas para generar el reporte agrupado por proveedor
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
